@@ -172,11 +172,11 @@ Current sequence:
 Milestone 1 — COMPLETE (2026-08-11)
 Render and stabilize the spatial reservoir scene, camera navigation, and sphere traversal
 
-Milestone 2
-Add artifact-node focus
+Milestone 2 — COMPLETE (2026-08-11)
+Add artifact spatial identity, inspection, and selection
 
 Milestone 3
-Add artifact selection
+Scope the next interaction stage only after explicit authorization
 
 Milestone 4
 Add orb-to-symbol activation
@@ -1151,7 +1151,9 @@ The project:
 - is connected to GitHub;
 - is deployed through Vercel.
 
-**Milestone 1 was completed on 2026-08-11.**
+**Milestone 1 — Camera & Spatial Navigation was completed on 2026-08-11.**
+
+**Milestone 2 — Artifact Spatial Identity, Inspection & Selection was completed on 2026-08-11.**
 
 The repository now contains the validated initial spatial reservoir prototype:
 
@@ -1165,17 +1167,38 @@ The repository now contains the validated initial spatial reservoir prototype:
 - proximity-sensitive drag control with inner sensitivity at 20% of outer sensitivity;
 - preserved sphere orientation throughout camera-only travel.
 
-Artifact focus, selection, activation, content presentation, collections, and production interface systems have not been implemented.
+The validated Milestone 2 checkpoint adds:
+
+- artifact-colored spatial nodes;
+- radially anchored, camera-billboarded labels with shared horizon fading and backside hiding;
+- responsive label widths with a retained `MAX_LABEL_WIDTH` of `720` and a continuously looping overflow carousel;
+- isolated label rendering above the grid, glow fields, and artifact orbs;
+- a subtle, uniform white hover treatment that preserves artifact color;
+- cursor-responsive white topology inspection with a continuous three-band face field and restrained edge hierarchy;
+- artifact-colored selected topology whose visual strength remains above cursor white;
+- a press → mesh propagation → selected-depth orb sequence with upward-traveling white selected illumination;
+- deselection mesh retraction followed by downward white retreat and exact orb reset;
+- preserved click-versus-drag behavior and proximity-sensitive traversal;
+- the accepted detail-15 topology and no-directly-adjacent occupied-node rule;
+- a successful deterministic 24-node density stress test;
+- restoration of the five canonical artifacts as the default dataset;
+- a reusable development-only density harness enabled with `NEXT_PUBLIC_RESERVOIR_DENSITY_TEST=1`.
+
+Artifact activation, content presentation, collections, and production interface systems remain outside the completed M2 scope.
+
+### Deferred issue — Initial Reservoir Composition / Load Orientation
+
+Density QA confirmed that valid artifacts may be distributed across hemispheres that are not visible on initial load. Future work should determine how the initial reservoir orientation and/or content distribution can expose a meaningful visible population without breaking spatial continuity. This is a future composition question, not an M2 regression, and is deliberately not implemented at this checkpoint.
 
 ---
 
-# 50. Next Implementation Stage
+# 50. Milestone Checkpoint
 
-Milestone 1 is complete and should be treated as the stable spatial-navigation checkpoint.
+Milestone 1 is complete and remains the stable spatial-navigation checkpoint.
 
-The next implementation stage is **Milestone 2: artifact-node focus**.
+Milestone 2 is complete and should be treated as the stable artifact identity, inspection, selection, and density-QA checkpoint.
 
-Do not begin Milestone 2 without explicit authorization and a scoped interaction brief.
+Do not begin Milestone 3 without explicit authorization and a newly scoped interaction brief.
 
 Artifact activation remains a later milestone and must not be combined with node focus by default.
 

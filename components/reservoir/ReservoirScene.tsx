@@ -4,11 +4,15 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, PointerEvent, WheelEvent } from "react";
 import * as THREE from "three";
+import { reservoirDensityTestDiagnostics } from "@/content/reservoir/artifacts";
 import {
   RESERVOIR_GRID_DETAIL,
+  RESERVOIR_MIN_ARTIFACT_VERTEX_STEPS,
   RESERVOIR_NODE_RADIUS,
   RESERVOIR_RADIUS,
 } from "@/lib/reservoir/geometry";
+import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
+import type { ReservoirGridInspection } from "@/types/reservoir";
 import { ReservoirSphere } from "./ReservoirSphere";
 
 const CAMERA_FOV = 34;
@@ -29,11 +33,16 @@ const FRAME_EPSILON = 0.000001;
 const FRAME_POLE_THRESHOLD = 0.08;
 const ENDPOINT_SNAP_THRESHOLD = 0.015;
 const DIVE_TARGET_UNLOCK_PROGRESS = 0.04;
+const NODE_CLICK_MAX_TRAVEL = 6;
 
 type DragState = {
   pointerId: number;
   x: number;
   y: number;
+  startX: number;
+  startY: number;
+  maxTravelSquared: number;
+  hoverCancelled: boolean;
 };
 
 type CameraPath = {
@@ -77,8 +86,8 @@ type RetreatPath = {
   startRadialTilt: number;
   outerPlaneDistance: number;
   outerRadialTilt: number;
-  startForward: THREE.Vector3;
-  outerForward: THREE.Vector3;
+  startQuaternion: THREE.Quaternion;
+  outerQuaternion: THREE.Quaternion;
   startFocusDistance: number;
   outerFocusDistance: number;
   outerPosition: THREE.Vector3;
@@ -95,6 +104,7 @@ type TravelDirection = "inward" | "outward";
 type CameraPose = {
   position: THREE.Vector3;
   target: THREE.Vector3;
+  quaternion: THREE.Quaternion;
   progress: number;
 };
 
@@ -127,6 +137,15 @@ function getRotationDiagnostics(
   return {
     euler: [euler.x, euler.y, euler.z],
     quaternion: quaternion.toArray(),
+  };
+}
+
+function cloneCameraPose(pose: CameraPose): CameraPose {
+  return {
+    position: pose.position.clone(),
+    target: pose.target.clone(),
+    quaternion: pose.quaternion.clone(),
+    progress: pose.progress,
   };
 }
 
@@ -421,10 +440,6 @@ function getRetreatPath(
       Number.EPSILON,
     ),
   );
-  const startForward = startPose.target
-    .clone()
-    .sub(startPose.position)
-    .normalize();
   const outerForward = new THREE.Vector3();
   const outerPosition = model.sphereCenter
     .clone()
@@ -474,6 +489,36 @@ function getRetreatPath(
   const outerTarget = outerPosition
     .clone()
     .addScaledVector(outerForward, model.outerFocusDistance);
+  const outerUp = new THREE.Vector3(0, 1, 0).addScaledVector(
+    outerForward,
+    -outerForward.y,
+  );
+
+  if (outerUp.lengthSq() < FRAME_POLE_THRESHOLD ** 2) {
+    outerUp
+      .copy(frame.tangentUp)
+      .addScaledVector(
+        outerForward,
+        -frame.tangentUp.dot(outerForward),
+      );
+  }
+
+  if (outerUp.lengthSq() < FRAME_EPSILON) {
+    outerUp.set(0, 0, 1).addScaledVector(
+      outerForward,
+      -outerForward.z,
+    );
+  }
+
+  outerUp.normalize();
+  const outerLookMatrix = new THREE.Matrix4().lookAt(
+    outerPosition,
+    outerTarget,
+    outerUp,
+  );
+  const outerQuaternion = new THREE.Quaternion()
+    .setFromRotationMatrix(outerLookMatrix)
+    .normalize();
 
   return {
     startProgress: Math.max(startPose.progress, Number.EPSILON),
@@ -484,8 +529,8 @@ function getRetreatPath(
     startRadialTilt,
     outerPlaneDistance,
     outerRadialTilt: model.outerRadialTilt,
-    startForward,
-    outerForward,
+    startQuaternion: startPose.quaternion.clone().normalize(),
+    outerQuaternion,
     startFocusDistance: startPose.position.distanceTo(startPose.target),
     outerFocusDistance: model.outerFocusDistance,
     outerPosition,
@@ -606,6 +651,8 @@ function ReservoirCamera({
       currentProgress.current = targetProgress;
     }
 
+    let orientationFromRetreat = false;
+
     if (travelDirection === "outward" && retreatPath) {
       const retreatProgress = smoothstep(
         1 -
@@ -645,11 +692,16 @@ function ReservoirCamera({
           retreatPath.frame.tangentUp,
           Math.sin(radialTilt) * planeDistance,
         );
+      candidateQuaternion
+        .copy(retreatPath.startQuaternion)
+        .slerp(retreatPath.outerQuaternion, retreatProgress)
+        .normalize();
       forward
-        .copy(retreatPath.startForward)
-        .lerp(retreatPath.outerForward, retreatProgress)
+        .set(0, 0, -1)
+        .applyQuaternion(candidateQuaternion)
         .normalize();
       target.copy(position).addScaledVector(forward, focusDistance);
+      orientationFromRetreat = true;
     } else {
       const inwardProgress = clamp(
         (currentProgress.current - inwardPath.startProgress) /
@@ -720,56 +772,59 @@ function ReservoirCamera({
         clearanceOffset,
       );
       direction.copy(target).sub(position);
+      orientationFromRetreat = false;
     }
 
     direction.normalize();
-    frameRight
-      .copy(orientationFrame.tangentRight)
-      .addScaledVector(
-        direction,
-        -orientationFrame.tangentRight.dot(direction),
-      );
+    if (!orientationFromRetreat) {
+      frameRight
+        .copy(orientationFrame.tangentRight)
+        .addScaledVector(
+          direction,
+          -orientationFrame.tangentRight.dot(direction),
+        );
 
-    if (frameRight.lengthSq() < FRAME_EPSILON) {
-      frameRight.set(1, 0, 0).addScaledVector(direction, -direction.x);
-    }
-
-    if (frameRight.lengthSq() < FRAME_EPSILON) {
-      frameRight.set(0, 0, 1).addScaledVector(direction, -direction.z);
-    }
-
-    frameRight.normalize();
-    frameUp.copy(direction).negate().cross(frameRight).normalize();
-    worldUpCandidate
-      .set(0, 1, 0)
-      .addScaledVector(direction, -direction.y);
-
-    if (worldUpCandidate.lengthSq() >= FRAME_POLE_THRESHOLD ** 2) {
-      worldUpCandidate.normalize();
-      if (frameUp.dot(worldUpCandidate) < 0) {
-        frameRight.negate();
-        frameUp.negate();
+      if (frameRight.lengthSq() < FRAME_EPSILON) {
+        frameRight.set(1, 0, 0).addScaledVector(direction, -direction.x);
       }
 
-      const worldUpWeight = smoothstep(
-        clamp(
-          (Math.sqrt(Math.max(0, 1 - direction.y ** 2)) -
-            FRAME_POLE_THRESHOLD) /
-            FRAME_POLE_THRESHOLD,
-          0,
-          1,
-        ),
-      );
-      stableUp
-        .copy(frameUp)
-        .lerp(worldUpCandidate, worldUpWeight)
-        .normalize();
-    } else {
-      stableUp.copy(frameUp);
-    }
+      if (frameRight.lengthSq() < FRAME_EPSILON) {
+        frameRight.set(0, 0, 1).addScaledVector(direction, -direction.z);
+      }
 
-    lookMatrix.lookAt(position, target, stableUp);
-    candidateQuaternion.setFromRotationMatrix(lookMatrix).normalize();
+      frameRight.normalize();
+      frameUp.copy(direction).negate().cross(frameRight).normalize();
+      worldUpCandidate
+        .set(0, 1, 0)
+        .addScaledVector(direction, -direction.y);
+
+      if (worldUpCandidate.lengthSq() >= FRAME_POLE_THRESHOLD ** 2) {
+        worldUpCandidate.normalize();
+        if (frameUp.dot(worldUpCandidate) < 0) {
+          frameRight.negate();
+          frameUp.negate();
+        }
+
+        const worldUpWeight = smoothstep(
+          clamp(
+            (Math.sqrt(Math.max(0, 1 - direction.y ** 2)) -
+              FRAME_POLE_THRESHOLD) /
+              FRAME_POLE_THRESHOLD,
+            0,
+            1,
+          ),
+        );
+        stableUp
+          .copy(frameUp)
+          .lerp(worldUpCandidate, worldUpWeight)
+          .normalize();
+      } else {
+        stableUp.copy(frameUp);
+      }
+
+      lookMatrix.lookAt(position, target, stableUp);
+      candidateQuaternion.setFromRotationMatrix(lookMatrix).normalize();
+    }
     const hasValidOrientation =
       candidateQuaternion
         .toArray()
@@ -786,6 +841,7 @@ function ReservoirCamera({
       cameraPoseRef.current = {
         position: new THREE.Vector3(),
         target: new THREE.Vector3(),
+        quaternion: new THREE.Quaternion(),
         progress: currentProgress.current,
       };
     }
@@ -793,6 +849,7 @@ function ReservoirCamera({
     if (hasValidOrientation) {
       cameraPoseRef.current.position.copy(position);
       cameraPoseRef.current.target.copy(target);
+      cameraPoseRef.current.quaternion.copy(candidateQuaternion);
       cameraPoseRef.current.progress = currentProgress.current;
     }
 
@@ -845,10 +902,21 @@ export function ReservoirScene() {
     source: "default",
   });
   const [isDiveTargetLocked, setIsDiveTargetLocked] = useState(false);
+  const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(
+    null,
+  );
+  const [hoveredArtifactId, setHoveredArtifactId] = useState<string | null>(
+    null,
+  );
   const interaction = useRef<HTMLDivElement>(null);
   const drag = useRef<DragState | null>(null);
   const sphereRotationRef = useRef<THREE.Group | null>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
+  const gridInspectionRef = useRef<ReservoirGridInspection>({
+    active: false,
+    revision: 0,
+    worldPoint: new THREE.Vector3(),
+  });
   const cameraProgressRef = useRef(0);
   const travelDirectionRef = useRef<TravelDirection>("inward");
   const cameraPoseRef = useRef<CameraPose | null>(null);
@@ -856,6 +924,7 @@ export function ReservoirScene() {
   const diveTargetLockedRef = useRef(false);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const surfaceRef = useRef<THREE.Mesh | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const pointerNdc = useMemo(() => new THREE.Vector2(), []);
   const cameraWorldQuaternion = useMemo(() => new THREE.Quaternion(), []);
@@ -955,27 +1024,69 @@ export function ReservoirScene() {
   const activeOuterTarget =
     retreatCameraPath?.outerTarget ?? canonicalOuterTarget;
 
-  function captureDiveSurfacePoint() {
+  function getSurfaceIntersection(clientX: number, clientY: number) {
     const element = interaction.current;
     const activeCamera = cameraRef.current;
     const surface = surfaceRef.current;
-    const pointerPosition = pointer.current;
 
-    if (!element || !activeCamera || !surface || !pointerPosition) {
+    if (!element || !activeCamera || !surface) {
       return null;
     }
 
     const bounds = element.getBoundingClientRect();
     pointerNdc.set(
-      ((pointerPosition.x - bounds.left) / bounds.width) * 2 - 1,
-      -((pointerPosition.y - bounds.top) / bounds.height) * 2 + 1,
+      ((clientX - bounds.left) / bounds.width) * 2 - 1,
+      -((clientY - bounds.top) / bounds.height) * 2 + 1,
     );
 
     activeCamera.updateMatrixWorld();
     surface.updateWorldMatrix(true, false);
     raycaster.setFromCamera(pointerNdc, activeCamera);
 
-    return raycaster.intersectObject(surface, false)[0]?.point.clone() ?? null;
+    return raycaster.intersectObject(surface, false)[0]?.point ?? null;
+  }
+
+  function updateGridInspection(clientX: number, clientY: number) {
+    const intersection = getSurfaceIntersection(clientX, clientY);
+    const inspection = gridInspectionRef.current;
+
+    inspection.active = Boolean(intersection);
+    if (intersection) inspection.worldPoint.copy(intersection);
+    inspection.revision += 1;
+
+    if (interaction.current) {
+      interaction.current.dataset.gridInspectionActive = String(
+        inspection.active,
+      );
+      interaction.current.dataset.gridInspectionPoint = intersection
+        ? intersection
+            .toArray()
+            .map((value) => value.toFixed(6))
+            .join(",")
+        : "";
+    }
+  }
+
+  function clearGridInspection() {
+    const inspection = gridInspectionRef.current;
+    if (inspection.active) {
+      inspection.active = false;
+      inspection.revision += 1;
+    }
+    if (interaction.current) {
+      interaction.current.dataset.gridInspectionActive = "false";
+      interaction.current.dataset.gridInspectionPoint = "";
+    }
+  }
+
+  function captureDiveSurfacePoint() {
+    const pointerPosition = pointer.current;
+    if (!pointerPosition) return null;
+
+    return getSurfaceIntersection(
+      pointerPosition.x,
+      pointerPosition.y,
+    )?.clone() ?? null;
   }
 
   function beginDrag(event: PointerEvent<HTMLDivElement>) {
@@ -987,11 +1098,16 @@ export function ReservoirScene() {
     }
 
     pointer.current = { x: event.clientX, y: event.clientY };
+    clearGridInspection();
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      maxTravelSquared: 0,
+      hoverCancelled: false,
     };
     setIsDragging(true);
   }
@@ -1002,6 +1118,11 @@ export function ReservoirScene() {
     const origin = drag.current;
     const rotationGroup = sphereRotationRef.current;
     const activeCamera = cameraRef.current;
+    if (!origin) {
+      updateGridInspection(event.clientX, event.clientY);
+    } else {
+      clearGridInspection();
+    }
     if (
       !origin ||
       origin.pointerId !== event.pointerId ||
@@ -1013,6 +1134,19 @@ export function ReservoirScene() {
 
     const pointerDeltaX = event.clientX - origin.x;
     const pointerDeltaY = event.clientY - origin.y;
+    const totalTravelX = event.clientX - origin.startX;
+    const totalTravelY = event.clientY - origin.startY;
+    origin.maxTravelSquared = Math.max(
+      origin.maxTravelSquared,
+      totalTravelX ** 2 + totalTravelY ** 2,
+    );
+    if (
+      !origin.hoverCancelled &&
+      origin.maxTravelSquared > NODE_CLICK_MAX_TRAVEL ** 2
+    ) {
+      origin.hoverCancelled = true;
+      setHoveredArtifactId(null);
+    }
     const renderedCameraProgress =
       cameraPoseRef.current?.progress ?? cameraProgressRef.current;
     const dragSensitivity = getDragSensitivity(renderedCameraProgress);
@@ -1056,14 +1190,61 @@ export function ReservoirScene() {
     }
   }
 
-  function endDrag(event: PointerEvent<HTMLDivElement>) {
+  function pickArtifact(clientX: number, clientY: number) {
+    const element = interaction.current;
+    const camera = cameraRef.current;
+    const scene = sceneRef.current;
+    const surface = surfaceRef.current;
+    if (!element || !camera || !scene || !surface) return null;
+
+    const bounds = element.getBoundingClientRect();
+    pointerNdc.set(
+      ((clientX - bounds.left) / bounds.width) * 2 - 1,
+      -((clientY - bounds.top) / bounds.height) * 2 + 1,
+    );
+    camera.updateMatrixWorld();
+    scene.updateMatrixWorld(true);
+    raycaster.setFromCamera(pointerNdc, camera);
+
+    const surfaceDistance =
+      raycaster.intersectObject(surface, false)[0]?.distance ??
+      Number.POSITIVE_INFINITY;
+    const artifactHit = raycaster
+      .intersectObjects(scene.children, true)
+      .find(
+        (hit) =>
+          typeof hit.object.userData.artifactId === "string" &&
+          hit.distance <= surfaceDistance + RESERVOIR_NODE_RADIUS,
+      );
+
+    return (
+      (artifactHit?.object.userData.artifactId as string | undefined) ?? null
+    );
+  }
+
+  function endDrag(
+    event: PointerEvent<HTMLDivElement>,
+    allowSelection = true,
+  ) {
     if (drag.current?.pointerId !== event.pointerId) return;
+
+    const completedDrag = drag.current;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     drag.current = null;
     setIsDragging(false);
+    updateGridInspection(event.clientX, event.clientY);
+
+    if (
+      allowSelection &&
+      completedDrag.maxTravelSquared <= NODE_CLICK_MAX_TRAVEL ** 2
+    ) {
+      setSelectedArtifactId(
+        pickArtifact(event.clientX, event.clientY),
+      );
+    }
   }
 
   function handleLostPointerCapture(event: PointerEvent<HTMLDivElement>) {
@@ -1071,15 +1252,18 @@ export function ReservoirScene() {
 
     drag.current = null;
     setIsDragging(false);
+    clearGridInspection();
   }
 
   function clearPointer() {
     if (!drag.current) pointer.current = null;
+    clearGridInspection();
   }
 
   function updateCameraTravel(event: WheelEvent<HTMLDivElement>) {
     event.preventDefault();
     pointer.current = { x: event.clientX, y: event.clientY };
+    clearGridInspection();
     const deltaScale =
       event.deltaMode === 1
         ? 16
@@ -1141,11 +1325,7 @@ export function ReservoirScene() {
         }
         setRetreatOrigin(null);
         if (currentPose) {
-          setDiveOrigin({
-            position: currentPose.position.clone(),
-            target: currentPose.target.clone(),
-            progress: currentPose.progress,
-          });
+          setDiveOrigin(cloneCameraPose(currentPose));
         }
         setDiveTarget({
           point: hasValidProposedFrame ? inspectionPoint.toArray() : null,
@@ -1153,11 +1333,7 @@ export function ReservoirScene() {
         });
       } else if (wasTravelingOutward && cameraPoseRef.current) {
         const currentPose = cameraPoseRef.current;
-        setDiveOrigin({
-          position: currentPose.position.clone(),
-          target: currentPose.target.clone(),
-          progress: currentPose.progress,
-        });
+        setDiveOrigin(cloneCameraPose(currentPose));
       }
     }
 
@@ -1166,11 +1342,7 @@ export function ReservoirScene() {
         const currentPose = cameraPoseRef.current;
 
         if (currentPose) {
-          setRetreatOrigin({
-            position: currentPose.position.clone(),
-            target: currentPose.target.clone(),
-            progress: currentPose.progress,
-          });
+          setRetreatOrigin(cloneCameraPose(currentPose));
         }
         travelDirectionRef.current = "outward";
         setTravelDirection("outward");
@@ -1190,6 +1362,13 @@ export function ReservoirScene() {
     setCameraProgress(nextProgress);
   }
 
+  function updateArtifactHover(artifactId: string, hovered: boolean) {
+    setHoveredArtifactId((currentArtifactId) => {
+      if (hovered) return artifactId;
+      return currentArtifactId === artifactId ? null : currentArtifactId;
+    });
+  }
+
   return (
     <div
       ref={interaction}
@@ -1205,7 +1384,22 @@ export function ReservoirScene() {
       data-dive-target-locked={isDiveTargetLocked}
       data-dive-target-source={diveTarget.source}
       data-grid-detail={RESERVOIR_GRID_DETAIL}
+      data-min-artifact-vertex-steps={RESERVOIR_MIN_ARTIFACT_VERTEX_STEPS}
       data-node-radius={RESERVOIR_NODE_RADIUS}
+      data-density-test-mode={reservoirDensityTestDiagnostics.enabled}
+      data-artifact-count={reservoirDensityTestDiagnostics.artifactCount}
+      data-temporary-artifact-count={
+        reservoirDensityTestDiagnostics.temporaryArtifactCount
+      }
+      data-artifact-vertex-ids={
+        reservoirDensityTestDiagnostics.artifactVertexIds.join(",")
+      }
+      data-adjacent-artifact-pairs={
+        reservoirDensityTestDiagnostics.adjacentArtifactPairs.join(",")
+      }
+      data-selected-artifact={selectedArtifactId ?? ""}
+      data-hovered-artifact={hoveredArtifactId ?? ""}
+      data-node-click-max-travel={NODE_CLICK_MAX_TRAVEL}
       data-outer-drag-sensitivity={OUTER_DRAG_SENSITIVITY.toFixed(7)}
       data-inner-drag-sensitivity={INNER_DRAG_SENSITIVITY.toFixed(7)}
       data-outer-camera-position={activeOuterPosition
@@ -1283,7 +1477,7 @@ export function ReservoirScene() {
       onPointerMove={updatePointer}
       onPointerLeave={clearPointer}
       onPointerUp={endDrag}
-      onPointerCancel={endDrag}
+      onPointerCancel={(event) => endDrag(event, false)}
       onLostPointerCapture={handleLostPointerCapture}
       onWheel={updateCameraTravel}
     >
@@ -1295,13 +1489,14 @@ export function ReservoirScene() {
           near: 0.08,
           far: 40,
         }}
-        onCreated={({ camera }) => {
+        onCreated={({ camera, scene }) => {
           cameraRef.current = camera as THREE.PerspectiveCamera;
+          sceneRef.current = scene;
         }}
         gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
         scene={{ background: undefined }}
       >
-        <color attach="background" args={["#deddd6"]} />
+        <color attach="background" args={[RESERVOIR_THEME.environment]} />
         <ReservoirCamera
           inwardPath={inwardCameraPath}
           retreatPath={retreatCameraPath}
@@ -1318,7 +1513,13 @@ export function ReservoirScene() {
         <directionalLight position={[5, -3, 4]} intensity={0.45} />
         <group position={[0, sphereCenterWorldY, 0]}>
           <group ref={sphereRotationRef}>
-            <ReservoirSphere surfaceRef={surfaceRef} />
+            <ReservoirSphere
+              surfaceRef={surfaceRef}
+              selectedArtifactId={selectedArtifactId}
+              hoveredArtifactId={hoveredArtifactId}
+              gridInspectionRef={gridInspectionRef}
+              onArtifactHoverChange={updateArtifactHover}
+            />
           </group>
         </group>
       </Canvas>

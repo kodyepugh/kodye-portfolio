@@ -1,5 +1,5 @@
 import { ReservoirScene } from "@/components/reservoir/ReservoirScene";
-import { reservoirArtifacts } from "@/content/reservoir/artifacts";
+import { activeReservoirArtifacts } from "@/content/reservoir/artifacts";
 
 export default function Home() {
   return (
@@ -18,10 +18,15 @@ export default function Home() {
 
       <section className="sr-only" aria-label="Reservoir artifacts">
         <h1>Digital Reservoir spatial study</h1>
-        <p>An interactive sphere containing five placeholder artifacts.</p>
+        <p>
+          An interactive sphere containing {activeReservoirArtifacts.length}{" "}
+          placeholder artifacts.
+        </p>
         <ul>
-          {reservoirArtifacts.map((artifact) => (
-            <li key={artifact.id}>{artifact.title}</li>
+          {activeReservoirArtifacts.map((artifact) => (
+            <li key={artifact.id}>
+              {artifact.type}: {artifact.title}
+            </li>
           ))}
         </ul>
       </section>

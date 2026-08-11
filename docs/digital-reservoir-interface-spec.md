@@ -2722,11 +2722,34 @@ The completed milestone establishes:
 
 The milestone intentionally excludes artifact focus, selection, activation, content windows, collections, menus, footers, search, filtering, and production styling.
 
-### Ready for next stage
+### Prototype Milestone 2 complete — 2026-08-11
 
-The spatial-navigation foundation is sufficiently stable to begin **Milestone 2: artifact-node focus** when explicitly authorized.
+**Milestone 1 — Camera & Spatial Navigation: COMPLETE**
 
-Do not combine node focus with artifact selection or activation unless a future milestone brief explicitly expands that scope.
+**Milestone 2 — Artifact Spatial Identity, Inspection & Selection: COMPLETE**
+
+The approved Milestone 2 checkpoint establishes:
+
+- artifact-colored spatial nodes on the accepted detail-15 reservoir topology;
+- a no-directly-adjacent occupied-node spacing rule;
+- radially anchored, camera-billboarded labels with coherent horizon fading and backside hiding;
+- responsive label widths, a retained `MAX_LABEL_WIDTH` of `720`, and seamless continuous overflow-title looping;
+- label render isolation above grid lines, cursor and selected glows, and artifact orbs;
+- subtle uniform white hover treatment with selected state taking priority;
+- cursor-responsive white topology inspection;
+- stronger artifact-colored selected topology that dominates cursor white;
+- an accepted selection sequence of orb press → outward mesh propagation → selected-depth orb with upward white selected illumination;
+- an accepted deselection sequence of inward mesh retraction → downward white retreat → resting orb reset;
+- preserved click-versus-drag interaction and camera/traversal behavior;
+- successful deterministic density QA with 24 active nodes and no adjacent occupied detail-15 vertices;
+- the five canonical artifacts restored as the production-facing default;
+- a retained development-only density harness enabled by `NEXT_PUBLIC_RESERVOIR_DENSITY_TEST=1`.
+
+### Deferred issue — Initial Reservoir Composition / Load Orientation
+
+Dense artifacts can be correctly distributed across hemispheres that are unseen on initial load. Future work should determine how initial orientation and/or artifact distribution should expose a meaningful visible population without breaking spatial continuity. No load-orientation or distribution behavior is implemented as part of this checkpoint.
+
+Milestone 3 has not begun and requires a separately authorized scope.
 
 ---
 
