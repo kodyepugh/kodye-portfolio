@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #deddd6;
+  --foreground: #242620;
 }
 
 @theme inline {
@@ -12,15 +12,95 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), monospace;
+  overscroll-behavior: none;
 }
 
 body {
+  overflow: hidden;
+}
+
+button,
+canvas {
+  font: inherit;
+}
+
+.reservoir-study {
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  overflow: hidden;
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+.reservoir-interaction {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.reservoir-interaction[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.reservoir-interaction canvas {
+  display: block;
+}
+
+.study-label,
+.interaction-note {
+  position: absolute;
+  z-index: 1;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  color: rgba(36, 38, 32, 0.72);
+  font-size: 10px;
+  font-weight: 540;
+  letter-spacing: 0.13em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.study-label {
+  top: 20px;
+}
+
+.interaction-note {
+  bottom: 20px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .study-label,
+  .interaction-note {
+    left: 16px;
+    right: 16px;
+  }
 }
