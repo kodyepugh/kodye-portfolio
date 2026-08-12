@@ -50,6 +50,12 @@ export type ReservoirGridSelectionMask = {
   edgeKeys: ReadonlySet<string>;
 };
 
+export type ReservoirShockwaveGeometry = {
+  edgeGeometry: THREE.BufferGeometry;
+  faceGeometry: THREE.BufferGeometry;
+  maximumGraphDistance: number;
+};
+
 let cachedGridTopology: ReservoirGridTopology | null = null;
 let cachedPlacementNeighbors: Array<Set<number>> | null = null;
 const cachedInspectionNeighborhoods = new Map<
@@ -576,6 +582,113 @@ export function findReservoirGridVertexId(placementVertexId: number) {
 
 export function getReservoirGridNeighborIds(gridVertexId: number) {
   return [...(getReservoirGridTopology().neighbors[gridVertexId] ?? [])];
+}
+
+export function getReservoirGridGraphDistances(
+  placementVertexId: number,
+) {
+  const sourceVertexId = findReservoirGridVertexId(placementVertexId);
+  const topology = getReservoirGridTopology();
+  const distances = new Map<number, number>();
+  if (sourceVertexId === null) return distances;
+
+  distances.set(sourceVertexId, 0);
+  const queue = [sourceVertexId];
+
+  for (let queueIndex = 0; queueIndex < queue.length; queueIndex += 1) {
+    const vertexId = queue[queueIndex];
+    const nextDistance = (distances.get(vertexId) ?? 0) + 1;
+
+    for (const neighborId of topology.neighbors[vertexId]) {
+      if (distances.has(neighborId)) continue;
+      distances.set(neighborId, nextDistance);
+      queue.push(neighborId);
+    }
+  }
+
+  return distances;
+}
+
+export function getReservoirPlacementGraphDistance(
+  sourcePlacementVertexId: number,
+  targetPlacementVertexId: number,
+) {
+  const targetVertexId = findReservoirGridVertexId(targetPlacementVertexId);
+  if (targetVertexId === null) return null;
+
+  return (
+    getReservoirGridGraphDistances(sourcePlacementVertexId).get(
+      targetVertexId,
+    ) ?? null
+  );
+}
+
+export function createReservoirShockwaveGeometry(
+  placementVertexId: number,
+): ReservoirShockwaveGeometry | null {
+  const topology = getReservoirGridTopology();
+  const distances = getReservoirGridGraphDistances(placementVertexId);
+  if (distances.size === 0) return null;
+
+  const facePoints: THREE.Vector3[] = [];
+  const faceDistances: number[] = [];
+  const edgePoints: THREE.Vector3[] = [];
+  const edgeDistances: number[] = [];
+  const claimedEdgeKeys = new Set<string>();
+  const faceRadius = RESERVOIR_RADIUS * 1.00125;
+  const edgeRadius = RESERVOIR_RADIUS * 1.003;
+
+  for (const face of topology.faces) {
+    for (const vertexId of face) {
+      facePoints.push(
+        topology.vertices[vertexId]
+          .clone()
+          .normalize()
+          .multiplyScalar(faceRadius),
+      );
+      faceDistances.push(distances.get(vertexId) ?? 0);
+    }
+
+    for (let index = 0; index < 3; index += 1) {
+      const startId = face[index];
+      const endId = face[(index + 1) % 3];
+      const edgeKey = getGridEdgeKey(startId, endId);
+      if (claimedEdgeKeys.has(edgeKey)) continue;
+      claimedEdgeKeys.add(edgeKey);
+
+      edgePoints.push(
+        topology.vertices[startId]
+          .clone()
+          .normalize()
+          .multiplyScalar(edgeRadius),
+        topology.vertices[endId]
+          .clone()
+          .normalize()
+          .multiplyScalar(edgeRadius),
+      );
+      edgeDistances.push(
+        distances.get(startId) ?? 0,
+        distances.get(endId) ?? 0,
+      );
+    }
+  }
+
+  const faceGeometry = new THREE.BufferGeometry().setFromPoints(facePoints);
+  faceGeometry.setAttribute(
+    "surfaceDistance",
+    new THREE.Float32BufferAttribute(faceDistances, 1),
+  );
+  const edgeGeometry = new THREE.BufferGeometry().setFromPoints(edgePoints);
+  edgeGeometry.setAttribute(
+    "surfaceDistance",
+    new THREE.Float32BufferAttribute(edgeDistances, 1),
+  );
+
+  return {
+    faceGeometry,
+    edgeGeometry,
+    maximumGraphDistance: Math.max(...distances.values()),
+  };
 }
 
 export function getReservoirGridSelectionMask(

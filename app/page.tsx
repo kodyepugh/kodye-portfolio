@@ -1,15 +1,13 @@
+import { BrandSymbol } from "@/components/navigation/BrandSymbol";
 import { ReservoirScene } from "@/components/reservoir/ReservoirScene";
 import { activeReservoirArtifacts } from "@/content/reservoir/artifacts";
 
 export default function Home() {
   return (
     <main className="reservoir-study">
-      <header className="study-label" aria-hidden="true">
-        <span>Digital Reservoir</span>
-        <span>Spatial study / 01</span>
-      </header>
-
       <ReservoirScene />
+
+      <BrandSymbol />
 
       <div className="interaction-note" aria-hidden="true">
         <span>Drag to traverse</span>

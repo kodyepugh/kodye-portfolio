@@ -1,4 +1,7 @@
-import type { ReservoirArtifact } from "@/types/reservoir";
+import type {
+  PreparedArtifactContent,
+  ReservoirArtifact,
+} from "@/types/reservoir";
 import {
   findReservoirGridVertexId,
   getReservoirGridNeighborIds,
@@ -16,6 +19,10 @@ export const reservoirArtifacts = [
     id: "artifact-01",
     type: "Field Note",
     title: "Low Tide",
+    subtitle: "Observations from the exposed shoreline",
+    date: "2025",
+    context: "Field Studies / Water",
+    medium: "Text and photographs",
     color: "#b9573f",
     vertexId: 34,
   },
@@ -23,6 +30,10 @@ export const reservoirArtifacts = [
     id: "artifact-02",
     type: "Case Study",
     title: "Bellabeat Wellness Analysis",
+    subtitle: "Patterns in everyday activity and rest",
+    date: "2024",
+    context: "Data / Wellness",
+    medium: "Data analysis",
     color: "#28758c",
     vertexId: 64,
   },
@@ -30,6 +41,10 @@ export const reservoirArtifacts = [
     id: "artifact-03",
     type: "Moving Image",
     title: "The Distance Between Memory and the Shape of a Place",
+    subtitle: "A study in landscape, recall, and distance",
+    date: "2023",
+    context: "Memory / Place",
+    medium: "Single-channel video",
     color: "#6e5890",
     vertexId: 96,
   },
@@ -37,6 +52,10 @@ export const reservoirArtifacts = [
     id: "artifact-04",
     type: "Web Experiment",
     title: "A Small Interface for Things That Refuse to Be Categorized",
+    subtitle: "A navigational study in unstable taxonomies",
+    date: "2025",
+    context: "Interfaces / Classification",
+    medium: "Interactive website",
     color: "#3d8062",
     vertexId: 114,
   },
@@ -44,6 +63,10 @@ export const reservoirArtifacts = [
     id: "artifact-05",
     type: "Photo Essay",
     title: "After the Last Train",
+    subtitle: "Night studies from the end of the line",
+    date: "2022–2024",
+    context: "Transit / Nocturnes",
+    medium: "Digital photography",
     color: "#a77a24",
     vertexId: 134,
   },
@@ -272,6 +295,30 @@ const densityTestArtifacts = reservoirDensityTestMode
 export const activeReservoirArtifacts = reservoirDensityTestMode
   ? [...reservoirArtifacts, ...densityTestArtifacts]
   : reservoirArtifacts;
+
+export function prepareReservoirArtifactContent(
+  artifact: ReservoirArtifact,
+): PreparedArtifactContent {
+  const details = [
+    { label: "Date", value: artifact.date },
+    { label: "Context", value: artifact.context },
+    { label: "Medium", value: artifact.medium },
+  ].filter(
+    (detail): detail is { label: string; value: string } =>
+      Boolean(detail.value),
+  );
+
+  return {
+    artifactId: artifact.id,
+    type: artifact.type,
+    title: artifact.title,
+    subtitle: artifact.subtitle,
+    details,
+    placeholderBody:
+      artifact.subtitle ??
+      `A prototype ${artifact.type.toLowerCase()} from the Digital Reservoir.`,
+  };
+}
 
 export const reservoirDensityTestDiagnostics = {
   enabled: reservoirDensityTestMode,

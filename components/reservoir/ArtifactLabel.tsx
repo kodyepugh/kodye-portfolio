@@ -32,7 +32,6 @@ type ArtifactLabelProps = {
   nodeRef: RefObject<THREE.Group | null>;
   sphereRef: RefObject<THREE.Group | null>;
   position: THREE.Vector3;
-  selected: boolean;
   selectionActive: boolean;
   hovered: boolean;
   onPointerEnter: () => void;
@@ -105,7 +104,6 @@ export function ArtifactLabel({
   nodeRef,
   sphereRef,
   position,
-  selected,
   selectionActive,
   hovered,
   onPointerEnter,
@@ -200,8 +198,7 @@ export function ArtifactLabel({
 
     const facing = surfaceNormal.current.dot(referenceViewDirection.current);
     const isFrontFacing = facing > LABEL_FRONT_FACING_THRESHOLD;
-    const eligible =
-      isFrontFacing && (!selectionActive || selected);
+    const eligible = isFrontFacing && !selectionActive;
     const targetOpacity = eligible ? 1 : 0;
     material.opacity = THREE.MathUtils.damp(
       material.opacity,

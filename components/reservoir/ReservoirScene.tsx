@@ -1,18 +1,44 @@
 "use client";
 
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { MutableRefObject, PointerEvent, WheelEvent } from "react";
 import * as THREE from "three";
-import { reservoirDensityTestDiagnostics } from "@/content/reservoir/artifacts";
 import {
+  activeReservoirArtifacts,
+  prepareReservoirArtifactContent,
+  reservoirDensityTestDiagnostics,
+} from "@/content/reservoir/artifacts";
+import {
+  getReservoirPlacementGraphDistance,
   RESERVOIR_GRID_DETAIL,
   RESERVOIR_MIN_ARTIFACT_VERTEX_STEPS,
   RESERVOIR_NODE_RADIUS,
   RESERVOIR_RADIUS,
 } from "@/lib/reservoir/geometry";
 import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
-import type { ReservoirGridInspection } from "@/types/reservoir";
+import {
+  getOpeningCameraDelay,
+  getOpeningDuration,
+} from "@/lib/reservoir/opening";
+import {
+  getArtifactWindowRetractDuration,
+  getReservoirRestoreDuration,
+  getReservoirRestoreProgress,
+} from "@/lib/reservoir/reading";
+import type {
+  PreparedArtifactContent,
+  ReservoirGridInspection,
+} from "@/types/reservoir";
+import { AtmosphereContent } from "./AtmosphereContent";
+import { ArtifactWindow } from "./ArtifactWindow";
 import { ReservoirSphere } from "./ReservoirSphere";
 
 const CAMERA_FOV = 34;
@@ -34,6 +60,7 @@ const FRAME_POLE_THRESHOLD = 0.08;
 const ENDPOINT_SNAP_THRESHOLD = 0.015;
 const DIVE_TARGET_UNLOCK_PROGRESS = 0.04;
 const NODE_CLICK_MAX_TRAVEL = 6;
+const ARTIFACT_WINDOW_ATMOSPHERE_GAP = 16;
 
 type DragState = {
   pointerId: number;
@@ -100,6 +127,48 @@ type DiveTarget = {
 };
 
 type TravelDirection = "inward" | "outward";
+type ReservoirTransitionState =
+  | "idle"
+  | "openingArtifact"
+  | "deployingArtifact"
+  | "readingArtifact"
+  | "closingArtifact"
+  | "restoringArtifact";
+
+type VectorTuple = [number, number, number];
+type QuaternionTuple = [number, number, number, number];
+
+type PreservedReservoirState = {
+  artifactId: string;
+  sphereQuaternion: QuaternionTuple;
+  cameraPosition: VectorTuple;
+  cameraTarget: VectorTuple;
+  cameraQuaternion: QuaternionTuple;
+  cameraProgress: number;
+  cameraTargetProgress: number;
+  travelDirection: TravelDirection;
+  diveTarget: DiveTarget;
+  diveTargetLocked: boolean;
+  inspectionFrame: {
+    normal: VectorTuple;
+    tangentUp: VectorTuple;
+    tangentRight: VectorTuple;
+  } | null;
+  lastInspectionFrame: {
+    normal: VectorTuple;
+    tangentUp: VectorTuple;
+    tangentRight: VectorTuple;
+  } | null;
+  diveOrigin: PreservedCameraPose | null;
+  retreatOrigin: PreservedCameraPose | null;
+};
+
+type PreservedCameraPose = {
+  position: VectorTuple;
+  target: VectorTuple;
+  quaternion: QuaternionTuple;
+  progress: number;
+};
 
 type CameraPose = {
   position: THREE.Vector3;
@@ -146,6 +215,58 @@ function cloneCameraPose(pose: CameraPose): CameraPose {
     target: pose.target.clone(),
     quaternion: pose.quaternion.clone(),
     progress: pose.progress,
+  };
+}
+
+function toVectorTuple(vector: THREE.Vector3): VectorTuple {
+  return [vector.x, vector.y, vector.z];
+}
+
+function toQuaternionTuple(quaternion: THREE.Quaternion): QuaternionTuple {
+  return [quaternion.x, quaternion.y, quaternion.z, quaternion.w];
+}
+
+function preserveCameraPose(pose: CameraPose | null): PreservedCameraPose | null {
+  if (!pose) return null;
+
+  return {
+    position: toVectorTuple(pose.position),
+    target: toVectorTuple(pose.target),
+    quaternion: toQuaternionTuple(pose.quaternion),
+    progress: pose.progress,
+  };
+}
+
+function restoreCameraPose(pose: PreservedCameraPose | null) {
+  if (!pose) return null;
+
+  return {
+    position: new THREE.Vector3(...pose.position),
+    target: new THREE.Vector3(...pose.target),
+    quaternion: new THREE.Quaternion(...pose.quaternion),
+    progress: pose.progress,
+  };
+}
+
+function preserveLocalSurfaceFrame(frame: LocalSurfaceFrame | null) {
+  if (!frame) return null;
+
+  return {
+    normal: toVectorTuple(frame.normal),
+    tangentUp: toVectorTuple(frame.tangentUp),
+    tangentRight: toVectorTuple(frame.tangentRight),
+  };
+}
+
+function restoreLocalSurfaceFrame(
+  frame: PreservedReservoirState["inspectionFrame"],
+): LocalSurfaceFrame | null {
+  if (!frame) return null;
+
+  return {
+    normal: new THREE.Vector3(...frame.normal),
+    tangentUp: new THREE.Vector3(...frame.tangentUp),
+    tangentRight: new THREE.Vector3(...frame.tangentRight),
   };
 }
 
@@ -897,6 +1018,7 @@ export function ReservoirScene() {
     useState<LocalSurfaceFrame | null>(null);
   const [aspectRatio, setAspectRatio] = useState(16 / 10);
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedPressActive, setSelectedPressActive] = useState(false);
   const [diveTarget, setDiveTarget] = useState<DiveTarget>({
     point: null,
     source: "default",
@@ -908,7 +1030,19 @@ export function ReservoirScene() {
   const [hoveredArtifactId, setHoveredArtifactId] = useState<string | null>(
     null,
   );
+  const [transitionState, setTransitionState] =
+    useState<ReservoirTransitionState>("idle");
+  const [openingArtifactId, setOpeningArtifactId] = useState<string | null>(
+    null,
+  );
+  const [preservedReservoirState, setPreservedReservoirState] =
+    useState<PreservedReservoirState | null>(null);
+  const [preparedArtifactContent, setPreparedArtifactContent] =
+    useState<PreparedArtifactContent | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [atmosphereBottom, setAtmosphereBottom] = useState(0);
   const interaction = useRef<HTMLDivElement>(null);
+  const atmosphereRef = useRef<HTMLElement | null>(null);
   const drag = useRef<DragState | null>(null);
   const sphereRotationRef = useRef<THREE.Group | null>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
@@ -917,6 +1051,11 @@ export function ReservoirScene() {
     revision: 0,
     worldPoint: new THREE.Vector3(),
   });
+  const interactionRevisionRef = useRef(0);
+  const openingElapsedRef = useRef(0);
+  const openingCameraRetreatStartedRef = useRef(false);
+  const restorationElapsedRef = useRef(0);
+  const restorationProgressRef = useRef(0);
   const cameraProgressRef = useRef(0);
   const travelDirectionRef = useRef<TravelDirection>("inward");
   const cameraPoseRef = useRef<CameraPose | null>(null);
@@ -954,6 +1093,51 @@ export function ReservoirScene() {
 
     observer.observe(element);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const atmosphere = atmosphereRef.current;
+    if (!atmosphere) return;
+    const measuredAtmosphere = atmosphere;
+
+    function updateAtmosphereBottom() {
+      const nextBottom =
+        measuredAtmosphere.offsetTop +
+        measuredAtmosphere.offsetHeight +
+        ARTIFACT_WINDOW_ATMOSPHERE_GAP;
+      setAtmosphereBottom((currentBottom) =>
+        Math.abs(currentBottom - nextBottom) < 0.5
+          ? currentBottom
+          : nextBottom,
+      );
+    }
+
+    updateAtmosphereBottom();
+    const observer = new ResizeObserver(updateAtmosphereBottom);
+    observer.observe(measuredAtmosphere);
+    window.addEventListener("resize", updateAtmosphereBottom);
+    measuredAtmosphere.addEventListener(
+      "animationend",
+      updateAtmosphereBottom,
+    );
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateAtmosphereBottom);
+      measuredAtmosphere.removeEventListener(
+        "animationend",
+        updateAtmosphereBottom,
+      );
+    };
+  }, [selectedArtifactId]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateReducedMotion = () => setReducedMotion(mediaQuery.matches);
+
+    updateReducedMotion();
+    mediaQuery.addEventListener("change", updateReducedMotion);
+    return () => mediaQuery.removeEventListener("change", updateReducedMotion);
   }, []);
 
   const { cameraDistance, sphereCenterWorldY } = getOuterFrame(aspectRatio);
@@ -1023,6 +1207,295 @@ export function ReservoirScene() {
     retreatCameraPath?.outerPosition ?? canonicalOuterPosition;
   const activeOuterTarget =
     retreatCameraPath?.outerTarget ?? canonicalOuterTarget;
+  const selectedArtifact =
+    activeReservoirArtifacts.find(
+      (artifact) => artifact.id === selectedArtifactId,
+    ) ?? null;
+  const openingArtifact =
+    activeReservoirArtifacts.find(
+      (artifact) => artifact.id === openingArtifactId,
+    ) ?? null;
+  const openingReactionDistances = useMemo(() => {
+    const distances = new Map<string, number>();
+    if (!openingArtifact) return distances;
+
+    for (const artifact of activeReservoirArtifacts) {
+      distances.set(
+        artifact.id,
+        getReservoirPlacementGraphDistance(
+          openingArtifact.vertexId,
+          artifact.vertexId,
+        ) ?? 0,
+      );
+    }
+    return distances;
+  }, [openingArtifact]);
+  const maximumOpeningReactionDistance = Math.max(
+    0,
+    ...openingReactionDistances.values(),
+  );
+  const openingActive = [
+    "openingArtifact",
+    "deployingArtifact",
+    "readingArtifact",
+    "closingArtifact",
+  ].includes(transitionState);
+  const restoring = transitionState === "restoringArtifact";
+  const artifactWindowPhase =
+    transitionState === "deployingArtifact"
+      ? "deploying"
+      : transitionState === "readingArtifact"
+        ? "reading"
+        : transitionState === "closingArtifact"
+          ? "closing"
+          : null;
+
+  useEffect(() => {
+    if (
+      transitionState !== "openingArtifact" ||
+      !preservedReservoirState
+    ) {
+      return;
+    }
+
+    const snapshot = preservedReservoirState;
+    const duration = getOpeningDuration(reducedMotion);
+    const cameraDelay = getOpeningCameraDelay(reducedMotion);
+    const startTime = performance.now();
+    let animationFrameId = 0;
+
+    function updateOpeningTimeline(now: number) {
+      const elapsed = Math.min((now - startTime) / 1000, duration);
+      openingElapsedRef.current = elapsed;
+
+      if (interaction.current) {
+        interaction.current.dataset.openingElapsed = elapsed.toFixed(6);
+        interaction.current.dataset.openingProgress = (
+          elapsed / duration
+        ).toFixed(6);
+      }
+
+      if (
+        elapsed >= cameraDelay &&
+        !openingCameraRetreatStartedRef.current
+      ) {
+        openingCameraRetreatStartedRef.current = true;
+        if (snapshot.cameraProgress > 0) {
+          setRetreatOrigin({
+            position: new THREE.Vector3(...snapshot.cameraPosition),
+            target: new THREE.Vector3(...snapshot.cameraTarget),
+            quaternion: new THREE.Quaternion(...snapshot.cameraQuaternion),
+            progress: snapshot.cameraProgress,
+          });
+        }
+        travelDirectionRef.current = "outward";
+        setTravelDirection("outward");
+        cameraProgressRef.current = 0;
+        setCameraProgress(0);
+      }
+
+      if (elapsed >= duration) {
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+        setTransitionState("deployingArtifact");
+        return;
+      }
+
+      animationFrameId = requestAnimationFrame(updateOpeningTimeline);
+    }
+
+    animationFrameId = requestAnimationFrame(updateOpeningTimeline);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [preservedReservoirState, reducedMotion, transitionState]);
+
+  useLayoutEffect(() => {
+    const readingMode = [
+      "deployingArtifact",
+      "readingArtifact",
+      "closingArtifact",
+    ].includes(transitionState);
+    const scrollEnabled = transitionState === "readingArtifact";
+    const deploying = transitionState === "deployingArtifact";
+    const scrollRoots = [document.documentElement, document.body];
+
+    for (const root of scrollRoots) {
+      root.classList.toggle("artifact-reading-mode", readingMode);
+      root.classList.toggle("artifact-scroll-enabled", scrollEnabled);
+      root.classList.toggle("artifact-deploying-mode", deploying);
+    }
+
+    return () => {
+      for (const root of scrollRoots) {
+        root.classList.remove("artifact-reading-mode");
+        root.classList.remove("artifact-scroll-enabled");
+        root.classList.remove("artifact-deploying-mode");
+      }
+    };
+  }, [transitionState]);
+
+  const completeArtifactDeployment = useCallback(() => {
+    setTransitionState((currentState) =>
+      currentState === "deployingArtifact"
+        ? "readingArtifact"
+        : currentState,
+    );
+  }, []);
+
+  const requestArtifactClose = useCallback(() => {
+    setTransitionState((currentState) =>
+      currentState === "readingArtifact"
+        ? "closingArtifact"
+        : currentState,
+    );
+  }, []);
+
+  useEffect(() => {
+    if (
+      transitionState !== "closingArtifact" ||
+      !preservedReservoirState
+    ) {
+      return;
+    }
+
+    const snapshot = preservedReservoirState;
+    const timeoutId = window.setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      restorationElapsedRef.current = 0;
+      restorationProgressRef.current = 0;
+
+      const restoredInspectionFrame = restoreLocalSurfaceFrame(
+        snapshot.inspectionFrame,
+      );
+      const restoredLastInspectionFrame = restoreLocalSurfaceFrame(
+        snapshot.lastInspectionFrame,
+      );
+      const savedCameraPose: CameraPose = {
+        position: new THREE.Vector3(...snapshot.cameraPosition),
+        target: new THREE.Vector3(...snapshot.cameraTarget),
+        quaternion: new THREE.Quaternion(...snapshot.cameraQuaternion),
+        progress: snapshot.cameraProgress,
+      };
+
+      setInspectionFrame(restoredInspectionFrame);
+      lastInspectionFrameRef.current = restoredLastInspectionFrame;
+      setDiveTarget({
+        point: snapshot.diveTarget.point
+          ? [...snapshot.diveTarget.point]
+          : null,
+        source: snapshot.diveTarget.source,
+      });
+      diveTargetLockedRef.current = snapshot.diveTargetLocked;
+      setIsDiveTargetLocked(snapshot.diveTargetLocked);
+      setDiveOrigin(restoreCameraPose(snapshot.diveOrigin));
+      setRetreatOrigin(savedCameraPose);
+      travelDirectionRef.current = "outward";
+      setTravelDirection("outward");
+      cameraProgressRef.current = snapshot.cameraProgress;
+      setCameraProgress(snapshot.cameraProgress);
+
+      if (sphereRotationRef.current) {
+        sphereRotationRef.current.quaternion
+          .set(...snapshot.sphereQuaternion)
+          .normalize();
+      }
+
+      setTransitionState("restoringArtifact");
+    }, getArtifactWindowRetractDuration(reducedMotion) * 1000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [preservedReservoirState, reducedMotion, transitionState]);
+
+  useEffect(() => {
+    if (
+      transitionState !== "restoringArtifact" ||
+      !preservedReservoirState
+    ) {
+      return;
+    }
+
+    const snapshot = preservedReservoirState;
+    const duration = getReservoirRestoreDuration(reducedMotion);
+    const startTime = performance.now();
+    const expectedPosition = new THREE.Vector3(...snapshot.cameraPosition);
+    const expectedTarget = new THREE.Vector3(...snapshot.cameraTarget);
+    const expectedQuaternion = new THREE.Quaternion(
+      ...snapshot.cameraQuaternion,
+    );
+    const expectedSphereQuaternion = new THREE.Quaternion(
+      ...snapshot.sphereQuaternion,
+    );
+    let animationFrameId = 0;
+
+    function updateRestoration(now: number) {
+      const elapsed = (now - startTime) / 1000;
+      restorationElapsedRef.current = Math.min(elapsed, duration);
+      restorationProgressRef.current = getReservoirRestoreProgress(
+        elapsed,
+        reducedMotion,
+      );
+
+      const renderedPose = cameraPoseRef.current;
+      const renderedSphere = sphereRotationRef.current;
+      const positionError = renderedPose
+        ? renderedPose.position.distanceTo(expectedPosition)
+        : Number.POSITIVE_INFINITY;
+      const targetError = renderedPose
+        ? renderedPose.target.distanceTo(expectedTarget)
+        : Number.POSITIVE_INFINITY;
+      const quaternionError = renderedPose
+        ? renderedPose.quaternion.angleTo(expectedQuaternion)
+        : Number.POSITIVE_INFINITY;
+      const progressError = renderedPose
+        ? Math.abs(renderedPose.progress - snapshot.cameraProgress)
+        : Number.POSITIVE_INFINITY;
+      const sphereQuaternionError = renderedSphere
+        ? renderedSphere.quaternion.angleTo(expectedSphereQuaternion)
+        : Number.POSITIVE_INFINITY;
+      const endpointReached =
+        positionError < 0.00001 &&
+        targetError < 0.00001 &&
+        quaternionError < 0.00001 &&
+        progressError < 0.00001 &&
+        sphereQuaternionError < 0.00001;
+
+      if (interaction.current) {
+        interaction.current.dataset.restorationProgress =
+          restorationProgressRef.current.toFixed(6);
+        interaction.current.dataset.restorationPositionError =
+          positionError.toFixed(9);
+        interaction.current.dataset.restorationTargetError =
+          targetError.toFixed(9);
+        interaction.current.dataset.restorationQuaternionError =
+          quaternionError.toFixed(9);
+        interaction.current.dataset.restorationCameraProgressError =
+          progressError.toFixed(9);
+        interaction.current.dataset.restorationSphereQuaternionError =
+          sphereQuaternionError.toFixed(9);
+      }
+
+      if (elapsed >= duration && (endpointReached || elapsed >= duration + 1)) {
+        restorationProgressRef.current = 1;
+        if (renderedSphere) {
+          renderedSphere.quaternion.copy(expectedSphereQuaternion);
+        }
+
+        setDiveOrigin(restoreCameraPose(snapshot.diveOrigin));
+        setRetreatOrigin(restoreCameraPose(snapshot.retreatOrigin));
+        travelDirectionRef.current = snapshot.travelDirection;
+        setTravelDirection(snapshot.travelDirection);
+        cameraProgressRef.current = snapshot.cameraTargetProgress;
+        setCameraProgress(snapshot.cameraTargetProgress);
+        setOpeningArtifactId(null);
+        setPreparedArtifactContent(null);
+        setTransitionState("idle");
+        return;
+      }
+
+      animationFrameId = requestAnimationFrame(updateRestoration);
+    }
+
+    animationFrameId = requestAnimationFrame(updateRestoration);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [preservedReservoirState, reducedMotion, transitionState]);
 
   function getSurfaceIntersection(clientX: number, clientY: number) {
     const element = interaction.current;
@@ -1090,7 +1563,13 @@ export function ReservoirScene() {
   }
 
   function beginDrag(event: PointerEvent<HTMLDivElement>) {
-    if (!event.isPrimary || event.button !== 0) return;
+    if (
+      transitionState !== "idle" ||
+      !event.isPrimary ||
+      event.button !== 0
+    ) {
+      return;
+    }
 
     const renderedQuaternion = sphereRotationRef.current?.quaternion;
     if (renderedQuaternion) {
@@ -1098,6 +1577,13 @@ export function ReservoirScene() {
     }
 
     pointer.current = { x: event.clientX, y: event.clientY };
+    setSelectedPressActive(
+      Boolean(
+        selectedArtifactId &&
+          pickArtifact(event.clientX, event.clientY) === selectedArtifactId,
+      ),
+    );
+    interactionRevisionRef.current += 1;
     clearGridInspection();
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = {
@@ -1114,6 +1600,11 @@ export function ReservoirScene() {
 
   function updatePointer(event: PointerEvent<HTMLDivElement>) {
     pointer.current = { x: event.clientX, y: event.clientY };
+    if (transitionState !== "idle") {
+      clearGridInspection();
+      return;
+    }
+    interactionRevisionRef.current += 1;
 
     const origin = drag.current;
     const rotationGroup = sphereRotationRef.current;
@@ -1146,6 +1637,7 @@ export function ReservoirScene() {
     ) {
       origin.hoverCancelled = true;
       setHoveredArtifactId(null);
+      setSelectedPressActive(false);
     }
     const renderedCameraProgress =
       cameraPoseRef.current?.progress ?? cameraProgressRef.current;
@@ -1222,6 +1714,65 @@ export function ReservoirScene() {
     );
   }
 
+  function capturePreservedReservoirState(
+    artifactId: string,
+  ): PreservedReservoirState | null {
+    const sphere = sphereRotationRef.current;
+    const activeCamera = cameraRef.current;
+    if (!sphere || !activeCamera) return null;
+
+    const renderedPose = cameraPoseRef.current;
+    const cameraPosition =
+      renderedPose?.position ?? activeCamera.position;
+    const cameraTarget =
+      renderedPose?.target ?? canonicalOuterTarget;
+    const cameraQuaternion =
+      renderedPose?.quaternion ?? activeCamera.quaternion;
+
+    return {
+      artifactId,
+      sphereQuaternion: toQuaternionTuple(sphere.quaternion),
+      cameraPosition: toVectorTuple(cameraPosition),
+      cameraTarget: toVectorTuple(cameraTarget),
+      cameraQuaternion: toQuaternionTuple(cameraQuaternion),
+      cameraProgress:
+        renderedPose?.progress ?? cameraProgressRef.current,
+      cameraTargetProgress: cameraProgressRef.current,
+      travelDirection: travelDirectionRef.current,
+      diveTarget: {
+        point: diveTarget.point ? [...diveTarget.point] : null,
+        source: diveTarget.source,
+      },
+      diveTargetLocked: diveTargetLockedRef.current,
+      inspectionFrame: preserveLocalSurfaceFrame(inspectionFrame),
+      lastInspectionFrame: preserveLocalSurfaceFrame(
+        lastInspectionFrameRef.current,
+      ),
+      diveOrigin: preserveCameraPose(diveOrigin),
+      retreatOrigin: preserveCameraPose(retreatOrigin),
+    };
+  }
+
+  function beginArtifactOpening(artifactId: string) {
+    if (transitionState !== "idle") return;
+
+    const artifact = activeReservoirArtifacts.find(
+      (candidate) => candidate.id === artifactId,
+    );
+    const preservedState = capturePreservedReservoirState(artifactId);
+    if (!artifact || !preservedState) return;
+
+    openingElapsedRef.current = 0;
+    openingCameraRetreatStartedRef.current = false;
+    setOpeningArtifactId(artifactId);
+    setPreservedReservoirState(preservedState);
+    setPreparedArtifactContent(prepareReservoirArtifactContent(artifact));
+    setHoveredArtifactId(null);
+    setSelectedPressActive(false);
+    clearGridInspection();
+    setTransitionState("openingArtifact");
+  }
+
   function endDrag(
     event: PointerEvent<HTMLDivElement>,
     allowSelection = true,
@@ -1235,15 +1786,22 @@ export function ReservoirScene() {
     }
     drag.current = null;
     setIsDragging(false);
+    setSelectedPressActive(false);
+    interactionRevisionRef.current += 1;
     updateGridInspection(event.clientX, event.clientY);
 
     if (
       allowSelection &&
       completedDrag.maxTravelSquared <= NODE_CLICK_MAX_TRAVEL ** 2
     ) {
-      setSelectedArtifactId(
-        pickArtifact(event.clientX, event.clientY),
-      );
+      const pickedArtifactId = pickArtifact(event.clientX, event.clientY);
+
+      if (pickedArtifactId && pickedArtifactId === selectedArtifactId) {
+        beginArtifactOpening(pickedArtifactId);
+      } else {
+        setTransitionState("idle");
+        setSelectedArtifactId(pickedArtifactId);
+      }
     }
   }
 
@@ -1252,17 +1810,21 @@ export function ReservoirScene() {
 
     drag.current = null;
     setIsDragging(false);
+    setSelectedPressActive(false);
     clearGridInspection();
   }
 
   function clearPointer() {
     if (!drag.current) pointer.current = null;
+    interactionRevisionRef.current += 1;
     clearGridInspection();
   }
 
   function updateCameraTravel(event: WheelEvent<HTMLDivElement>) {
     event.preventDefault();
+    if (transitionState !== "idle") return;
     pointer.current = { x: event.clientX, y: event.clientY };
+    interactionRevisionRef.current += 1;
     clearGridInspection();
     const deltaScale =
       event.deltaMode === 1
@@ -1363,6 +1925,7 @@ export function ReservoirScene() {
   }
 
   function updateArtifactHover(artifactId: string, hovered: boolean) {
+    if (transitionState !== "idle") return;
     setHoveredArtifactId((currentArtifactId) => {
       if (hovered) return artifactId;
       return currentArtifactId === artifactId ? null : currentArtifactId;
@@ -1370,9 +1933,15 @@ export function ReservoirScene() {
   }
 
   return (
-    <div
+    <>
+      <AtmosphereContent
+        containerRef={atmosphereRef}
+        selectedArtifact={selectedArtifact}
+      />
+      <div
       ref={interaction}
       className="reservoir-interaction"
+      aria-hidden={artifactWindowPhase !== null}
       data-dragging={isDragging}
       data-aspect-ratio={aspectRatio.toFixed(3)}
       data-camera-progress={cameraProgress.toFixed(3)}
@@ -1398,6 +1967,44 @@ export function ReservoirScene() {
         reservoirDensityTestDiagnostics.adjacentArtifactPairs.join(",")
       }
       data-selected-artifact={selectedArtifactId ?? ""}
+      data-transition-state={transitionState}
+      data-opening-artifact={openingArtifactId ?? ""}
+      data-opening-complete={
+        transitionState !== "idle" && transitionState !== "openingArtifact"
+      }
+      data-input-locked={transitionState !== "idle"}
+      data-content-open={artifactWindowPhase !== null}
+      data-atmosphere-bottom={atmosphereBottom.toFixed(3)}
+      data-artifact-window-atmosphere-gap={ARTIFACT_WINDOW_ATMOSPHERE_GAP}
+      data-reading-mode={transitionState === "readingArtifact"}
+      data-restoring={restoring}
+      data-artifact-content-ready={preparedArtifactContent !== null}
+      data-prepared-content-artifact={
+        preparedArtifactContent?.artifactId ?? ""
+      }
+      data-prepared-content-title={preparedArtifactContent?.title ?? ""}
+      data-opening-reaction-order={[...openingReactionDistances.entries()]
+        .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+        .map(([artifactId, distance]) => `${artifactId}:${distance}`)
+        .join(",")}
+      data-preopen-sphere-quaternion={
+        preservedReservoirState?.sphereQuaternion.join(",") ?? ""
+      }
+      data-preopen-camera-position={
+        preservedReservoirState?.cameraPosition.join(",") ?? ""
+      }
+      data-preopen-camera-target={
+        preservedReservoirState?.cameraTarget.join(",") ?? ""
+      }
+      data-preopen-camera-quaternion={
+        preservedReservoirState?.cameraQuaternion.join(",") ?? ""
+      }
+      data-preopen-camera-progress={
+        preservedReservoirState?.cameraProgress.toFixed(6) ?? ""
+      }
+      data-preopen-camera-target-progress={
+        preservedReservoirState?.cameraTargetProgress.toFixed(6) ?? ""
+      }
       data-hovered-artifact={hoveredArtifactId ?? ""}
       data-node-click-max-travel={NODE_CLICK_MAX_TRAVEL}
       data-outer-drag-sensitivity={OUTER_DRAG_SENSITIVITY.toFixed(7)}
@@ -1517,12 +2124,39 @@ export function ReservoirScene() {
               surfaceRef={surfaceRef}
               selectedArtifactId={selectedArtifactId}
               hoveredArtifactId={hoveredArtifactId}
+              isDragging={isDragging}
+              selectedPressActive={selectedPressActive}
+              continuationCueEnabled={transitionState === "idle"}
+              interactionRevisionRef={interactionRevisionRef}
+              diagnosticsRef={interaction}
+              openingActive={openingActive}
+              shockwaveActive={transitionState === "openingArtifact"}
+              openingArtifact={openingArtifact}
+              openingElapsedRef={openingElapsedRef}
+              openingReducedMotion={reducedMotion}
+              openingReactionDistances={openingReactionDistances}
+              maximumOpeningReactionDistance={
+                maximumOpeningReactionDistance
+              }
+              restoring={restoring}
+              restorationProgressRef={restorationProgressRef}
               gridInspectionRef={gridInspectionRef}
               onArtifactHoverChange={updateArtifactHover}
             />
           </group>
         </group>
       </Canvas>
-    </div>
+      </div>
+      {artifactWindowPhase && preparedArtifactContent ? (
+        <ArtifactWindow
+          atmosphereBottom={atmosphereBottom}
+          content={preparedArtifactContent}
+          phase={artifactWindowPhase}
+          reducedMotion={reducedMotion}
+          onDeployComplete={completeArtifactDeployment}
+          onClose={requestArtifactClose}
+        />
+      ) : null}
+    </>
   );
 }

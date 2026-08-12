@@ -38,6 +38,7 @@ type SphereGridProps = {
   inspectionRef: MutableRefObject<ReservoirGridInspection>;
   selectedArtifactVertexIds: readonly number[];
   sphereRef: RefObject<THREE.Group | null>;
+  recessionProgressRef: MutableRefObject<number>;
 };
 
 type InspectionSlot = {
@@ -122,6 +123,7 @@ export function SphereGrid({
   inspectionRef,
   selectedArtifactVertexIds,
   sphereRef,
+  recessionProgressRef,
 }: SphereGridProps) {
   const baseGeometry = useMemo(() => {
     const surface = createReservoirGridGeometry();
@@ -250,6 +252,7 @@ export function SphereGrid({
   const activeSlot = useRef(0);
   const desiredVertexId = useRef<number | null>(null);
   const observedInspectionRevision = useRef(-1);
+  const baseGridMaterial = useRef<THREE.LineBasicMaterial | null>(null);
   const renderedSelectionSignature = useRef("");
   const localInspectionPoint = useMemo(() => new THREE.Vector3(), []);
   const selectionMask = useMemo(
@@ -291,6 +294,13 @@ export function SphereGrid({
   );
 
   useFrame((_, delta) => {
+    if (baseGridMaterial.current) {
+      baseGridMaterial.current.opacity = THREE.MathUtils.lerp(
+        0.34,
+        0.1,
+        recessionProgressRef.current,
+      );
+    }
     const inspection = inspectionRef.current;
     const sphere = sphereRef.current;
     let nextVertexId = desiredVertexId.current;
@@ -453,6 +463,7 @@ export function SphereGrid({
         renderOrder={RESERVOIR_RENDER_ORDER.baseGrid}
       >
         <lineBasicMaterial
+          ref={baseGridMaterial}
           color={RESERVOIR_THEME.grid}
           transparent
           opacity={0.34}
