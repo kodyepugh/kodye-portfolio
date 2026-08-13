@@ -1,32 +1,51 @@
 import type { Ref } from "react";
-import type { ReservoirArtifact } from "@/types/reservoir";
+import type {
+  EmbeddedReservoirCollection,
+  ReservoirArtifact,
+  ReservoirCollection,
+} from "@/types/reservoir";
 
 type AtmosphereContentProps = {
   containerRef?: Ref<HTMLElement>;
   selectedArtifact: ReservoirArtifact | null;
+  selectedCollection: EmbeddedReservoirCollection | null;
+  activeCollection: ReservoirCollection;
 };
 
 export function AtmosphereContent({
   containerRef,
   selectedArtifact,
+  selectedCollection,
+  activeCollection,
 }: AtmosphereContentProps) {
-  if (!selectedArtifact) {
+  if (!selectedArtifact && !selectedCollection) {
     return (
       <header
         ref={containerRef}
         className="atmosphere-content atmosphere-content--home"
         aria-hidden="true"
       >
-        <span>Digital Reservoir</span>
-        <span>Spatial study / 01</span>
+        <span>{activeCollection.title === "Home" ? "Digital Reservoir" : activeCollection.title}</span>
+        <span>{activeCollection.subtitle ?? "Spatial study / 01"}</span>
       </header>
     );
   }
 
+  const selectedNode = selectedArtifact ?? selectedCollection;
+  if (!selectedNode) return null;
+  const selectedType = selectedArtifact?.type ?? "Collection";
+  const selectedSubtitle =
+    selectedNode.subtitle ?? selectedCollection?.description;
   const metadata = [
-    { label: "Date", value: selectedArtifact.date },
-    { label: "Context", value: selectedArtifact.context },
-    { label: "Medium", value: selectedArtifact.medium },
+    { label: "Date", value: selectedNode.date },
+    {
+      label: selectedArtifact ? "Context" : "Lens",
+      value: selectedArtifact?.context ?? selectedCollection?.category,
+    },
+    {
+      label: selectedArtifact ? "Medium" : "Contents",
+      value: selectedArtifact?.medium ?? selectedCollection?.contentSummary,
+    },
   ].filter(
     (entry): entry is { label: string; value: string } =>
       Boolean(entry.value),
@@ -35,16 +54,16 @@ export function AtmosphereContent({
   return (
     <section
       ref={containerRef}
-      key={selectedArtifact.id}
+      key={`${selectedNode.kind}-${selectedNode.id}`}
       className="atmosphere-content atmosphere-content--artifact"
       aria-live="polite"
       aria-atomic="true"
     >
-      <p className="atmosphere-content__type">{selectedArtifact.type}</p>
-      <h2 className="atmosphere-content__title">{selectedArtifact.title}</h2>
-      {selectedArtifact.subtitle ? (
+      <p className="atmosphere-content__type">{selectedType}</p>
+      <h2 className="atmosphere-content__title">{selectedNode.title}</h2>
+      {selectedSubtitle ? (
         <p className="atmosphere-content__subtitle">
-          {selectedArtifact.subtitle}
+          {selectedSubtitle}
         </p>
       ) : null}
       {metadata.length > 0 ? (

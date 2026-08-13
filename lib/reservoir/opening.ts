@@ -1,3 +1,5 @@
+import { getArtifactSecondSelectionImpactStart } from "@/lib/reservoir/second-selection";
+
 export const RESERVOIR_OPENING_TIMING = {
   totalDuration: 3.1,
   reducedMotionDuration: 0.72,
@@ -37,15 +39,20 @@ export function getShockwaveDuration(reducedMotion: boolean) {
     : RESERVOIR_OPENING_TIMING.shockwaveDuration;
 }
 
+export function getShockwaveStart(reducedMotion: boolean) {
+  return getArtifactSecondSelectionImpactStart(reducedMotion);
+}
+
 export function getNodeReactionArrival(
   graphDistance: number,
   maximumArtifactDistance: number,
   reducedMotion: boolean,
+  waveStart: number = RESERVOIR_OPENING_TIMING.shockwaveStart,
 ) {
-  if (reducedMotion) return RESERVOIR_OPENING_TIMING.shockwaveStart;
+  if (reducedMotion) return waveStart;
 
   if (graphDistance === 0) {
-    return RESERVOIR_OPENING_TIMING.shockwaveStart;
+    return waveStart;
   }
 
   const waveRange = Math.max(
@@ -63,7 +70,7 @@ export function getNodeReactionArrival(
   const waveProgress = 1 - Math.sqrt(1 - normalizedWaveFront);
 
   return (
-    RESERVOIR_OPENING_TIMING.shockwaveStart +
+    waveStart +
     waveProgress * RESERVOIR_OPENING_TIMING.shockwaveDuration
   );
 }

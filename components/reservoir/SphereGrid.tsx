@@ -3,12 +3,10 @@ import { useEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import {
-  createReservoirGridGeometry,
   findNearestReservoirGridVertexId,
   getReservoirGridInspectionEdgePoints,
   getReservoirGridInspectionFacePoints,
   getReservoirGridSelectionMask,
-  RESERVOIR_RADIUS,
 } from "@/lib/reservoir/geometry";
 import {
   RESERVOIR_RENDER_ORDER,
@@ -36,9 +34,8 @@ const MAX_INSPECTION_FACE_POINTS = 48;
 
 type SphereGridProps = {
   inspectionRef: MutableRefObject<ReservoirGridInspection>;
-  selectedArtifactVertexIds: readonly number[];
+  selectedNodeVertexIds: readonly number[];
   sphereRef: RefObject<THREE.Group | null>;
-  recessionProgressRef: MutableRefObject<number>;
 };
 
 type InspectionSlot = {
@@ -57,6 +54,14 @@ function createInspectionGeometry(
   );
   positions.setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute("position", positions);
+  geometry.setAttribute(
+    "expandedWeight",
+    new THREE.BufferAttribute(new Float32Array(maximumPointCount), 1),
+  );
+  geometry.setAttribute(
+    "expandedIntensity",
+    new THREE.BufferAttribute(new Float32Array(maximumPointCount), 1),
+  );
   if (gradientAttributeName) {
     const gradientValues = new THREE.BufferAttribute(
       new Float32Array(maximumPointCount),
@@ -121,35 +126,9 @@ function createBandSlotRefs<T>(categoryCount: number) {
 
 export function SphereGrid({
   inspectionRef,
-  selectedArtifactVertexIds,
+  selectedNodeVertexIds,
   sphereRef,
-  recessionProgressRef,
 }: SphereGridProps) {
-  const baseGeometry = useMemo(() => {
-    const surface = createReservoirGridGeometry();
-    const edges = new THREE.EdgesGeometry(surface, 1);
-    const edgePositions = edges.getAttribute("position");
-    const points: THREE.Vector3[] = [];
-
-    for (let index = 0; index < edgePositions.count; index += 2) {
-      const start = new THREE.Vector3()
-        .fromBufferAttribute(edgePositions, index)
-        .normalize();
-      const end = new THREE.Vector3()
-        .fromBufferAttribute(edgePositions, index + 1)
-        .normalize();
-
-      points.push(
-        start.clone().multiplyScalar(RESERVOIR_RADIUS * 1.0015),
-        end.clone().multiplyScalar(RESERVOIR_RADIUS * 1.0015),
-      );
-    }
-
-    surface.dispose();
-    edges.dispose();
-
-    return new THREE.BufferGeometry().setFromPoints(points);
-  }, []);
   const inspectionSpokeGeometries = useMemo(
     () =>
       createInspectionBandGeometries(
@@ -217,6 +196,7 @@ export function SphereGrid({
               ...RESERVOIR_GLOW_FACE_INTENSITY_LEVELS,
             ),
           },
+          expandedTopologyBlend: { value: 0 },
         })),
       ),
     [],
@@ -252,15 +232,14 @@ export function SphereGrid({
   const activeSlot = useRef(0);
   const desiredVertexId = useRef<number | null>(null);
   const observedInspectionRevision = useRef(-1);
-  const baseGridMaterial = useRef<THREE.LineBasicMaterial | null>(null);
   const renderedSelectionSignature = useRef("");
   const localInspectionPoint = useMemo(() => new THREE.Vector3(), []);
   const selectionMask = useMemo(
     () => {
-      if (selectedArtifactVertexIds.length === 0) return null;
+      if (selectedNodeVertexIds.length === 0) return null;
       const faceIds = new Set<number>();
       const edgeKeys = new Set<string>();
-      for (const vertexId of selectedArtifactVertexIds) {
+      for (const vertexId of selectedNodeVertexIds) {
         const mask = getReservoirGridSelectionMask(vertexId);
         if (!mask) continue;
         for (const faceId of mask.faceIds) faceIds.add(faceId);
@@ -268,13 +247,12 @@ export function SphereGrid({
       }
       return { edgeKeys, faceIds };
     },
-    [selectedArtifactVertexIds],
+    [selectedNodeVertexIds],
   );
-  const selectionSignature = selectedArtifactVertexIds.join(",");
+  const selectionSignature = selectedNodeVertexIds.join(",");
 
   useEffect(
     () => () => {
-      baseGeometry.dispose();
       for (const band of inspectionSpokeGeometries) {
         for (const geometry of band) geometry.dispose();
       }
@@ -286,7 +264,6 @@ export function SphereGrid({
       }
     },
     [
-      baseGeometry,
       inspectionBorderGeometries,
       inspectionFaceGeometries,
       inspectionSpokeGeometries,
@@ -294,13 +271,6 @@ export function SphereGrid({
   );
 
   useFrame((_, delta) => {
-    if (baseGridMaterial.current) {
-      baseGridMaterial.current.opacity = THREE.MathUtils.lerp(
-        0.34,
-        0.1,
-        recessionProgressRef.current,
-      );
-    }
     const inspection = inspectionRef.current;
     const sphere = sphereRef.current;
     let nextVertexId = desiredVertexId.current;
@@ -458,17 +428,6 @@ export function SphereGrid({
 
   return (
     <>
-      <lineSegments
-        geometry={baseGeometry}
-        renderOrder={RESERVOIR_RENDER_ORDER.baseGrid}
-      >
-        <lineBasicMaterial
-          ref={baseGridMaterial}
-          color={RESERVOIR_THEME.grid}
-          transparent
-          opacity={0.34}
-        />
-      </lineSegments>
       {inspectionFaceGeometries.flatMap((slotGeometries, bandIndex) =>
         slotGeometries.map((geometry, slotIndex) => (
           <mesh

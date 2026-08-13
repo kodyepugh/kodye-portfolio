@@ -1,7 +1,7 @@
 # Digital Reservoir
 ## Codex Implementation Brief
 
-**Version:** 0.3
+**Version:** 0.4
 **Status:** Persistent Developer Reference
 **Project:** kodyepugh.com
 **Primary reference:** `docs/digital-reservoir-interface-spec.md`
@@ -53,25 +53,31 @@ Artifact Spatial Identity, Inspection & Selection
 Milestone 3 — COMPLETE
 Progressive Artifact Inspection & Opening
 
-Milestone 4 — NEXT / DESIGN SCOPE
-Collection Spatial Identity & Traversal
+Milestone 4 — COMPLETE (2026-08-13)
+Recursive Collection Identity, Traversal & Navigation
+
+Milestone 5+
+Not yet scoped
 ```
 
-Milestone 3 is the current stable checkpoint. Do not implement Milestone 4 unless an explicit task authorizes it.
+Milestone 3 remains the closed stable artifact-opening checkpoint. Milestone 4 is the closed recursive collection checkpoint. Preserve both contracts unless a later explicit milestone authorizes a change.
 
 # 4. Current component boundaries
 
 The current prototype separates responsibilities approximately as follows:
 
-- `ReservoirScene` owns interaction state, input ownership, selection/open/restore orchestration, camera snapshots, and semantic layer coordination.
-- `ReservoirSphere` and `SphereGrid` own sphere and topology presentation.
-- `ArtifactNode` owns node rendering, focus/selection treatments, the selected continuation cue, opening reaction, and restoration interpolation.
-- `ArtifactLabel` owns spatial labels and their visibility rules.
+- `ReservoirScene` owns interaction state, input ownership, artifact open/restore orchestration, collection history, forward/reverse traversal, camera snapshots, and semantic layer coordination.
+- `ReservoirSphere` and `SphereGrid` own active-reservoir and topology presentation.
+- `ArtifactNode` and `CollectionNode` own node rendering, focus/selection treatments, continuation cues, recession, and restoration interpolation.
+- `CollectionSphere` owns the embedded collection's dormant/active grid and grey handoff presentation; `ReturningCollectionNode` owns the exited child during reverse traversal.
+- `ArtifactLabel` owns the shared spatial label system and visibility rules for artifact and collection nodes.
+- `ArtifactTerritory` owns canonical first-selection topology, artifact second-selection radial expansion/dissipation, collection topology suction, and artifact close restoration.
 - `ArtifactShockwave` owns the artifact-colored topology wave visualization.
-- `AtmosphereContent` owns semantic Home or selected-artifact atmospheric content.
+- `AtmosphereContent` owns semantic active-collection, selected-artifact, or selected-collection atmospheric content.
 - `ArtifactWindow` owns semantic long-form content, document deployment/retraction, sticky close, Escape handling, and the persistent reading backdrop.
-- `opening.ts` and `reading.ts` centralize transition timing and progress helpers.
-- `artifacts.ts` owns canonical content records plus development-only density generation.
+- `CollectionNavigation` owns contextual Home/Back UI-space controls.
+- `opening.ts`, `reading.ts`, `collection-entry.ts`, `selection.ts`, `second-selection.ts`, and `node.ts` centralize transition timing and presentation helpers.
+- `artifacts.ts`, `collections.ts`, and `nodes.ts` own canonical content records, hierarchy, immediate-child queries, and development-only density generation.
 
 Maintain these boundaries unless a later task demonstrates a clearer structure.
 
@@ -86,6 +92,9 @@ deployingArtifact
 readingArtifact
 closingArtifact
 restoringArtifact
+enteringCollection
+emergingCollection
+leavingCollection
 ```
 
 Exact identifiers may evolve, but input ownership must remain explicit:
@@ -96,6 +105,9 @@ Exact identifiers may evolve, but input ownership must remain explicit:
 - reading gives wheel, trackpad, keyboard, and pointer behavior to the semantic document;
 - closing disables document interaction;
 - restoration suppresses reservoir input until deterministic restoration finishes.
+- collection entry owns topology suction, child recession, camera approach, grey/grid handoff, and destination activation;
+- child emergence keeps input locked until immediate children settle;
+- collection return owns child recession, camera retreat, reverse grey/grid handoff, and preserved-parent restoration.
 
 Do not allow WebGL input and document scrolling to respond to the same reading gesture.
 
@@ -230,38 +242,131 @@ The final checkpoint passed:
 
 Future changes to opening, scroll ownership, stacking, camera state, or restoration must rerun proportionate versions of these checks.
 
-# 14. Milestone 4 direction
+# 14. Milestone 4 architecture and presentation
 
-The only currently established Milestone 4 direction is **Collection Spatial Identity & Traversal**.
+> **Every reservoir is a collection, and every collection can become a reservoir.**
 
-Begin future design from a black collection orb approximately twice the diameter of an artifact node, fixed to a reservoir vertex and using the existing label system. Avoid extra shells, rings, or internal animation until testing demonstrates a need. Collection activation and traversal semantics remain open.
+Home is collection `home` rendered in its active-reservoir state. An embedded collection is the same semantic class rendered dormant. At stable depth exactly one collection is active.
 
-# 15. Deferred work
+An active collection:
+
+- occupies the main reservoir role;
+- uses the shared active-grey material and detail-15 grid;
+- renders only its immediate artifact and collection children;
+- owns reservoir navigation and default atmospheric context.
+
+A dormant collection:
+
+- is a black orb approximately twice an artifact-node diameter;
+- uses a scale-appropriate reduced version of the reservoir grid;
+- remains at a deterministic valid vertex;
+- exposes no children;
+- uses the shared local-north, billboarded, horizon-faded, backside-hidden label system and subtle white resting hover.
+
+The grid is the primary visual indicator that a dormant collection is another reservoir. Do not add shells, secondary rings, unrelated internal lighting, or decorative topology.
+
+# 15. Collection selection contract
+
+First selection inspects rather than enters. It reuses the shared node-selection model: press/bounce, lower selected-depth hold, canonical surrounding topology, bright edges/spokes, radial gradation, idle continuation bounce/ring, label suppression, atmospheric collection metadata, and restrained selected-hover confirmation. The collection body stays black and gridded; active grey does not appear on first selection.
+
+Second selection confirms traversal. Canonical selected faces and edges retract inward, with the outside disappearing first, until all external selected topology reaches zero inside the node. There is no topology spin, detached geometry, outward second-selection bounce, or physical orb extraction.
+
+# 16. Forward traversal contract
+
+Forward traversal coordinates these overlapping concerns:
+
+```text
+selected topology suction
++ parent remaining-child recession
++ concave-up camera approach
++ active-grey parent → destination handoff
++ dormant-grid → detail-15 active-grid handoff
+↓
+parent hidden
+↓
+destination immediate-child emergence
+↓
+idle input ownership
+```
+
+The destination collection remains fixed in world space. Camera approach creates apparent enlargement and uses a deterministic local radial/tangent frame with an upward, concave-up arc. It intentionally differs from the ordinary concave-down inward dive while retaining clearance, pole/rim, near-overhead, tangent, and roll safeguards. The endpoint is the normalized active-reservoir camera relationship.
+
+Active grey is traversal state, not category color. It transfers from the old active parent to the destination, which finishes with the same grey as Home. The previous parent becomes hidden and non-participatory. Only after activation do the destination's immediate children rise from below the surface, settle at deterministic vertices, and regain label/hover/input behavior. Grandchildren are not rendered.
+
+# 17. Recursive state and rendering contract
+
+> **Recursive collection depth is preserved as state, not accumulated as visible geometry.**
+
+At stable depth, render interactively only the active collection and its immediate children. Preserved ancestors are not visible reservoirs, raycastable geometry, grids, labels, or child trees.
+
+`collectionHistory` stores ordered frames whose collection IDs conceptually form `home → work → data`. The active frame is the current world. Parent frames preserve the exact state required for deterministic return, including collection identity, sphere quaternion, camera pose and travel relationship, local inspection/dive context, selected destination, and active outer frame. Geometry placement remains canonical data rather than accumulated render trees.
+
+Contextual navigation is semantic UI, not WebGL:
+
+```text
+depth 0  → no controls
+depth 1  → Home
+depth 2+ → Home + Back
+```
+
+Back targets the immediately preceding frame. Home targets root directly and does not activate intermediate ancestors.
+
+# 18. Reverse traversal contract
+
+Reverse traversal begins by locking input and submerging the current active collection's immediate children. The major camera pull-out starts only after that recession is established.
+
+> **Reverse traversal is a camera retreat through the collection hierarchy, not a sphere morph.**
+
+The camera performs a larger collection-scale retreat. The preserved target parent enters primarily from below through perspective rather than popping into final framing. During the retreat, active grey and the detail-15 grid drain from the current child and fill/resolve on the parent. The child remains a distinct collection object, becomes smaller through perspective, and resolves to its dormant black reduced-grid state.
+
+At arrival, the exact preserved parent orientation and camera relationship are restored, then the parent's immediate children restore before normal input resumes. Back restores one level. Direct Home uses the same recession-first principle, targets the root frame in one retreat, keeps intermediate ancestors hidden, restores Home's active state and children, and collapses history to root.
+
+# 19. Active-collection-relative artifact behavior
+
+Artifact lookup, selection, opening, reading, close, and deterministic restoration are relative to the active collection. No artifact lifecycle code may assume `activeCollectionId === "home"`. Artifact opening also recedes dormant collection siblings with the active collection's other non-selected nodes.
+
+# 20. Milestone 4 completion record
+
+## Milestone 4 — Recursive Collection Identity, Traversal & Navigation: COMPLETE
+
+Completed 2026-08-13. The checkpoint includes:
+
+- Home/root unified with collection semantics;
+- active/dormant shared reservoir identity, black dormant nodes, adaptive dormant grids, and detail-15 active grids;
+- shared collection labels and hover;
+- collection first selection and inward topology suction on confirmation;
+- camera-driven concave-up forward traversal, parent-child recession, and active-grey parent-to-child transfer;
+- hidden-ancestor architecture, destination child emergence, and recursive forward traversal;
+- preserved traversal-history frames and contextual Home/Back controls;
+- reverse child recession before pull-out, large camera retreat, parent entrance from below, and active-grey child-to-parent transfer;
+- dormant child resolution, exact parent-state restoration, and direct Home return;
+- nested artifact compatibility and standard, reduced-motion, responsive, density, mixed-interaction, recursive, console, and resource-lifecycle stabilization QA.
+
+# 21. Deferred work
 
 Preserve these open decisions:
 
-- initial reservoir composition/load orientation;
-- final responsive brand safe-zone formula;
-- final artifact-window production styling;
-- light theme and device-theme behavior;
-- final semantic colors and typography;
-- collection traversal details;
-- menu;
-- footer;
-- routing;
-- production content;
-- mobile behavior;
-- accessible alternate representation.
+- **Initial Reservoir Composition / Load Orientation**;
+- final responsive/mobile translation and brand safe-zone formula;
+- final artifact-window production styling, theme behavior, semantic colors, and typography;
+- routing and browser-history integration;
+- optional breadcrumb/path representation;
+- production menu and footer;
+- production content/data and media integration;
+- accessible alternate representation;
+- search, filtering, timeline, and long-term relational systems.
 
-Also do not build ahead into databases, CMS integration, recursive collection infrastructure, search, filtering, accounts, admin tooling, or other speculative platform work without direct authorization.
+Milestone 5 and later work are not yet scoped. Do not build ahead into databases, CMS integration, accounts, admin tooling, or other speculative platform work without direct authorization.
 
-# 16. Completion status
+# 22. Completion status
 
 ```text
 Milestone 1 — Camera & Spatial Navigation: COMPLETE
 Milestone 2 — Artifact Spatial Identity, Inspection & Selection: COMPLETE
 Milestone 3 — Progressive Artifact Inspection & Opening: COMPLETE
-Milestone 4 — Collection Spatial Identity & Traversal: NEXT / DESIGN SCOPE
+Milestone 4 — COMPLETE (2026-08-13)
+Recursive Collection Identity, Traversal & Navigation
+Milestone 5+ — Not yet scoped
 ```
 
-Version 0.3 is the implementation reference for all future Digital Reservoir work. Preserve Milestone 3 behavior as the stable artifact-opening contract while Milestone 4 is designed incrementally.
+Version 0.4 is the implementation reference for future Digital Reservoir work. Preserve Milestone 3 as the closed artifact-opening contract and Milestone 4 as the closed recursive collection contract.

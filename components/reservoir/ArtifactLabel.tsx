@@ -2,6 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import * as THREE from "three";
+import { RESERVOIR_NODE_RADIUS } from "@/lib/reservoir/geometry";
 import {
   RESERVOIR_RENDER_ORDER,
   RESERVOIR_THEME,
@@ -23,19 +24,36 @@ const LABEL_CLEARANCE_DAMPING = 10;
 const LABEL_FADE_DAMPING = 10;
 const LABEL_REFERENCE_DISTANCE = 10;
 const LABEL_WORLD_UNITS_PER_PIXEL = 0.00135;
+const LABEL_NODE_CLEARANCE = 0.012;
 const CAROUSEL_HOVER_DWELL_SECONDS = 0.7;
 const MARQUEE_SPEED = 105;
 const MARQUEE_COPY_GAP = 48;
 
-type ArtifactLabelProps = {
-  artifact: ReservoirArtifact;
+export type ReservoirNodeLabelContent = {
+  accentColor: string;
+  eyebrow: string;
+  title: string;
+};
+
+type ReservoirNodeLabelProps = {
+  content: ReservoirNodeLabelContent;
   nodeRef: RefObject<THREE.Group | null>;
   sphereRef: RefObject<THREE.Group | null>;
   position: THREE.Vector3;
-  selectionActive: boolean;
+  nodeRadius: number;
+  suppressed: boolean;
   hovered: boolean;
+  userData?: Record<string, unknown>;
   onPointerEnter: () => void;
   onPointerLeave: () => void;
+};
+
+type ArtifactLabelProps = Omit<
+  ReservoirNodeLabelProps,
+  "content" | "nodeRadius" | "suppressed" | "userData"
+> & {
+  artifact: ReservoirArtifact;
+  selectionActive: boolean;
 };
 
 type LabelCanvas = {
@@ -48,21 +66,21 @@ type LabelCanvas = {
 
 function drawLabel(
   labelCanvas: LabelCanvas,
-  artifact: ReservoirArtifact,
+  content: ReservoirNodeLabelContent,
   titleOffset: number,
   repeatTitle: boolean,
 ) {
   const { canvas, context, texture, titleWidth, titleClipWidth } = labelCanvas;
   context.clearRect(0, 0, canvas.width, canvas.height);
 
-  context.fillStyle = artifact.color;
+  context.fillStyle = content.accentColor;
   context.fillRect(LABEL_HORIZONTAL_PADDING, 22, LABEL_ACCENT_WIDTH, 5);
 
   context.font = "600 23px ui-monospace, SFMono-Regular, Menlo, monospace";
   context.fillStyle = RESERVOIR_THEME.labelMuted;
   context.textBaseline = "alphabetic";
   context.fillText(
-    artifact.type.toUpperCase(),
+    content.eyebrow.toUpperCase(),
     LABEL_HORIZONTAL_PADDING,
     LABEL_TYPE_Y,
   );
@@ -79,14 +97,14 @@ function drawLabel(
   context.font = "540 38px ui-monospace, SFMono-Regular, Menlo, monospace";
   context.fillStyle = RESERVOIR_THEME.label;
   context.fillText(
-    artifact.title,
+    content.title,
     LABEL_HORIZONTAL_PADDING - titleOffset,
     LABEL_TITLE_Y,
   );
 
   if (repeatTitle) {
     context.fillText(
-      artifact.title,
+      content.title,
       LABEL_HORIZONTAL_PADDING -
         titleOffset +
         titleWidth +
@@ -99,16 +117,18 @@ function drawLabel(
   texture.needsUpdate = true;
 }
 
-export function ArtifactLabel({
-  artifact,
+export function ReservoirNodeLabel({
+  content,
   nodeRef,
   sphereRef,
   position,
-  selectionActive,
+  nodeRadius,
+  suppressed,
   hovered,
+  userData,
   onPointerEnter,
   onPointerLeave,
-}: ArtifactLabelProps) {
+}: ReservoirNodeLabelProps) {
   const spriteRef = useRef<THREE.Sprite | null>(null);
   const materialRef = useRef<THREE.SpriteMaterial | null>(null);
   const labelCanvasRef = useRef<LabelCanvas | null>(null);
@@ -132,9 +152,9 @@ export function ArtifactLabel({
     if (!context) return;
 
     context.font = "540 38px ui-monospace, SFMono-Regular, Menlo, monospace";
-    const titleWidth = context.measureText(artifact.title).width;
+    const titleWidth = context.measureText(content.title).width;
     context.font = "600 23px ui-monospace, SFMono-Regular, Menlo, monospace";
-    const typeWidth = context.measureText(artifact.type.toUpperCase()).width;
+    const typeWidth = context.measureText(content.eyebrow.toUpperCase()).width;
     const measuredContentWidth = Math.max(
       titleWidth,
       typeWidth,
@@ -163,7 +183,7 @@ export function ArtifactLabel({
       titleClipWidth: canvas.width - LABEL_HORIZONTAL_PADDING * 2,
     };
     labelCanvasRef.current = labelCanvas;
-    drawLabel(labelCanvas, artifact, 0, false);
+    drawLabel(labelCanvas, content, 0, false);
     const material = materialRef.current;
     if (material) {
       material.map = canvasTexture;
@@ -178,7 +198,7 @@ export function ArtifactLabel({
       }
       canvasTexture.dispose();
     };
-  }, [artifact]);
+  }, [content]);
 
   useFrame(({ camera }, delta) => {
     const sprite = spriteRef.current;
@@ -198,7 +218,7 @@ export function ArtifactLabel({
 
     const facing = surfaceNormal.current.dot(referenceViewDirection.current);
     const isFrontFacing = facing > LABEL_FRONT_FACING_THRESHOLD;
-    const eligible = isFrontFacing && !selectionActive;
+    const eligible = isFrontFacing && !suppressed;
     const targetOpacity = eligible ? 1 : 0;
     material.opacity = THREE.MathUtils.damp(
       material.opacity,
@@ -234,14 +254,31 @@ export function ArtifactLabel({
       0.43,
       1.08,
     );
+    const labelWorldHeight =
+      LABEL_CANVAS_HEIGHT *
+      LABEL_WORLD_UNITS_PER_PIXEL *
+      distanceCompensation;
     sprite.scale.set(
       labelCanvas.canvas.width *
         LABEL_WORLD_UNITS_PER_PIXEL *
         distanceCompensation,
-      LABEL_CANVAS_HEIGHT *
-        LABEL_WORLD_UNITS_PER_PIXEL *
-        distanceCompensation,
+      labelWorldHeight,
       1,
+    );
+    const frontFacingProgress = THREE.MathUtils.smoothstep(
+      facing,
+      LABEL_HORIZON_CLEARANCE_START,
+      0.82,
+    );
+    const frontFacingCenterY =
+      0.5 - (nodeRadius + LABEL_NODE_CLEARANCE) / labelWorldHeight;
+    sprite.center.set(
+      0.5,
+      THREE.MathUtils.lerp(
+        0.5,
+        frontFacingCenterY,
+        frontFacingProgress,
+      ),
     );
 
     const titleOverflows =
@@ -257,13 +294,13 @@ export function ArtifactLabel({
               MARQUEE_SPEED) % travelDistance;
 
       if (Math.abs(titleOffset - lastOffsetRef.current) >= 0.5) {
-        drawLabel(labelCanvas, artifact, titleOffset, true);
+        drawLabel(labelCanvas, content, titleOffset, true);
         lastOffsetRef.current = titleOffset;
       }
     } else if (elapsedRef.current !== 0 || lastOffsetRef.current !== 0) {
       elapsedRef.current = 0;
       lastOffsetRef.current = 0;
-      drawLabel(labelCanvas, artifact, 0, false);
+      drawLabel(labelCanvas, content, 0, false);
     }
   });
 
@@ -272,6 +309,7 @@ export function ArtifactLabel({
       ref={spriteRef}
       position={position}
       renderOrder={RESERVOIR_RENDER_ORDER.artifactLabel}
+      userData={userData}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
@@ -285,5 +323,30 @@ export function ArtifactLabel({
         toneMapped={false}
       />
     </sprite>
+  );
+}
+
+export function ArtifactLabel({
+  artifact,
+  selectionActive,
+  ...labelProps
+}: ArtifactLabelProps) {
+  const content = useMemo(
+    () => ({
+      accentColor: artifact.color,
+      eyebrow: artifact.type,
+      title: artifact.title,
+    }),
+    [artifact],
+  );
+
+  return (
+    <ReservoirNodeLabel
+      {...labelProps}
+      content={content}
+      nodeRadius={RESERVOIR_NODE_RADIUS}
+      suppressed={selectionActive}
+      userData={{ artifactId: artifact.id }}
+    />
   );
 }

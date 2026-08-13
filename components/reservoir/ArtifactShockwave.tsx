@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { createReservoirShockwaveGeometry } from "@/lib/reservoir/geometry";
 import {
   getShockwaveDuration,
-  RESERVOIR_OPENING_TIMING,
+  getShockwaveStart,
   RESERVOIR_SHOCKWAVE_GRAPH_WIDTH,
   RESERVOIR_SHOCKWAVE_RANGE_GAIN,
 } from "@/lib/reservoir/opening";
@@ -104,7 +104,7 @@ export function ArtifactShockwave({
 
     const duration = getShockwaveDuration(reducedMotion);
     const progress = THREE.MathUtils.clamp(
-      (elapsedRef.current - RESERVOIR_OPENING_TIMING.shockwaveStart) /
+      (elapsedRef.current - getShockwaveStart(reducedMotion)) /
         duration,
       0,
       1,

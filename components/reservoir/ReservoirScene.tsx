@@ -12,17 +12,36 @@ import {
 import type { MutableRefObject, PointerEvent, WheelEvent } from "react";
 import * as THREE from "three";
 import {
-  activeReservoirArtifacts,
+  getReservoirArtifacts,
   prepareReservoirArtifactContent,
   reservoirDensityTestDiagnostics,
 } from "@/content/reservoir/artifacts";
 import {
+  activeCollectionId as INITIAL_ACTIVE_COLLECTION_ID,
+  getReservoirChildCollections,
+  getReservoirCollection,
+  rootReservoirCollection,
+} from "@/content/reservoir/collections";
+import {
+  getReservoirNodeDiagnostics,
+  getReservoirNodes,
+} from "@/content/reservoir/nodes";
+import {
+  RESERVOIR_BASE_ROTATION,
   getReservoirPlacementGraphDistance,
+  RESERVOIR_COLLECTION_NODE_RADIUS,
+  RESERVOIR_COLLECTION_NODE_SCALE,
   RESERVOIR_GRID_DETAIL,
   RESERVOIR_MIN_ARTIFACT_VERTEX_STEPS,
   RESERVOIR_NODE_RADIUS,
   RESERVOIR_RADIUS,
 } from "@/lib/reservoir/geometry";
+import { getReservoirNodePlacement } from "@/lib/reservoir/node";
+import { RESERVOIR_NODE_SELECTED_RADIAL_RATIO } from "@/lib/reservoir/selection";
+import {
+  COLLECTION_RETURN_PHASES,
+  getCollectionEntryPhase,
+} from "@/lib/reservoir/collection-entry";
 import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
 import {
   getOpeningCameraDelay,
@@ -34,14 +53,18 @@ import {
   getReservoirRestoreProgress,
 } from "@/lib/reservoir/reading";
 import type {
+  EmbeddedReservoirCollection,
   PreparedArtifactContent,
   ReservoirGridInspection,
 } from "@/types/reservoir";
 import { AtmosphereContent } from "./AtmosphereContent";
 import { ArtifactWindow } from "./ArtifactWindow";
 import { ReservoirSphere } from "./ReservoirSphere";
+import { ReturningCollectionNode } from "./ReturningCollectionNode";
+import { CollectionNavigation } from "../navigation/CollectionNavigation";
 
 const CAMERA_FOV = 34;
+const CAMERA_NEAR = 0.08;
 const CAMERA_DAMPING = 8;
 const CAMERA_WHEEL_RATE = 0.0018;
 const MAX_WHEEL_DELTA = 100;
@@ -61,6 +84,23 @@ const ENDPOINT_SNAP_THRESHOLD = 0.015;
 const DIVE_TARGET_UNLOCK_PROGRESS = 0.04;
 const NODE_CLICK_MAX_TRAVEL = 6;
 const ARTIFACT_WINDOW_ATMOSPHERE_GAP = 16;
+const COLLECTION_ENTRY_DURATION = 1.45;
+const COLLECTION_ENTRY_REDUCED_MOTION_DURATION = 0.42;
+const COLLECTION_ENTRY_UPWARD_ARC_CLEARANCE = RESERVOIR_RADIUS * 0.16;
+const COLLECTION_ENTRY_OVERHEAD_CURVATURE_FLOOR = 0.35;
+const COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE = CAMERA_NEAR + 0.012;
+const COLLECTION_ENTRY_ARRIVAL_EPSILON = 0.00001;
+const COLLECTION_CHILD_EMERGENCE_DURATION = 1.05;
+const COLLECTION_CHILD_EMERGENCE_REDUCED_MOTION_DURATION = 0.28;
+// The approved collection-scale retreat keeps its existing duration. Reverse
+// traversal adds a recession lead ahead of it so even the last deterministic
+// node stagger is substantially beneath the active sphere before camera motion
+// becomes visible.
+const COLLECTION_RETURN_RECESSION_LEAD_DURATION = 0.88;
+const COLLECTION_RETURN_REDUCED_MOTION_RECESSION_LEAD_DURATION = 0.32;
+const COLLECTION_RETURN_DURATION = 2.35;
+const COLLECTION_RETURN_REDUCED_MOTION_DURATION = 0.55;
+const EMPTY_REACTION_DISTANCES = new Map<string, number>();
 
 type DragState = {
   pointerId: number;
@@ -127,8 +167,14 @@ type DiveTarget = {
 };
 
 type TravelDirection = "inward" | "outward";
+type PickedReservoirNode =
+  | { kind: "artifact"; id: string }
+  | { kind: "collection"; id: string };
 type ReservoirTransitionState =
   | "idle"
+  | "enteringCollection"
+  | "emergingCollection"
+  | "leavingCollection"
   | "openingArtifact"
   | "deployingArtifact"
   | "readingArtifact"
@@ -170,11 +216,109 @@ type PreservedCameraPose = {
   progress: number;
 };
 
+type PreservedCollectionAncestorState = {
+  collectionId: string;
+  selectedDestinationId: string;
+  sphereQuaternion: QuaternionTuple;
+  cameraPosition: VectorTuple;
+  cameraTarget: VectorTuple;
+  cameraQuaternion: QuaternionTuple;
+  cameraProgress: number;
+  cameraTargetProgress: number;
+  travelDirection: TravelDirection;
+  diveTarget: DiveTarget;
+  diveTargetLocked: boolean;
+  inspectionFrame: PreservedLocalSurfaceFrame | null;
+  lastInspectionFrame: PreservedLocalSurfaceFrame | null;
+  diveOrigin: PreservedCameraPose | null;
+  retreatOrigin: PreservedCameraPose | null;
+  activeOuterPosition: VectorTuple;
+  activeOuterTarget: VectorTuple;
+};
+
+type PreservedLocalSurfaceFrame = {
+  normal: VectorTuple;
+  tangentUp: VectorTuple;
+  tangentRight: VectorTuple;
+};
+
+type CollectionHistoryFrame = {
+  collectionId: string;
+  preservedState: PreservedCollectionAncestorState | null;
+};
+
+type CollectionReturnMode = "back" | "home";
+
+type CollectionReturnTransition = {
+  exitedCollectionId: string;
+  mode: CollectionReturnMode;
+  sourceCenter: VectorTuple;
+  sourceEndCenter: VectorTuple;
+  sourceEndQuaternion: QuaternionTuple;
+  sourceOuterQuaternion: QuaternionTuple;
+  sourceRadius: number;
+  sourceSafetyOffset: number;
+  sourceScale: number;
+  sourceStartQuaternion: QuaternionTuple;
+  targetHistoryIndex: number;
+  targetLocalTransferDirection: VectorTuple;
+  targetState: PreservedCollectionAncestorState;
+};
+
+type ActiveOuterFrame = {
+  position: THREE.Vector3;
+  target: THREE.Vector3;
+};
+
 type CameraPose = {
   position: THREE.Vector3;
   target: THREE.Vector3;
   quaternion: THREE.Quaternion;
   progress: number;
+};
+
+type CollectionEntryPath = {
+  collectionCenter: THREE.Vector3;
+  collectionId: string;
+  collectionRadius: number;
+  curvatureDirection: THREE.Vector3;
+  curvatureWeight: number;
+  destinationCenterDistance: number;
+  destinationFocusDistance: number;
+  destinationPosition: THREE.Vector3;
+  destinationTarget: THREE.Vector3;
+  endHomeDirection: THREE.Vector3;
+  endHomeDistance: number;
+  frame: LocalSurfaceFrame;
+  homeCenter: THREE.Vector3;
+  minimumCollectionClearance: number;
+  minimumHomeClearance: number;
+  normalizedCenterDistance: number;
+  normalizedFocusDistance: number;
+  startHomeDirection: THREE.Vector3;
+  startHomeDistance: number;
+  startPosition: THREE.Vector3;
+  startProgress: number;
+  startTarget: THREE.Vector3;
+};
+
+type CollectionReturnPath = {
+  destinationFocusDistance: number;
+  destinationPosition: THREE.Vector3;
+  destinationProgress: number;
+  destinationQuaternion: THREE.Quaternion;
+  destinationTarget: THREE.Vector3;
+  endDirection: THREE.Vector3;
+  endDistance: number;
+  frame: LocalSurfaceFrame;
+  minimumClearance: number;
+  sphereCenter: THREE.Vector3;
+  startDirection: THREE.Vector3;
+  startDistance: number;
+  startFocusDistance: number;
+  startPosition: THREE.Vector3;
+  startQuaternion: THREE.Quaternion;
+  startTarget: THREE.Vector3;
 };
 
 type RotationDiagnostics = {
@@ -686,6 +830,462 @@ function slerpUnitVectors(
   return result.copy(start).applyQuaternion(rotation).normalize();
 }
 
+function getCollectionEntryPosition(
+  path: Pick<
+    CollectionEntryPath,
+    | "curvatureDirection"
+    | "curvatureWeight"
+    | "endHomeDirection"
+    | "endHomeDistance"
+    | "homeCenter"
+    | "startHomeDirection"
+    | "startHomeDistance"
+  >,
+  progress: number,
+  result: THREE.Vector3,
+  direction: THREE.Vector3,
+  axis: THREE.Vector3,
+  rotation: THREE.Quaternion,
+) {
+  const easedProgress = smoothstep(clamp(progress, 0, 1));
+  slerpUnitVectors(
+    path.startHomeDirection,
+    path.endHomeDirection,
+    easedProgress,
+    direction,
+    axis,
+    rotation,
+  );
+  const centerDistance =
+    THREE.MathUtils.lerp(
+      path.startHomeDistance,
+      path.endHomeDistance,
+      easedProgress,
+    );
+  const upwardArcOffset =
+    Math.sin(Math.PI * easedProgress) *
+    COLLECTION_ENTRY_UPWARD_ARC_CLEARANCE *
+    path.curvatureWeight;
+
+  return result
+    .copy(path.homeCenter)
+    .addScaledVector(direction, centerDistance)
+    .addScaledVector(path.curvatureDirection, upwardArcOffset);
+}
+
+function getCollectionReturnPosition(
+  path: CollectionReturnPath,
+  progress: number,
+  result: THREE.Vector3,
+  direction: THREE.Vector3,
+  axis: THREE.Vector3,
+  rotation: THREE.Quaternion,
+) {
+  const normalizedProgress = clamp(progress, 0, 1);
+  const directionProgress = smoothstep(normalizedProgress);
+  const distanceProgress = easeOutQuadratic(normalizedProgress);
+  slerpUnitVectors(
+    path.startDirection,
+    path.endDirection,
+    directionProgress,
+    direction,
+    axis,
+    rotation,
+  );
+
+  return result
+    .copy(path.sphereCenter)
+    .addScaledVector(
+      direction,
+      THREE.MathUtils.lerp(
+        path.startDistance,
+        path.endDistance,
+        distanceProgress,
+      ),
+    );
+}
+
+function getPreservedChildCenter({
+  childCollectionId,
+  parentState,
+  selected,
+  sphereCenter,
+}: {
+  childCollectionId: string;
+  parentState: PreservedCollectionAncestorState;
+  selected: boolean;
+  sphereCenter: THREE.Vector3;
+}) {
+  const childCollection = getReservoirCollection(childCollectionId) as
+    | EmbeddedReservoirCollection
+    | null;
+  if (!childCollection) return null;
+  const placement = getReservoirNodePlacement(
+    childCollection.vertexId,
+    RESERVOIR_COLLECTION_NODE_RADIUS,
+  );
+  if (!placement) return null;
+
+  const radialOffset = selected
+    ? RESERVOIR_COLLECTION_NODE_RADIUS *
+      RESERVOIR_NODE_SELECTED_RADIAL_RATIO
+    : 0;
+  const baseQuaternion = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(...RESERVOIR_BASE_ROTATION),
+  );
+  const parentQuaternion = new THREE.Quaternion(
+    ...parentState.sphereQuaternion,
+  );
+
+  return placement.position
+    .clone()
+    .addScaledVector(placement.normal, radialOffset)
+    .applyQuaternion(baseQuaternion)
+    .applyQuaternion(parentQuaternion)
+    .add(sphereCenter);
+}
+
+function mapCollectionReturnToAncestor({
+  collectionHistory,
+  renderedPose,
+  sourceOuterQuaternion,
+  sphereCenter,
+  targetHistoryIndex,
+}: {
+  collectionHistory: readonly CollectionHistoryFrame[];
+  renderedPose: CameraPose;
+  sourceOuterQuaternion: THREE.Quaternion;
+  sphereCenter: THREE.Vector3;
+  targetHistoryIndex: number;
+}) {
+  const collectionScale =
+    RESERVOIR_COLLECTION_NODE_RADIUS / RESERVOIR_RADIUS;
+  const mappedPosition = renderedPose.position.clone();
+  const mappedTarget = renderedPose.target.clone();
+  const mappedCenter = sphereCenter.clone();
+  let sourceScale = 1;
+
+  for (
+    let parentIndex = collectionHistory.length - 2;
+    parentIndex >= targetHistoryIndex;
+    parentIndex -= 1
+  ) {
+    const parentState = collectionHistory[parentIndex]?.preservedState;
+    const childCollectionId = collectionHistory[parentIndex + 1]?.collectionId;
+    if (!parentState || !childCollectionId) return null;
+    const childCenter = getPreservedChildCenter({
+      childCollectionId,
+      parentState,
+      selected: true,
+      sphereCenter,
+    });
+    if (!childCenter) return null;
+
+    mappedPosition
+      .sub(sphereCenter)
+      .multiplyScalar(collectionScale)
+      .add(childCenter);
+    mappedTarget
+      .sub(sphereCenter)
+      .multiplyScalar(collectionScale)
+      .add(childCenter);
+    mappedCenter
+      .sub(sphereCenter)
+      .multiplyScalar(collectionScale)
+      .add(childCenter);
+    sourceScale *= collectionScale;
+  }
+
+  const targetState =
+    collectionHistory[targetHistoryIndex]?.preservedState ?? null;
+  if (!targetState) return null;
+  const targetOuterQuaternion = new THREE.Quaternion(
+    ...targetState.sphereQuaternion,
+  );
+  const baseQuaternion = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(...RESERVOIR_BASE_ROTATION),
+  );
+  const sourceWorldQuaternion = sourceOuterQuaternion
+    .clone()
+    .multiply(baseQuaternion);
+  const targetWorldQuaternion = targetOuterQuaternion
+    .clone()
+    .multiply(baseQuaternion);
+  const directChild =
+    targetHistoryIndex === collectionHistory.length - 2;
+  let sourceSafetyOffset = 0;
+  if (!directChild) {
+    const cameraClearance =
+      mappedPosition.distanceTo(sphereCenter) - RESERVOIR_RADIUS;
+    const requiredClearance = MIN_CAMERA_CLEARANCE;
+    if (cameraClearance < requiredClearance) {
+      const safetyDirection = mappedPosition.clone().sub(sphereCenter);
+      if (safetyDirection.lengthSq() < FRAME_EPSILON) {
+        safetyDirection.copy(mappedCenter).sub(sphereCenter);
+      }
+      if (safetyDirection.lengthSq() < FRAME_EPSILON) {
+        safetyDirection.set(0, 0, 1);
+      }
+      safetyDirection.normalize();
+      sourceSafetyOffset = requiredClearance - cameraClearance;
+      mappedPosition.addScaledVector(safetyDirection, sourceSafetyOffset);
+      mappedTarget.addScaledVector(safetyDirection, sourceSafetyOffset);
+      mappedCenter.addScaledVector(safetyDirection, sourceSafetyOffset);
+    }
+  }
+  const sourceEndCenter = directChild
+    ? getPreservedChildCenter({
+        childCollectionId:
+          collectionHistory[collectionHistory.length - 1].collectionId,
+        parentState: targetState,
+        selected: false,
+        sphereCenter,
+      }) ?? mappedCenter.clone()
+    : mappedCenter.clone();
+  const sourceDirection = mappedCenter
+    .clone()
+    .sub(sphereCenter)
+    .normalize();
+  const targetLocalTransferDirection = sourceDirection
+    .clone()
+    .applyQuaternion(targetWorldQuaternion.clone().invert())
+    .normalize();
+
+  return {
+    mappedPose: {
+      position: mappedPosition,
+      target: mappedTarget,
+      quaternion: renderedPose.quaternion.clone(),
+      progress: renderedPose.progress,
+    } satisfies CameraPose,
+    sourceCenter: mappedCenter,
+    sourceEndCenter,
+    sourceEndQuaternion: directChild
+      ? targetWorldQuaternion
+      : sourceWorldQuaternion.clone(),
+    sourceRadius: RESERVOIR_RADIUS * sourceScale,
+    sourceSafetyOffset,
+    sourceScale,
+    sourceStartQuaternion: sourceWorldQuaternion,
+    targetLocalTransferDirection,
+  };
+}
+
+function getCollectionReturnPath({
+  destinationFrame,
+  destinationProgress,
+  destinationPose,
+  sphereCenter,
+  startPose,
+}: {
+  destinationFrame: LocalSurfaceFrame;
+  destinationProgress: number;
+  destinationPose: CameraPose;
+  sphereCenter: THREE.Vector3;
+  startPose: CameraPose;
+}): CollectionReturnPath | null {
+  const startOffset = startPose.position.clone().sub(sphereCenter);
+  const endOffset = destinationPose.position.clone().sub(sphereCenter);
+  if (
+    startOffset.lengthSq() < FRAME_EPSILON ||
+    endOffset.lengthSq() < FRAME_EPSILON
+  ) {
+    return null;
+  }
+
+  const path: CollectionReturnPath = {
+    destinationFocusDistance: destinationPose.position.distanceTo(
+      destinationPose.target,
+    ),
+    destinationPosition: destinationPose.position.clone(),
+    destinationProgress,
+    destinationQuaternion: destinationPose.quaternion.clone().normalize(),
+    destinationTarget: destinationPose.target.clone(),
+    endDirection: endOffset.clone().normalize(),
+    endDistance: endOffset.length(),
+    frame: destinationFrame,
+    minimumClearance: Number.POSITIVE_INFINITY,
+    sphereCenter: sphereCenter.clone(),
+    startDirection: startOffset.clone().normalize(),
+    startDistance: startOffset.length(),
+    startFocusDistance: startPose.position.distanceTo(startPose.target),
+    startPosition: startPose.position.clone(),
+    startQuaternion: startPose.quaternion.clone().normalize(),
+    startTarget: startPose.target.clone(),
+  };
+  const samplePosition = new THREE.Vector3();
+  const sampleDirection = new THREE.Vector3();
+  const sampleAxis = new THREE.Vector3();
+  const sampleRotation = new THREE.Quaternion();
+
+  for (let index = 0; index <= PATH_SAFETY_SAMPLE_COUNT; index += 1) {
+    getCollectionReturnPosition(
+      path,
+      index / PATH_SAFETY_SAMPLE_COUNT,
+      samplePosition,
+      sampleDirection,
+      sampleAxis,
+      sampleRotation,
+    );
+    path.minimumClearance = Math.min(
+      path.minimumClearance,
+      samplePosition.distanceTo(sphereCenter) - RESERVOIR_RADIUS,
+    );
+  }
+
+  return path.minimumClearance >= COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE
+    ? path
+    : null;
+}
+
+function getCollectionEntryPath({
+  collectionCenter,
+  collectionId,
+  collectionRadius,
+  frame,
+  homeCenter,
+  model,
+  startPose,
+}: {
+  collectionCenter: THREE.Vector3;
+  collectionId: string;
+  collectionRadius: number;
+  frame: LocalSurfaceFrame;
+  homeCenter: THREE.Vector3;
+  model: AtmosphericCameraModel;
+  startPose: CameraPose;
+}): CollectionEntryPath | null {
+  const normalizedCenterDistance =
+    model.outerCenterDistance / RESERVOIR_RADIUS;
+  const normalizedFocusDistance =
+    model.outerFocusDistance / RESERVOIR_RADIUS;
+  const destinationCenterDistance =
+    normalizedCenterDistance * collectionRadius;
+  const destinationFocusDistance =
+    normalizedFocusDistance * collectionRadius;
+  const destinationPosition = collectionCenter
+    .clone()
+    .addScaledVector(
+      frame.normal,
+      Math.cos(model.outerRadialTilt) * destinationCenterDistance,
+    )
+    .addScaledVector(
+      frame.tangentUp,
+      Math.sin(model.outerRadialTilt) * destinationCenterDistance,
+    );
+  const destinationCenterDirection = collectionCenter
+    .clone()
+    .sub(destinationPosition)
+    .normalize();
+  const destinationScreenUp = new THREE.Vector3(0, 1, 0).addScaledVector(
+    destinationCenterDirection,
+    -destinationCenterDirection.y,
+  );
+
+  if (destinationScreenUp.lengthSq() < FRAME_POLE_THRESHOLD ** 2) {
+    destinationScreenUp
+      .copy(frame.tangentUp)
+      .addScaledVector(
+        destinationCenterDirection,
+        -frame.tangentUp.dot(destinationCenterDirection),
+      );
+  }
+  if (destinationScreenUp.lengthSq() < FRAME_EPSILON) return null;
+  destinationScreenUp.normalize();
+
+  const destinationForward = destinationCenterDirection
+    .clone()
+    .multiplyScalar(Math.cos(model.outerCenterViewOffset))
+    .addScaledVector(
+      destinationScreenUp,
+      Math.sin(model.outerCenterViewOffset),
+    )
+    .normalize();
+  const destinationTarget = destinationPosition
+    .clone()
+    .addScaledVector(destinationForward, destinationFocusDistance);
+  const overheadSeparation = Math.sqrt(
+    Math.max(0, 1 - frame.normal.y ** 2),
+  );
+  const overheadCurvatureBlend = smoothstep(
+    clamp(
+      overheadSeparation / (FRAME_POLE_THRESHOLD * 4),
+      0,
+      1,
+    ),
+  );
+  const curvatureWeight = THREE.MathUtils.lerp(
+    COLLECTION_ENTRY_OVERHEAD_CURVATURE_FLOOR,
+    1,
+    overheadCurvatureBlend,
+  );
+  const startHomeOffset = startPose.position.clone().sub(homeCenter);
+  const endHomeOffset = destinationPosition.clone().sub(homeCenter);
+  if (
+    startHomeOffset.lengthSq() < FRAME_EPSILON ||
+    endHomeOffset.lengthSq() < FRAME_EPSILON
+  ) {
+    return null;
+  }
+
+  const path: CollectionEntryPath = {
+    collectionCenter: collectionCenter.clone(),
+    collectionId,
+    collectionRadius,
+    curvatureDirection: frame.tangentUp.clone(),
+    curvatureWeight,
+    destinationCenterDistance,
+    destinationFocusDistance,
+    destinationPosition,
+    destinationTarget,
+    endHomeDirection: endHomeOffset.clone().normalize(),
+    endHomeDistance: endHomeOffset.length(),
+    frame,
+    homeCenter: homeCenter.clone(),
+    minimumCollectionClearance: Number.POSITIVE_INFINITY,
+    minimumHomeClearance: Number.POSITIVE_INFINITY,
+    normalizedCenterDistance,
+    normalizedFocusDistance,
+    startHomeDirection: startHomeOffset.clone().normalize(),
+    startHomeDistance: startHomeOffset.length(),
+    startPosition: startPose.position.clone(),
+    startProgress: startPose.progress,
+    startTarget: startPose.target.clone(),
+  };
+  const samplePosition = new THREE.Vector3();
+  const sampleDirection = new THREE.Vector3();
+  const sampleAxis = new THREE.Vector3();
+  const sampleRotation = new THREE.Quaternion();
+
+  for (let index = 0; index <= PATH_SAFETY_SAMPLE_COUNT; index += 1) {
+    getCollectionEntryPosition(
+      path,
+      index / PATH_SAFETY_SAMPLE_COUNT,
+      samplePosition,
+      sampleDirection,
+      sampleAxis,
+      sampleRotation,
+    );
+    path.minimumHomeClearance = Math.min(
+      path.minimumHomeClearance,
+      samplePosition.distanceTo(homeCenter) - RESERVOIR_RADIUS,
+    );
+    path.minimumCollectionClearance = Math.min(
+      path.minimumCollectionClearance,
+      samplePosition.distanceTo(collectionCenter) - collectionRadius,
+    );
+  }
+
+  if (
+    path.minimumHomeClearance < COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE ||
+    path.minimumCollectionClearance < COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE
+  ) {
+    return null;
+  }
+
+  return path;
+}
+
 function enforceCameraClearance(
   position: THREE.Vector3,
   sphereCenter: THREE.Vector3,
@@ -715,6 +1315,10 @@ function enforceCameraClearance(
 }
 
 type ReservoirCameraProps = {
+  collectionEntryPath: CollectionEntryPath | null;
+  collectionEntryProgressRef: MutableRefObject<number>;
+  collectionReturnPath: CollectionReturnPath | null;
+  collectionReturnProgressRef: MutableRefObject<number>;
   inwardPath: CameraPath;
   retreatPath: RetreatPath | null;
   orientationFrame: LocalSurfaceFrame;
@@ -725,6 +1329,10 @@ type ReservoirCameraProps = {
 };
 
 function ReservoirCamera({
+  collectionEntryPath,
+  collectionEntryProgressRef,
+  collectionReturnPath,
+  collectionReturnProgressRef,
   inwardPath,
   retreatPath,
   orientationFrame,
@@ -773,8 +1381,43 @@ function ReservoirCamera({
     }
 
     let orientationFromRetreat = false;
+    let activeOrientationFrame = orientationFrame;
 
-    if (travelDirection === "outward" && retreatPath) {
+    if (collectionReturnPath) {
+      const returnProgress = clamp(collectionReturnProgressRef.current, 0, 1);
+      getCollectionReturnPosition(
+        collectionReturnPath,
+        returnProgress,
+        position,
+        pathDirection,
+        slerpAxis,
+        slerpRotation,
+      );
+      target
+        .copy(collectionReturnPath.startTarget)
+        .lerp(
+          collectionReturnPath.destinationTarget,
+          easeOutQuadratic(smoothstep(returnProgress)),
+        );
+      activeOrientationFrame = collectionReturnPath.frame;
+    } else if (collectionEntryPath) {
+      const entryProgress = clamp(collectionEntryProgressRef.current, 0, 1);
+      getCollectionEntryPosition(
+        collectionEntryPath,
+        entryProgress,
+        position,
+        pathDirection,
+        slerpAxis,
+        slerpRotation,
+      );
+      target
+        .copy(collectionEntryPath.startTarget)
+        .lerp(
+          collectionEntryPath.destinationTarget,
+          easeOutQuadratic(smoothstep(entryProgress)),
+        );
+      activeOrientationFrame = collectionEntryPath.frame;
+    } else if (travelDirection === "outward" && retreatPath) {
       const retreatProgress = smoothstep(
         1 -
           clamp(
@@ -866,32 +1509,54 @@ function ReservoirCamera({
         .lerp(inwardPath.innerTarget, lookProgress);
     }
 
-    const sphereCenter =
-      retreatPath?.sphereCenter ?? inwardPath.sphereCenter;
-    enforceCameraClearance(
-      position,
-      sphereCenter,
-      retreatPath?.frame.normal ?? inwardPath.innerDirection,
-      clearanceOffset,
-    );
+    const sphereCenter = collectionReturnPath
+      ? collectionReturnPath.sphereCenter
+      : collectionEntryPath
+      ? collectionEntryPath.homeCenter
+      : retreatPath?.sphereCenter ?? inwardPath.sphereCenter;
+    if (!collectionEntryPath && !collectionReturnPath) {
+      enforceCameraClearance(
+        position,
+        sphereCenter,
+        retreatPath?.frame.normal ?? inwardPath.innerDirection,
+        clearanceOffset,
+      );
+    }
     direction.copy(target).sub(position);
 
+    const homeClearance =
+      position.distanceTo(sphereCenter) - RESERVOIR_RADIUS;
+    const collectionClearance = collectionEntryPath
+      ? position.distanceTo(collectionEntryPath.collectionCenter) -
+        collectionEntryPath.collectionRadius
+      : Number.POSITIVE_INFINITY;
     const hasValidPose =
       isFiniteVector(position) &&
       isFiniteVector(target) &&
-      position.distanceTo(sphereCenter) - RESERVOIR_RADIUS >
-        MIN_CAMERA_CLEARANCE &&
+      homeClearance >
+        (collectionEntryPath
+          ? COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE
+          : MIN_CAMERA_CLEARANCE) &&
+      collectionClearance > COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE &&
       direction.lengthSq() >= FRAME_EPSILON;
 
     if (!hasValidPose) {
-      position.copy(inwardPath.outerPosition);
-      target.copy(inwardPath.outerTarget);
-      enforceCameraClearance(
-        position,
-        inwardPath.sphereCenter,
-        inwardPath.outerDirection,
-        clearanceOffset,
-      );
+      if (collectionReturnPath) {
+        position.copy(collectionReturnPath.startPosition);
+        target.copy(collectionReturnPath.startTarget);
+      } else if (collectionEntryPath) {
+        position.copy(collectionEntryPath.startPosition);
+        target.copy(collectionEntryPath.startTarget);
+      } else {
+        position.copy(inwardPath.outerPosition);
+        target.copy(inwardPath.outerTarget);
+        enforceCameraClearance(
+          position,
+          inwardPath.sphereCenter,
+          inwardPath.outerDirection,
+          clearanceOffset,
+        );
+      }
       direction.copy(target).sub(position);
       orientationFromRetreat = false;
     }
@@ -899,10 +1564,10 @@ function ReservoirCamera({
     direction.normalize();
     if (!orientationFromRetreat) {
       frameRight
-        .copy(orientationFrame.tangentRight)
+        .copy(activeOrientationFrame.tangentRight)
         .addScaledVector(
           direction,
-          -orientationFrame.tangentRight.dot(direction),
+          -activeOrientationFrame.tangentRight.dot(direction),
         );
 
       if (frameRight.lengthSq() < FRAME_EPSILON) {
@@ -945,6 +1610,18 @@ function ReservoirCamera({
 
       lookMatrix.lookAt(position, target, stableUp);
       candidateQuaternion.setFromRotationMatrix(lookMatrix).normalize();
+      if (collectionReturnPath) {
+        const endpointOrientationBlend = getCollectionEntryPhase(
+          collectionReturnProgressRef.current,
+          [0.82, 1],
+        );
+        candidateQuaternion
+          .slerp(
+            collectionReturnPath.destinationQuaternion,
+            endpointOrientationBlend,
+          )
+          .normalize();
+      }
     }
     const hasValidOrientation =
       candidateQuaternion
@@ -990,6 +1667,16 @@ function ReservoirCamera({
       diagnosticsRef.current.dataset.currentCameraClearance = (
         camera.position.distanceTo(sphereCenter) - RESERVOIR_RADIUS
       ).toFixed(6);
+      diagnosticsRef.current.dataset.collectionEntryProgress =
+        collectionEntryProgressRef.current.toFixed(6);
+      diagnosticsRef.current.dataset.collectionReturnProgress =
+        collectionReturnProgressRef.current.toFixed(6);
+      diagnosticsRef.current.dataset.collectionEntryHomeClearance =
+        homeClearance.toFixed(6);
+      diagnosticsRef.current.dataset.collectionEntryTargetClearance =
+        Number.isFinite(collectionClearance)
+          ? collectionClearance.toFixed(6)
+          : "";
       diagnosticsRef.current.dataset.renderedCameraProgress =
         currentProgress.current.toFixed(6);
       diagnosticsRef.current.dataset.currentDragSensitivity =
@@ -1027,6 +1714,28 @@ export function ReservoirScene() {
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(
     null,
   );
+  const [selectedCollectionId, setSelectedCollectionId] = useState<
+    string | null
+  >(null);
+  const [currentActiveCollectionId, setCurrentActiveCollectionId] = useState(
+    INITIAL_ACTIVE_COLLECTION_ID,
+  );
+  const [enteringCollectionId, setEnteringCollectionId] = useState<
+    string | null
+  >(null);
+  const [collectionEntryPath, setCollectionEntryPath] = useState<
+    CollectionEntryPath | null
+  >(null);
+  const [collectionHistory, setCollectionHistory] = useState<
+    CollectionHistoryFrame[]
+  >([{ collectionId: INITIAL_ACTIVE_COLLECTION_ID, preservedState: null }]);
+  const [collectionReturnTransition, setCollectionReturnTransition] =
+    useState<CollectionReturnTransition | null>(null);
+  const [collectionReturnPath, setCollectionReturnPath] = useState<
+    CollectionReturnPath | null
+  >(null);
+  const [activeOuterFrame, setActiveOuterFrame] =
+    useState<ActiveOuterFrame | null>(null);
   const [hoveredArtifactId, setHoveredArtifactId] = useState<string | null>(
     null,
   );
@@ -1053,6 +1762,12 @@ export function ReservoirScene() {
   });
   const interactionRevisionRef = useRef(0);
   const openingElapsedRef = useRef(0);
+  const collectionEntryProgressRef = useRef(0);
+  const collectionEntryElapsedRef = useRef(0);
+  const collectionEmergenceProgressRef = useRef(1);
+  const collectionReturnProgressRef = useRef(0);
+  const collectionReturnNodeProgressRef = useRef(0);
+  const collectionReturnElapsedRef = useRef(0);
   const openingCameraRetreatStartedRef = useRef(false);
   const restorationElapsedRef = useRef(0);
   const restorationProgressRef = useRef(0);
@@ -1064,6 +1779,12 @@ export function ReservoirScene() {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const surfaceRef = useRef<THREE.Mesh | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const returningDiagnosticsRef = useRef<HTMLDivElement | null>(null);
+  const returningGridInspectionRef = useRef<ReservoirGridInspection>({
+    active: false,
+    revision: 0,
+    worldPoint: new THREE.Vector3(),
+  });
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const pointerNdc = useMemo(() => new THREE.Vector2(), []);
   const cameraWorldQuaternion = useMemo(() => new THREE.Quaternion(), []);
@@ -1129,7 +1850,7 @@ export function ReservoirScene() {
         updateAtmosphereBottom,
       );
     };
-  }, [selectedArtifactId]);
+  }, [selectedArtifactId, selectedCollectionId]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1141,11 +1862,15 @@ export function ReservoirScene() {
   }, []);
 
   const { cameraDistance, sphereCenterWorldY } = getOuterFrame(aspectRatio);
-  const canonicalOuterPosition = useMemo(
+  const initialOuterPosition = useMemo(
     () => new THREE.Vector3(0, 0, cameraDistance),
     [cameraDistance],
   );
-  const canonicalOuterTarget = useMemo(() => new THREE.Vector3(0, 0, 0), []);
+  const initialOuterTarget = useMemo(() => new THREE.Vector3(0, 0, 0), []);
+  const canonicalOuterPosition =
+    activeOuterFrame?.position ?? initialOuterPosition;
+  const canonicalOuterTarget =
+    activeOuterFrame?.target ?? initialOuterTarget;
   const atmosphericCameraModel = useMemo(
     () =>
       getAtmosphericCameraModel(
@@ -1207,10 +1932,74 @@ export function ReservoirScene() {
     retreatCameraPath?.outerPosition ?? canonicalOuterPosition;
   const activeOuterTarget =
     retreatCameraPath?.outerTarget ?? canonicalOuterTarget;
+  const renderedActiveCollectionId =
+    collectionReturnTransition?.targetState.collectionId ??
+    currentActiveCollectionId;
+  const activeCollection =
+    getReservoirCollection(renderedActiveCollectionId) ??
+    rootReservoirCollection;
+  const activeReservoirArtifacts = useMemo(
+    () => getReservoirArtifacts(renderedActiveCollectionId),
+    [renderedActiveCollectionId],
+  );
+  const activeReservoirChildCollections = useMemo(
+    () => getReservoirChildCollections(renderedActiveCollectionId),
+    [renderedActiveCollectionId],
+  );
+  const activeReservoirNodes = useMemo(
+    () => getReservoirNodes(renderedActiveCollectionId),
+    [renderedActiveCollectionId],
+  );
+  const reservoirNodeDiagnostics = useMemo(
+    () => getReservoirNodeDiagnostics(renderedActiveCollectionId),
+    [renderedActiveCollectionId],
+  );
   const selectedArtifact =
     activeReservoirArtifacts.find(
       (artifact) => artifact.id === selectedArtifactId,
     ) ?? null;
+  const selectedCollection =
+    (getReservoirCollection(selectedCollectionId ?? "") as
+      | EmbeddedReservoirCollection
+      | null) ?? null;
+  const returningCollection =
+    (getReservoirCollection(
+      collectionReturnTransition?.exitedCollectionId ?? "",
+    ) as EmbeddedReservoirCollection | null) ?? null;
+  const returningReservoirNodes = useMemo(
+    () =>
+      collectionReturnTransition
+        ? getReservoirNodes(collectionReturnTransition.exitedCollectionId)
+        : [],
+    [collectionReturnTransition],
+  );
+  const returningSourcePosition = useMemo(
+    () =>
+      collectionReturnTransition
+        ? new THREE.Vector3(...collectionReturnTransition.sourceCenter).sub(
+            atmosphericCameraModel.sphereCenter,
+          )
+        : new THREE.Vector3(),
+    [atmosphericCameraModel.sphereCenter, collectionReturnTransition],
+  );
+  const returningSourceEndPosition = useMemo(
+    () =>
+      collectionReturnTransition
+        ? new THREE.Vector3(
+            ...collectionReturnTransition.sourceEndCenter,
+          ).sub(atmosphericCameraModel.sphereCenter)
+        : new THREE.Vector3(),
+    [atmosphericCameraModel.sphereCenter, collectionReturnTransition],
+  );
+  const returningTransferDirection = useMemo(
+    () =>
+      collectionReturnTransition
+        ? new THREE.Vector3(
+            ...collectionReturnTransition.targetLocalTransferDirection,
+          )
+        : null,
+    [collectionReturnTransition],
+  );
   const openingArtifact =
     activeReservoirArtifacts.find(
       (artifact) => artifact.id === openingArtifactId,
@@ -1219,17 +2008,17 @@ export function ReservoirScene() {
     const distances = new Map<string, number>();
     if (!openingArtifact) return distances;
 
-    for (const artifact of activeReservoirArtifacts) {
+    for (const node of activeReservoirNodes) {
       distances.set(
-        artifact.id,
+        node.id,
         getReservoirPlacementGraphDistance(
           openingArtifact.vertexId,
-          artifact.vertexId,
+          node.vertexId,
         ) ?? 0,
       );
     }
     return distances;
-  }, [openingArtifact]);
+  }, [activeReservoirNodes, openingArtifact]);
   const maximumOpeningReactionDistance = Math.max(
     0,
     ...openingReactionDistances.values(),
@@ -1241,6 +2030,12 @@ export function ReservoirScene() {
     "closingArtifact",
   ].includes(transitionState);
   const restoring = transitionState === "restoringArtifact";
+  const collectionPresentationState =
+    transitionState === "enteringCollection"
+      ? "transitioning-out"
+      : transitionState === "leavingCollection"
+        ? "transitioning-in"
+      : "active";
   const artifactWindowPhase =
     transitionState === "deployingArtifact"
       ? "deploying"
@@ -1306,6 +2101,246 @@ export function ReservoirScene() {
     animationFrameId = requestAnimationFrame(updateOpeningTimeline);
     return () => cancelAnimationFrame(animationFrameId);
   }, [preservedReservoirState, reducedMotion, transitionState]);
+
+  useEffect(() => {
+    if (
+      transitionState !== "enteringCollection" ||
+      !collectionEntryPath
+    ) {
+      return;
+    }
+
+    const entryPath = collectionEntryPath;
+    const duration = reducedMotion
+      ? COLLECTION_ENTRY_REDUCED_MOTION_DURATION
+      : COLLECTION_ENTRY_DURATION;
+    const startTime = performance.now();
+    let animationFrameId = 0;
+
+    function updateCollectionEntry(now: number) {
+      const elapsed = (now - startTime) / 1000;
+      collectionEntryElapsedRef.current = Math.min(elapsed, duration);
+      collectionEntryProgressRef.current = clamp(elapsed / duration, 0, 1);
+
+      if (collectionEntryProgressRef.current >= 1) {
+        const renderedPose = cameraPoseRef.current;
+        const positionError = renderedPose
+          ? renderedPose.position.distanceTo(
+              entryPath.destinationPosition,
+            )
+          : Number.POSITIVE_INFINITY;
+        const targetError = renderedPose
+          ? renderedPose.target.distanceTo(
+              entryPath.destinationTarget,
+            )
+          : Number.POSITIVE_INFINITY;
+
+        if (interaction.current) {
+          interaction.current.dataset.collectionEntryPositionError =
+            positionError.toFixed(9);
+          interaction.current.dataset.collectionEntryTargetError =
+            targetError.toFixed(9);
+        }
+
+        if (
+          positionError <= COLLECTION_ENTRY_ARRIVAL_EPSILON &&
+          targetError <= COLLECTION_ENTRY_ARRIVAL_EPSILON
+        ) {
+          const rebaseScale = RESERVOIR_RADIUS / entryPath.collectionRadius;
+          const rebasedPosition = entryPath.homeCenter
+            .clone()
+            .add(
+              entryPath.destinationPosition
+                .clone()
+                .sub(entryPath.collectionCenter)
+                .multiplyScalar(rebaseScale),
+            );
+          const rebasedTarget = entryPath.homeCenter
+            .clone()
+            .add(
+              entryPath.destinationTarget
+                .clone()
+                .sub(entryPath.collectionCenter)
+                .multiplyScalar(rebaseScale),
+            );
+
+          collectionEmergenceProgressRef.current = 0;
+          cameraProgressRef.current = 0;
+          travelDirectionRef.current = "inward";
+          diveTargetLockedRef.current = false;
+          setActiveOuterFrame({
+            position: rebasedPosition,
+            target: rebasedTarget,
+          });
+          setCurrentActiveCollectionId(entryPath.collectionId);
+          setEnteringCollectionId(null);
+          setCollectionEntryPath(null);
+          setCameraProgress(0);
+          setTravelDirection("inward");
+          setDiveOrigin(null);
+          setRetreatOrigin(null);
+          setInspectionFrame(null);
+          setDiveTarget({ point: null, source: "default" });
+          setIsDiveTargetLocked(false);
+          setTransitionState("emergingCollection");
+          return;
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(updateCollectionEntry);
+    }
+
+    animationFrameId = requestAnimationFrame(updateCollectionEntry);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [collectionEntryPath, reducedMotion, transitionState]);
+
+  useEffect(() => {
+    if (transitionState !== "emergingCollection") return;
+
+    const duration = reducedMotion
+      ? COLLECTION_CHILD_EMERGENCE_REDUCED_MOTION_DURATION
+      : COLLECTION_CHILD_EMERGENCE_DURATION;
+    const startTime = performance.now();
+    let animationFrameId = 0;
+
+    function updateChildEmergence(now: number) {
+      const progress = clamp((now - startTime) / 1000 / duration, 0, 1);
+      collectionEmergenceProgressRef.current = progress;
+
+      if (interaction.current) {
+        interaction.current.dataset.collectionChildEmergenceProgress =
+          progress.toFixed(6);
+      }
+
+      if (progress >= 1) {
+        setSelectedArtifactId(null);
+        setSelectedCollectionId(null);
+        setTransitionState("idle");
+        return;
+      }
+
+      animationFrameId = requestAnimationFrame(updateChildEmergence);
+    }
+
+    animationFrameId = requestAnimationFrame(updateChildEmergence);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [reducedMotion, transitionState]);
+
+  useEffect(() => {
+    if (
+      transitionState !== "leavingCollection" ||
+      !collectionReturnTransition ||
+      !collectionReturnPath
+    ) {
+      return;
+    }
+
+    const returnTransition = collectionReturnTransition;
+    const targetState = returnTransition.targetState;
+    const cameraDuration = reducedMotion
+      ? COLLECTION_RETURN_REDUCED_MOTION_DURATION
+      : COLLECTION_RETURN_DURATION;
+    const cameraDelay = reducedMotion
+      ? COLLECTION_RETURN_REDUCED_MOTION_RECESSION_LEAD_DURATION
+      : COLLECTION_RETURN_RECESSION_LEAD_DURATION;
+    const duration = cameraDelay + cameraDuration;
+    const targetQuaternion = new THREE.Quaternion(
+      ...targetState.sphereQuaternion,
+    );
+    const startTime = performance.now();
+    let animationFrameId = 0;
+
+    function updateCollectionReturn(now: number) {
+      const elapsed = Math.min((now - startTime) / 1000, duration);
+      const progress = clamp(
+        (elapsed - cameraDelay) / cameraDuration,
+        0,
+        1,
+      );
+      collectionReturnProgressRef.current = progress;
+      collectionReturnElapsedRef.current = elapsed;
+      collectionReturnNodeProgressRef.current = getCollectionEntryPhase(
+        progress,
+        COLLECTION_RETURN_PHASES.parentChildrenRestore,
+      );
+
+      if (interaction.current) {
+        interaction.current.dataset.collectionReturnProgress =
+          progress.toFixed(6);
+        interaction.current.dataset.collectionReturnRecessionElapsed =
+          elapsed.toFixed(6);
+        interaction.current.dataset.collectionReturnCameraDelay =
+          cameraDelay.toFixed(6);
+        interaction.current.dataset.collectionReturnCameraStarted = String(
+          progress > 0,
+        );
+        interaction.current.dataset.collectionReturnNodeProgress =
+          collectionReturnNodeProgressRef.current.toFixed(6);
+      }
+
+      if (progress >= 1) {
+        const restoredInspectionFrame = restoreLocalSurfaceFrame(
+          targetState.inspectionFrame,
+        );
+        const restoredLastInspectionFrame = restoreLocalSurfaceFrame(
+          targetState.lastInspectionFrame,
+        );
+        const restoredDiveOrigin = restoreCameraPose(targetState.diveOrigin);
+        const restoredRetreatOrigin = restoreCameraPose(
+          targetState.retreatOrigin,
+        );
+
+        sphereRotationRef.current?.quaternion.copy(targetQuaternion);
+        lastInspectionFrameRef.current = restoredLastInspectionFrame;
+        cameraProgressRef.current = targetState.cameraTargetProgress;
+        travelDirectionRef.current = targetState.travelDirection;
+        diveTargetLockedRef.current = targetState.diveTargetLocked;
+        setCurrentActiveCollectionId(targetState.collectionId);
+        setCollectionHistory((currentHistory) =>
+          currentHistory
+            .slice(0, returnTransition.targetHistoryIndex + 1)
+            .map((frame, index, nextHistory) =>
+              index === nextHistory.length - 1
+                ? { ...frame, preservedState: null }
+                : frame,
+            ),
+        );
+        setActiveOuterFrame({
+          position: new THREE.Vector3(...targetState.activeOuterPosition),
+          target: new THREE.Vector3(...targetState.activeOuterTarget),
+        });
+        setCameraProgress(targetState.cameraTargetProgress);
+        setTravelDirection(targetState.travelDirection);
+        setDiveOrigin(restoredDiveOrigin);
+        setRetreatOrigin(restoredRetreatOrigin);
+        setInspectionFrame(restoredInspectionFrame);
+        setDiveTarget({
+          point: targetState.diveTarget.point
+            ? [...targetState.diveTarget.point]
+            : null,
+          source: targetState.diveTarget.source,
+        });
+        setIsDiveTargetLocked(targetState.diveTargetLocked);
+        setSelectedArtifactId(null);
+        setSelectedCollectionId(null);
+        setEnteringCollectionId(null);
+        setCollectionReturnPath(null);
+        setCollectionReturnTransition(null);
+        setTransitionState("idle");
+        return;
+      }
+
+      animationFrameId = requestAnimationFrame(updateCollectionReturn);
+    }
+
+    animationFrameId = requestAnimationFrame(updateCollectionReturn);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [
+    collectionReturnPath,
+    collectionReturnTransition,
+    reducedMotion,
+    transitionState,
+  ]);
 
   useLayoutEffect(() => {
     const readingMode = [
@@ -1578,10 +2613,16 @@ export function ReservoirScene() {
 
     pointer.current = { x: event.clientX, y: event.clientY };
     setSelectedPressActive(
-      Boolean(
-        selectedArtifactId &&
-          pickArtifact(event.clientX, event.clientY) === selectedArtifactId,
-      ),
+      (() => {
+        const pickedNode = pickReservoirNode(event.clientX, event.clientY);
+        return Boolean(
+          pickedNode &&
+            ((pickedNode.kind === "artifact" &&
+              pickedNode.id === selectedArtifactId) ||
+              (pickedNode.kind === "collection" &&
+                pickedNode.id === selectedCollectionId)),
+        );
+      })(),
     );
     interactionRevisionRef.current += 1;
     clearGridInspection();
@@ -1682,7 +2723,10 @@ export function ReservoirScene() {
     }
   }
 
-  function pickArtifact(clientX: number, clientY: number) {
+  function pickReservoirNode(
+    clientX: number,
+    clientY: number,
+  ): PickedReservoirNode | null {
     const element = interaction.current;
     const camera = cameraRef.current;
     const scene = sceneRef.current;
@@ -1701,17 +2745,31 @@ export function ReservoirScene() {
     const surfaceDistance =
       raycaster.intersectObject(surface, false)[0]?.distance ??
       Number.POSITIVE_INFINITY;
-    const artifactHit = raycaster
+    const nodeHit = raycaster
       .intersectObjects(scene.children, true)
-      .find(
-        (hit) =>
-          typeof hit.object.userData.artifactId === "string" &&
-          hit.distance <= surfaceDistance + RESERVOIR_NODE_RADIUS,
-      );
+      .find((hit) => {
+        const artifactId = hit.object.userData.artifactId;
+        const collectionId = hit.object.userData.collectionId;
+        const hitRadius =
+          typeof collectionId === "string"
+            ? RESERVOIR_COLLECTION_NODE_RADIUS
+            : RESERVOIR_NODE_RADIUS;
 
-    return (
-      (artifactHit?.object.userData.artifactId as string | undefined) ?? null
-    );
+        return (
+          (typeof artifactId === "string" ||
+            typeof collectionId === "string") &&
+          hit.distance <= surfaceDistance + hitRadius
+        );
+      });
+    const artifactId = nodeHit?.object.userData.artifactId;
+    if (typeof artifactId === "string") {
+      return { kind: "artifact", id: artifactId };
+    }
+    const collectionId = nodeHit?.object.userData.collectionId;
+    if (typeof collectionId === "string") {
+      return { kind: "collection", id: collectionId };
+    }
+    return null;
   }
 
   function capturePreservedReservoirState(
@@ -1773,6 +2831,202 @@ export function ReservoirScene() {
     setTransitionState("openingArtifact");
   }
 
+  function beginCollectionReturn(mode: CollectionReturnMode) {
+    if (
+      transitionState !== "idle" ||
+      collectionHistory.length <= 1
+    ) {
+      return;
+    }
+
+    const targetHistoryIndex =
+      mode === "home" ? 0 : collectionHistory.length - 2;
+    const targetFrame = collectionHistory[targetHistoryIndex];
+    const targetState = targetFrame?.preservedState;
+    const renderedPose = cameraPoseRef.current;
+    const sphereRotation = sphereRotationRef.current;
+    if (!targetFrame || !targetState || !renderedPose || !sphereRotation) {
+      return;
+    }
+
+    const destinationPose: CameraPose = {
+      position: new THREE.Vector3(...targetState.cameraPosition),
+      target: new THREE.Vector3(...targetState.cameraTarget),
+      quaternion: new THREE.Quaternion(...targetState.cameraQuaternion),
+      progress: targetState.cameraProgress,
+    };
+    const sourceOuterQuaternion = sphereRotation.quaternion.clone();
+    const hierarchyMapping = mapCollectionReturnToAncestor({
+      collectionHistory,
+      renderedPose: cloneCameraPose(renderedPose),
+      sourceOuterQuaternion,
+      sphereCenter: atmosphericCameraModel.sphereCenter,
+      targetHistoryIndex,
+    });
+    if (!hierarchyMapping) return;
+    const returnPath = getCollectionReturnPath({
+      destinationFrame:
+        restoreLocalSurfaceFrame(targetState.inspectionFrame) ??
+        atmosphericCameraModel.canonicalFrame,
+      destinationProgress: targetState.cameraProgress,
+      destinationPose,
+      sphereCenter: atmosphericCameraModel.sphereCenter,
+      startPose: hierarchyMapping.mappedPose,
+    });
+    if (!returnPath) {
+      if (interaction.current) {
+        interaction.current.dataset.collectionReturnRejected =
+          "unsafe-camera-path";
+      }
+      return;
+    }
+
+    collectionReturnProgressRef.current = 0;
+    collectionReturnNodeProgressRef.current = 0;
+    collectionReturnElapsedRef.current = 0;
+    setHoveredArtifactId(null);
+    setSelectedArtifactId(null);
+    setSelectedCollectionId(null);
+    setSelectedPressActive(false);
+    clearGridInspection();
+    if (interaction.current) {
+      delete interaction.current.dataset.collectionReturnRejected;
+    }
+    sphereRotation.quaternion
+      .set(...targetState.sphereQuaternion)
+      .normalize();
+    setCollectionReturnPath(returnPath);
+    setCollectionReturnTransition({
+      exitedCollectionId: currentActiveCollectionId,
+      mode,
+      sourceCenter: toVectorTuple(hierarchyMapping.sourceCenter),
+      sourceEndCenter: toVectorTuple(hierarchyMapping.sourceEndCenter),
+      sourceEndQuaternion: toQuaternionTuple(
+        hierarchyMapping.sourceEndQuaternion,
+      ),
+      sourceOuterQuaternion: toQuaternionTuple(sourceOuterQuaternion),
+      sourceRadius: hierarchyMapping.sourceRadius,
+      sourceSafetyOffset: hierarchyMapping.sourceSafetyOffset,
+      sourceScale: hierarchyMapping.sourceScale,
+      sourceStartQuaternion: toQuaternionTuple(
+        hierarchyMapping.sourceStartQuaternion,
+      ),
+      targetHistoryIndex,
+      targetLocalTransferDirection: toVectorTuple(
+        hierarchyMapping.targetLocalTransferDirection,
+      ),
+      targetState,
+    });
+    setTransitionState("leavingCollection");
+  }
+
+  function beginCollectionEntry(collectionId: string) {
+    if (
+      transitionState !== "idle" ||
+      selectedCollectionId !== collectionId ||
+      interaction.current?.dataset.selectedCollectionSettled !== "true"
+    ) {
+      return;
+    }
+
+    const collection = activeReservoirChildCollections.find(
+      (candidate) => candidate.id === collectionId,
+    );
+    const sphereRotation = sphereRotationRef.current;
+    const renderedPose = cameraPoseRef.current;
+    if (!collection || !sphereRotation || !renderedPose) return;
+
+    const placement = getReservoirNodePlacement(
+      collection.vertexId,
+      RESERVOIR_COLLECTION_NODE_RADIUS,
+    );
+    if (!placement) return;
+
+    sphereRotation.updateWorldMatrix(true, false);
+    const baseQuaternion = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(...RESERVOIR_BASE_ROTATION),
+    );
+    const sphereWorldQuaternion = sphereRotation.getWorldQuaternion(
+      new THREE.Quaternion(),
+    );
+    const selectedOffset =
+      RESERVOIR_COLLECTION_NODE_RADIUS *
+      RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
+    const collectionCenter = placement.position
+      .clone()
+      .addScaledVector(placement.normal, selectedOffset)
+      .applyQuaternion(baseQuaternion);
+    sphereRotation.localToWorld(collectionCenter);
+    const collectionNormal = placement.normal
+      .clone()
+      .applyQuaternion(baseQuaternion)
+      .applyQuaternion(sphereWorldQuaternion)
+      .normalize();
+    const collectionFrame = getLocalSurfaceFrame(
+      collectionNormal,
+      lastInspectionFrameRef.current,
+    );
+    if (!collectionFrame) return;
+
+    const path = getCollectionEntryPath({
+      collectionCenter,
+      collectionId,
+      collectionRadius: RESERVOIR_COLLECTION_NODE_RADIUS,
+      frame: collectionFrame,
+      homeCenter: atmosphericCameraModel.sphereCenter,
+      model: atmosphericCameraModel,
+      startPose: cloneCameraPose(renderedPose),
+    });
+    if (!path) {
+      if (interaction.current) {
+        interaction.current.dataset.collectionEntryRejected =
+          "unsafe-camera-path";
+      }
+      return;
+    }
+
+    collectionEntryProgressRef.current = 0;
+    collectionEntryElapsedRef.current = 0;
+    const preservedAncestor: PreservedCollectionAncestorState = {
+      collectionId: currentActiveCollectionId,
+      selectedDestinationId: collectionId,
+      sphereQuaternion: toQuaternionTuple(sphereRotation.quaternion),
+      cameraPosition: toVectorTuple(renderedPose.position),
+      cameraTarget: toVectorTuple(renderedPose.target),
+      cameraQuaternion: toQuaternionTuple(renderedPose.quaternion),
+      cameraProgress: renderedPose.progress,
+      cameraTargetProgress: cameraProgressRef.current,
+      travelDirection: travelDirectionRef.current,
+      diveTarget: {
+        point: diveTarget.point ? [...diveTarget.point] : null,
+        source: diveTarget.source,
+      },
+      diveTargetLocked: diveTargetLockedRef.current,
+      inspectionFrame: preserveLocalSurfaceFrame(inspectionFrame),
+      lastInspectionFrame: preserveLocalSurfaceFrame(
+        lastInspectionFrameRef.current,
+      ),
+      diveOrigin: preserveCameraPose(diveOrigin),
+      retreatOrigin: preserveCameraPose(retreatOrigin),
+      activeOuterPosition: toVectorTuple(activeOuterPosition),
+      activeOuterTarget: toVectorTuple(activeOuterTarget),
+    };
+    setCollectionHistory((currentHistory) => [
+      ...currentHistory.slice(0, -1),
+      {
+        ...currentHistory[currentHistory.length - 1],
+        preservedState: preservedAncestor,
+      },
+      { collectionId, preservedState: null },
+    ]);
+    setHoveredArtifactId(null);
+    setSelectedPressActive(false);
+    clearGridInspection();
+    setCollectionEntryPath(path);
+    setEnteringCollectionId(collectionId);
+    setTransitionState("enteringCollection");
+  }
+
   function endDrag(
     event: PointerEvent<HTMLDivElement>,
     allowSelection = true,
@@ -1794,13 +3048,27 @@ export function ReservoirScene() {
       allowSelection &&
       completedDrag.maxTravelSquared <= NODE_CLICK_MAX_TRAVEL ** 2
     ) {
-      const pickedArtifactId = pickArtifact(event.clientX, event.clientY);
-
-      if (pickedArtifactId && pickedArtifactId === selectedArtifactId) {
-        beginArtifactOpening(pickedArtifactId);
+      const pickedNode = pickReservoirNode(event.clientX, event.clientY);
+      if (pickedNode?.kind === "collection") {
+        if (pickedNode.id === selectedCollectionId) {
+          beginCollectionEntry(pickedNode.id);
+        } else {
+          setTransitionState("idle");
+          setSelectedArtifactId(null);
+          setSelectedCollectionId(pickedNode.id);
+        }
+      } else if (pickedNode?.kind === "artifact") {
+        if (pickedNode.id === selectedArtifactId) {
+          beginArtifactOpening(pickedNode.id);
+        } else {
+          setTransitionState("idle");
+          setSelectedCollectionId(null);
+          setSelectedArtifactId(pickedNode.id);
+        }
       } else {
         setTransitionState("idle");
-        setSelectedArtifactId(pickedArtifactId);
+        setSelectedArtifactId(null);
+        setSelectedCollectionId(null);
       }
     }
   }
@@ -1936,8 +3204,36 @@ export function ReservoirScene() {
     <>
       <AtmosphereContent
         containerRef={atmosphereRef}
+        activeCollection={activeCollection}
         selectedArtifact={selectedArtifact}
+        selectedCollection={selectedCollection}
       />
+      <CollectionNavigation
+        depth={collectionHistory.length - 1}
+        disabled={transitionState !== "idle"}
+        onBack={() => beginCollectionReturn("back")}
+        onHome={() => beginCollectionReturn("home")}
+      />
+      <section className="sr-only" aria-label="Reservoir artifacts">
+        <h1>{activeCollection.title} collection</h1>
+        <p>
+          An interactive reservoir containing {activeReservoirArtifacts.length}{" "}
+          artifacts and {activeReservoirChildCollections.length} dormant{" "}
+          {activeReservoirChildCollections.length === 1
+            ? "collection"
+            : "collections"}.
+        </p>
+        <ul>
+          {activeReservoirArtifacts.map((artifact) => (
+            <li key={artifact.id}>
+              {artifact.type}: {artifact.title}
+            </li>
+          ))}
+          {activeReservoirChildCollections.map((collection) => (
+            <li key={collection.id}>Collection: {collection.title}</li>
+          ))}
+        </ul>
+      </section>
       <div
       ref={interaction}
       className="reservoir-interaction"
@@ -1955,6 +3251,127 @@ export function ReservoirScene() {
       data-grid-detail={RESERVOIR_GRID_DETAIL}
       data-min-artifact-vertex-steps={RESERVOIR_MIN_ARTIFACT_VERTEX_STEPS}
       data-node-radius={RESERVOIR_NODE_RADIUS}
+      data-collection-node-radius={RESERVOIR_COLLECTION_NODE_RADIUS}
+      data-collection-node-scale={RESERVOIR_COLLECTION_NODE_SCALE}
+      data-active-collection-id={currentActiveCollectionId}
+      data-rendered-active-collection-id={renderedActiveCollectionId}
+      data-collection-history={collectionHistory
+        .map((frame) => frame.collectionId)
+        .join(",")}
+      data-collection-depth={collectionHistory.length - 1}
+      data-collection-return-mode={collectionReturnTransition?.mode ?? ""}
+      data-collection-return-target={
+        collectionReturnTransition?.targetState.collectionId ?? ""
+      }
+      data-returning-collection-id={
+        collectionReturnTransition?.exitedCollectionId ?? ""
+      }
+      data-collection-return-source-scale={
+        collectionReturnTransition?.sourceScale.toFixed(9) ?? ""
+      }
+      data-collection-return-source-radius={
+        collectionReturnTransition?.sourceRadius.toFixed(9) ?? ""
+      }
+      data-collection-return-source-safety-offset={
+        collectionReturnTransition?.sourceSafetyOffset.toFixed(9) ?? ""
+      }
+      data-collection-return-source-center={
+        collectionReturnTransition?.sourceCenter.join(",") ?? ""
+      }
+      data-collection-return-camera-distance={
+        collectionReturnPath
+          ? (
+              collectionReturnPath.endDistance -
+              collectionReturnPath.startDistance
+            ).toFixed(6)
+          : ""
+      }
+      data-collection-return-minimum-clearance={
+        collectionReturnPath?.minimumClearance.toFixed(6) ?? ""
+      }
+      data-entering-collection-id={enteringCollectionId ?? ""}
+      data-collection-entry-progress={collectionEntryProgressRef.current.toFixed(
+        6,
+      )}
+      data-collection-child-emergence-progress={collectionEmergenceProgressRef.current.toFixed(
+        6,
+      )}
+      data-collection-child-count={activeReservoirNodes.length}
+      data-collection-entry-normalized-center-distance={
+        collectionEntryPath?.normalizedCenterDistance.toFixed(6) ?? ""
+      }
+      data-collection-entry-normalized-focus-distance={
+        collectionEntryPath?.normalizedFocusDistance.toFixed(6) ?? ""
+      }
+      data-collection-entry-destination-center-distance={
+        collectionEntryPath?.destinationCenterDistance.toFixed(6) ?? ""
+      }
+      data-collection-entry-destination-focus-distance={
+        collectionEntryPath?.destinationFocusDistance.toFixed(6) ?? ""
+      }
+      data-collection-entry-destination-position={collectionEntryPath
+        ?.destinationPosition.toArray()
+        .map((value) => value.toFixed(6))
+        .join(",") ?? ""}
+      data-collection-entry-destination-target={collectionEntryPath
+        ?.destinationTarget.toArray()
+        .map((value) => value.toFixed(6))
+        .join(",") ?? ""}
+      data-collection-entry-minimum-home-clearance={
+        collectionEntryPath?.minimumHomeClearance.toFixed(6) ?? ""
+      }
+      data-collection-entry-minimum-target-clearance={
+        collectionEntryPath?.minimumCollectionClearance.toFixed(6) ?? ""
+      }
+      data-collection-entry-world-radius={
+        collectionEntryPath?.collectionRadius.toFixed(6) ?? ""
+      }
+      data-collection-entry-curvature-model={
+        collectionEntryPath ? "local-tangent-up" : ""
+      }
+      data-collection-entry-curvature-direction={collectionEntryPath
+        ?.curvatureDirection.toArray()
+        .map((value) => value.toFixed(6))
+        .join(",") ?? ""}
+      data-collection-entry-curvature-weight={
+        collectionEntryPath?.curvatureWeight.toFixed(6) ?? ""
+      }
+      data-collection-entry-maximum-curvature-offset={
+        collectionEntryPath
+          ? (
+              COLLECTION_ENTRY_UPWARD_ARC_CLEARANCE *
+              collectionEntryPath.curvatureWeight
+            ).toFixed(6)
+          : ""
+      }
+      data-parent-presentation-state={collectionPresentationState}
+      data-preserved-parent-collection-id={
+        collectionHistory.at(-2)?.preservedState?.collectionId ?? ""
+      }
+      data-preserved-parent-sphere-quaternion={
+        collectionHistory.at(-2)?.preservedState?.sphereQuaternion.join(",") ??
+        ""
+      }
+      data-preserved-parent-selected-destination={
+        collectionHistory.at(-2)?.preservedState?.selectedDestinationId ?? ""
+      }
+      data-active-collection-render-state="active"
+      data-embedded-collection-render-state="dormant"
+      data-reservoir-node-count={reservoirNodeDiagnostics.nodeCount}
+      data-collection-count={reservoirNodeDiagnostics.collectionCount}
+      data-collection-ids={reservoirNodeDiagnostics.collectionIds.join(",")}
+      data-collection-vertex-ids={
+        reservoirNodeDiagnostics.collectionVertexIds.join(",")
+      }
+      data-collection-grid-vertex-ids={
+        reservoirNodeDiagnostics.collectionGridVertexIds.join(",")
+      }
+      data-duplicate-node-vertex-ids={
+        reservoirNodeDiagnostics.duplicateVertexIds.join(",")
+      }
+      data-adjacent-node-pairs={
+        reservoirNodeDiagnostics.adjacentNodePairs.join(",")
+      }
       data-density-test-mode={reservoirDensityTestDiagnostics.enabled}
       data-artifact-count={reservoirDensityTestDiagnostics.artifactCount}
       data-temporary-artifact-count={
@@ -1967,6 +3384,15 @@ export function ReservoirScene() {
         reservoirDensityTestDiagnostics.adjacentArtifactPairs.join(",")
       }
       data-selected-artifact={selectedArtifactId ?? ""}
+      data-selected-collection={selectedCollectionId ?? ""}
+      data-selected-node-kind={
+        selectedArtifactId
+          ? "artifact"
+          : selectedCollectionId
+            ? "collection"
+            : ""
+      }
+      data-selected-node-id={selectedArtifactId ?? selectedCollectionId ?? ""}
       data-transition-state={transitionState}
       data-opening-artifact={openingArtifactId ?? ""}
       data-opening-complete={
@@ -2093,7 +3519,7 @@ export function ReservoirScene() {
         camera={{
           position: [0, 0, cameraDistance],
           fov: CAMERA_FOV,
-          near: 0.08,
+          near: CAMERA_NEAR,
           far: 40,
         }}
         onCreated={({ camera, scene }) => {
@@ -2105,6 +3531,10 @@ export function ReservoirScene() {
       >
         <color attach="background" args={[RESERVOIR_THEME.environment]} />
         <ReservoirCamera
+          collectionEntryPath={collectionEntryPath}
+          collectionEntryProgressRef={collectionEntryProgressRef}
+          collectionReturnPath={collectionReturnPath}
+          collectionReturnProgressRef={collectionReturnProgressRef}
           inwardPath={inwardCameraPath}
           retreatPath={retreatCameraPath}
           orientationFrame={
@@ -2121,9 +3551,24 @@ export function ReservoirScene() {
         <group position={[0, sphereCenterWorldY, 0]}>
           <group ref={sphereRotationRef}>
             <ReservoirSphere
+              activeCollection={activeCollection}
+              activeNodes={activeReservoirNodes}
+              activeCollectionId={currentActiveCollectionId}
+              collectionEntryElapsedRef={collectionEntryElapsedRef}
+              collectionEntryProgressRef={collectionEntryProgressRef}
+              collectionEntryTargetId={collectionEntryPath?.collectionId ?? null}
+              collectionReturnProgressRef={collectionReturnProgressRef}
+              collectionReturnNodeProgressRef={collectionReturnNodeProgressRef}
+              collectionReturnDirection={returningTransferDirection}
+              returningCollectionId={
+                collectionReturnTransition?.exitedCollectionId ?? null
+              }
+              collectionPresentationState={collectionPresentationState}
               surfaceRef={surfaceRef}
               selectedArtifactId={selectedArtifactId}
+              selectedCollectionId={selectedCollectionId}
               hoveredArtifactId={hoveredArtifactId}
+              interactionEnabled={transitionState === "idle"}
               isDragging={isDragging}
               selectedPressActive={selectedPressActive}
               continuationCueEnabled={transitionState === "idle"}
@@ -2141,9 +3586,85 @@ export function ReservoirScene() {
               restoring={restoring}
               restorationProgressRef={restorationProgressRef}
               gridInspectionRef={gridInspectionRef}
+              emergingChildren={
+                transitionState === "emergingCollection"
+              }
+              emergenceProgressRef={collectionEmergenceProgressRef}
               onArtifactHoverChange={updateArtifactHover}
             />
           </group>
+          {collectionReturnTransition && returningCollection ? (
+            <>
+              <ReturningCollectionNode
+                collection={returningCollection}
+                diagnosticsRef={interaction}
+                endPosition={returningSourceEndPosition}
+                endQuaternion={
+                  new THREE.Quaternion(
+                    ...collectionReturnTransition.sourceEndQuaternion,
+                  )
+                }
+                progressRef={collectionReturnProgressRef}
+                radius={collectionReturnTransition.sourceRadius}
+                startPosition={returningSourcePosition}
+                startQuaternion={
+                  new THREE.Quaternion(
+                    ...collectionReturnTransition.sourceStartQuaternion,
+                  )
+                }
+              />
+              <group
+                position={returningSourcePosition}
+                quaternion={
+                  new THREE.Quaternion(
+                    ...collectionReturnTransition.sourceOuterQuaternion,
+                  )
+                }
+                scale={collectionReturnTransition.sourceScale}
+              >
+                <ReservoirSphere
+                  activeCollection={returningCollection}
+                  activeNodes={returningReservoirNodes}
+                  activeCollectionId={
+                    collectionReturnTransition.exitedCollectionId
+                  }
+                  collectionEntryElapsedRef={collectionReturnElapsedRef}
+                  collectionEntryProgressRef={collectionReturnProgressRef}
+                  collectionEntryTargetId={null}
+                  collectionReturnProgressRef={collectionReturnProgressRef}
+                  collectionReturnNodeProgressRef={
+                    collectionReturnNodeProgressRef
+                  }
+                  returningCollectionId={null}
+                  collectionPresentationState="transitioning-out"
+                  selectedArtifactId={null}
+                  selectedCollectionId={null}
+                  hoveredArtifactId={null}
+                  interactionEnabled={false}
+                  isDragging={false}
+                  selectedPressActive={false}
+                  continuationCueEnabled={false}
+                  interactionRevisionRef={interactionRevisionRef}
+                  diagnosticsRef={returningDiagnosticsRef}
+                  openingActive={false}
+                  shockwaveActive={false}
+                  openingArtifact={null}
+                  openingElapsedRef={collectionReturnElapsedRef}
+                  openingReducedMotion={reducedMotion}
+                  openingReactionDistances={EMPTY_REACTION_DISTANCES}
+                  maximumOpeningReactionDistance={0}
+                  restoring={false}
+                  restorationProgressRef={restorationProgressRef}
+                  gridInspectionRef={returningGridInspectionRef}
+                  emergingChildren={false}
+                  emergenceProgressRef={collectionEmergenceProgressRef}
+                  hideReservoirSurface
+                  reverseRecession
+                  onArtifactHoverChange={() => {}}
+                />
+              </group>
+            </>
+          ) : null}
         </group>
       </Canvas>
       </div>

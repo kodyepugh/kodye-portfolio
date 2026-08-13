@@ -9,10 +9,12 @@ export const RESERVOIR_GLOW_FACE_INTENSITY_LEVELS = [
 export const RESERVOIR_GLOW_SPOKE_INTENSITIES = [
   [0.92, 0.72],
   [0.56, 0.4],
+  [0.28, 0.14],
 ] as const;
 export const RESERVOIR_GLOW_BORDER_OPACITIES = [
   0.64,
   0.35,
+  0,
   0,
 ] as const;
 export const RESERVOIR_CURSOR_GLOW_GAIN = 0.32;
@@ -22,11 +24,13 @@ export const RESERVOIR_GLOW_PROPAGATION_WIDTH = 0.22;
 export const RESERVOIR_GLOW_SPOKE_DISTANCES = [
   [0, 1 / 3],
   [1 / 3, 2 / 3],
+  [1, 4 / 3],
 ] as const;
 export const RESERVOIR_GLOW_BORDER_DISTANCES = [
   1 / 3,
   2 / 3,
   1,
+  4 / 3,
 ] as const;
 
 export const RESERVOIR_GLOW_FRAGMENT_SHADER = `
@@ -40,15 +44,20 @@ export const RESERVOIR_GLOW_FRAGMENT_SHADER = `
 
 export const RESERVOIR_FACE_GRADIENT_VERTEX_SHADER = `
   attribute float intensityLevel;
+  attribute float expandedWeight;
+  attribute float expandedIntensity;
   uniform float glowStrength;
   uniform float propagationProgress;
   uniform float propagationWidth;
+  uniform float expandedTopologyBlend;
   uniform vec4 intensityLevels;
   varying float glowAlpha;
 
   void main() {
     float intensity = intensityLevels.x;
-    if (intensityLevel > 2.5) {
+    if (intensityLevel > 3.5) {
+      intensity = intensityLevels.w;
+    } else if (intensityLevel > 2.5) {
       intensity = intensityLevels.w;
     } else if (intensityLevel > 1.5) {
       intensity = intensityLevels.z;
@@ -61,7 +70,13 @@ export const RESERVOIR_FACE_GRADIENT_VERTEX_SHADER = `
       distanceFromCenter + propagationWidth,
       propagationProgress
     );
-    glowAlpha = glowStrength * intensity * propagationMask;
+    float selectedAlpha = intensity * propagationMask;
+    float expandedAlpha = expandedIntensity * expandedWeight;
+    glowAlpha = glowStrength * mix(
+      selectedAlpha,
+      expandedAlpha,
+      expandedTopologyBlend
+    );
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -98,6 +113,34 @@ export const RESERVOIR_SPOKE_GRADIENT_VERTEX_SHADER = `
   }
 `;
 
+export const RESERVOIR_TERRITORY_EDGE_VERTEX_SHADER = `
+  attribute float baseIntensity;
+  attribute float baseDistance;
+  attribute float expandedWeight;
+  attribute float expandedIntensity;
+  uniform float glowStrength;
+  uniform float propagationProgress;
+  uniform float propagationWidth;
+  uniform float expandedTopologyBlend;
+  varying float glowAlpha;
+
+  void main() {
+    float propagationMask = smoothstep(
+      baseDistance,
+      baseDistance + propagationWidth,
+      propagationProgress
+    );
+    float selectedAlpha = baseIntensity * propagationMask;
+    float expandedAlpha = expandedIntensity * expandedWeight;
+    glowAlpha = glowStrength * mix(
+      selectedAlpha,
+      expandedAlpha,
+      expandedTopologyBlend
+    );
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
 export function createFaceGradientMaterial(
   color: THREE.ColorRepresentation,
   intensityLevels: readonly [number, number, number, number],
@@ -113,6 +156,7 @@ export function createFaceGradientMaterial(
       intensityLevels: {
         value: new THREE.Vector4(...intensityLevels),
       },
+      expandedTopologyBlend: { value: 0 },
     },
     vertexShader: RESERVOIR_FACE_GRADIENT_VERTEX_SHADER,
     fragmentShader: RESERVOIR_GLOW_FRAGMENT_SHADER,

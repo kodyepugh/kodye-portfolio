@@ -8,6 +8,10 @@ import {
   getReservoirPlacementNeighborIds,
   reservoirVertices,
 } from "@/lib/reservoir/geometry";
+import {
+  activeCollectionId,
+  embeddedReservoirCollections,
+} from "@/content/reservoir/collections";
 
 // Offline maximum-minimum sample from the canonical detail-3 vertex set.
 // Eligible vertices occupy the initial upper-front cap after the fixed base
@@ -16,7 +20,9 @@ import {
 // the lexicographically smallest vertex-ID set as the deterministic tie-breaker.
 export const reservoirArtifacts = [
   {
+    kind: "artifact",
     id: "artifact-01",
+    collectionId: activeCollectionId,
     type: "Field Note",
     title: "Low Tide",
     subtitle: "Observations from the exposed shoreline",
@@ -27,7 +33,9 @@ export const reservoirArtifacts = [
     vertexId: 34,
   },
   {
+    kind: "artifact",
     id: "artifact-02",
+    collectionId: activeCollectionId,
     type: "Case Study",
     title: "Bellabeat Wellness Analysis",
     subtitle: "Patterns in everyday activity and rest",
@@ -38,7 +46,9 @@ export const reservoirArtifacts = [
     vertexId: 64,
   },
   {
+    kind: "artifact",
     id: "artifact-03",
+    collectionId: activeCollectionId,
     type: "Moving Image",
     title: "The Distance Between Memory and the Shape of a Place",
     subtitle: "A study in landscape, recall, and distance",
@@ -49,7 +59,9 @@ export const reservoirArtifacts = [
     vertexId: 96,
   },
   {
+    kind: "artifact",
     id: "artifact-04",
+    collectionId: activeCollectionId,
     type: "Web Experiment",
     title: "A Small Interface for Things That Refuse to Be Categorized",
     subtitle: "A navigational study in unstable taxonomies",
@@ -60,7 +72,9 @@ export const reservoirArtifacts = [
     vertexId: 114,
   },
   {
+    kind: "artifact",
     id: "artifact-05",
+    collectionId: activeCollectionId,
     type: "Photo Essay",
     title: "After the Last Train",
     subtitle: "Night studies from the end of the line",
@@ -69,6 +83,32 @@ export const reservoirArtifacts = [
     medium: "Digital photography",
     color: "#a77a24",
     vertexId: 134,
+  },
+  {
+    kind: "artifact",
+    id: "work-artifact-01",
+    collectionId: "collection-work",
+    type: "Prototype",
+    title: "Reservoir Interface Study",
+    subtitle: "A spatial navigation prototype",
+    date: "2026",
+    context: "Interaction / Systems",
+    medium: "WebGL prototype",
+    color: "#b9573f",
+    vertexId: 34,
+  },
+  {
+    kind: "artifact",
+    id: "work-artifact-02",
+    collectionId: "collection-work",
+    type: "Case Study",
+    title: "Signals in Motion",
+    subtitle: "A concise study of ordered visual transitions",
+    date: "2025",
+    context: "Motion / Interface",
+    medium: "Interactive study",
+    color: "#28758c",
+    vertexId: 96,
   },
 ] satisfies ReservoirArtifact[];
 
@@ -165,17 +205,27 @@ function isPlacementAvailable(
 }
 
 function getDensityTestVertexIds() {
+  const activeCanonicalArtifacts = reservoirArtifacts.filter(
+    (artifact) => artifact.collectionId === activeCollectionId,
+  );
+  const activeChildCollections = embeddedReservoirCollections.filter(
+    (collection) => collection.parentCollectionId === activeCollectionId,
+  );
+  const activeCanonicalNodes = [
+    ...activeCanonicalArtifacts,
+    ...activeChildCollections,
+  ];
   const occupiedPlacementVertexIds = new Set(
-    reservoirArtifacts.map((artifact) => artifact.vertexId),
+    activeCanonicalNodes.map((node) => node.vertexId),
   );
   const occupiedGridVertexIds = new Set(
-    reservoirArtifacts
-      .map((artifact) => findReservoirGridVertexId(artifact.vertexId))
+    activeCanonicalNodes
+      .map((node) => findReservoirGridVertexId(node.vertexId))
       .filter((vertexId) => vertexId !== null),
   );
   const temporaryVertexIds: number[] = [];
   const temporaryNodeCount =
-    DENSITY_TEST_NODE_COUNT - reservoirArtifacts.length;
+    DENSITY_TEST_NODE_COUNT - activeCanonicalArtifacts.length;
   const nodesPerCluster = [4, 4, 4, 4, 3];
 
   for (
@@ -250,7 +300,9 @@ function getDensityTestVertexIds() {
 function createDensityTestArtifacts() {
   return getDensityTestVertexIds().map(
     (vertexId, index): ReservoirArtifact => ({
+      kind: "artifact",
       id: `density-artifact-${String(index + 1).padStart(2, "0")}`,
+      collectionId: activeCollectionId,
       type: DENSITY_TEST_TYPES[index % DENSITY_TEST_TYPES.length],
       title: DENSITY_TEST_TITLES[index],
       color: DENSITY_TEST_COLORS[index % DENSITY_TEST_COLORS.length],
@@ -292,9 +344,22 @@ const densityTestArtifacts = reservoirDensityTestMode
   ? createDensityTestArtifacts()
   : [];
 
-export const activeReservoirArtifacts = reservoirDensityTestMode
-  ? [...reservoirArtifacts, ...densityTestArtifacts]
-  : reservoirArtifacts;
+export const activeReservoirArtifacts = (
+  reservoirDensityTestMode
+    ? [...reservoirArtifacts, ...densityTestArtifacts]
+    : reservoirArtifacts
+).filter((artifact) => artifact.collectionId === activeCollectionId);
+
+export function getReservoirArtifacts(collectionId: string) {
+  const artifacts =
+    reservoirDensityTestMode && collectionId === activeCollectionId
+      ? [...reservoirArtifacts, ...densityTestArtifacts]
+      : reservoirArtifacts;
+
+  return artifacts.filter(
+    (artifact) => artifact.collectionId === collectionId,
+  );
+}
 
 export function prepareReservoirArtifactContent(
   artifact: ReservoirArtifact,

@@ -134,6 +134,47 @@ body.artifact-reading-mode .reservoir-study {
   font-weight: 300;
 }
 
+.collection-navigation {
+  position: fixed;
+  z-index: 3;
+  bottom: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  transform: translateX(-50%);
+}
+
+.collection-navigation__control {
+  appearance: none;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground-muted);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 10px;
+  font-weight: 560;
+  letter-spacing: 0.16em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.collection-navigation__control:hover:not(:disabled),
+.collection-navigation__control:focus-visible {
+  color: var(--foreground);
+}
+
+.collection-navigation__control:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 6px;
+}
+
+.collection-navigation__control:disabled {
+  cursor: default;
+  opacity: 0.36;
+}
+
 .atmosphere-content,
 .interaction-note {
   position: absolute;
