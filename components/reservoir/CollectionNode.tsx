@@ -1,19 +1,20 @@
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import {
-  RESERVOIR_COLLECTION_NODE_RADIUS,
+  RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
+} from "@/lib/reservoir/opening";
+import {
   RESERVOIR_GRID_DETAIL,
 } from "@/lib/reservoir/geometry";
+import type { ReservoirDirection } from "@/lib/reservoir/layout";
 import {
-  COLLECTION_ENTRY_PHASES,
-  COLLECTION_RETURN_PHASES,
   getCollectionChildEmergenceProgress,
-  getCollectionEntryPhase,
 } from "@/lib/reservoir/collection-entry";
 import {
   getReservoirNodeOpeningReaction,
+  getEmbeddedCollectionNodeQuaternion,
   getReservoirNodePlacement,
   getReservoirNodeRestorationOffset,
   moveToward,
@@ -31,7 +32,6 @@ import {
   RESERVOIR_NODE_REDUCED_MOTION_WHITE_MIX,
   RESERVOIR_NODE_SELECTED_HOVER_EMISSIVE_INTENSITY,
   RESERVOIR_NODE_SELECTED_HOVER_WHITE_MIX,
-  RESERVOIR_NODE_SELECTED_RADIAL_RATIO,
 } from "@/lib/reservoir/selection";
 import type {
   ReservoirCollectionActivationUniforms,
@@ -41,16 +41,15 @@ import {
   RESERVOIR_RENDER_ORDER,
   RESERVOIR_THEME,
 } from "@/lib/reservoir/theme";
-import type { EmbeddedReservoirCollection } from "@/types/reservoir";
+import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
 import { ReservoirNodeLabel } from "./ArtifactLabel";
 import { CollectionSphere } from "./CollectionSphere";
 import { useReservoirNodeHover } from "./useReservoirNodeHover";
 
 type CollectionNodeProps = {
-  activationState: "dormant" | "activating" | "active" | "deactivating";
-  activationProgressRef: MutableRefObject<number>;
-  activeSurfaceRef?: RefObject<THREE.Mesh | null>;
-  collection: EmbeddedReservoirCollection;
+  collection: Extract<ReservoirContentNode, { kind: "collection" }>;
+  direction: ReservoirDirection;
+  nodeRadius: number;
   diagnosticsRef: RefObject<HTMLDivElement | null>;
   labelsSuppressed: boolean;
   interactionEnabled: boolean;
@@ -58,6 +57,9 @@ type CollectionNodeProps = {
   meshEngaged: boolean;
   selected: boolean;
   selectedPressActive: boolean;
+  selectionRetractionStarted?: boolean;
+  surfaced: boolean;
+  filterVisible: boolean;
   continuationCueEnabled: boolean;
   opening: boolean;
   openingElapsedRef: MutableRefObject<number>;
@@ -69,17 +71,15 @@ type CollectionNodeProps = {
   emergenceProgressRef?: MutableRefObject<number>;
   emergenceOrder?: number;
   emergenceChildCount?: number;
-  returnProgressRef?: MutableRefObject<number>;
   sphereRef: RefObject<THREE.Group | null>;
 };
 
 export const COLLECTION_GRID_DETAIL = 1;
 export const COLLECTION_SURFACE_DETAIL = 3;
 export function CollectionNode({
-  activationState,
-  activationProgressRef,
-  activeSurfaceRef,
   collection,
+  direction,
+  nodeRadius,
   diagnosticsRef,
   labelsSuppressed,
   interactionEnabled,
@@ -87,6 +87,9 @@ export function CollectionNode({
   meshEngaged,
   selected,
   selectedPressActive,
+  selectionRetractionStarted = false,
+  surfaced,
+  filterVisible,
   continuationCueEnabled,
   opening,
   openingElapsedRef,
@@ -98,7 +101,6 @@ export function CollectionNode({
   emergenceProgressRef,
   emergenceOrder = 0,
   emergenceChildCount = 1,
-  returnProgressRef,
   sphereRef,
 }: CollectionNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
@@ -112,9 +114,6 @@ export function CollectionNode({
     useRef<THREE.MeshBasicMaterial | null>(null);
   const [hovered, setHovered] = useState(false);
   const effectiveHovered = interactionEnabled && hovered;
-  const active = activationState === "active";
-  const activationTarget =
-    activationState === "active" || activationState === "activating";
   const updateHover = useCallback((_: string, nextHovered: boolean) => {
     setHovered(nextHovered);
   }, []);
@@ -124,26 +123,36 @@ export function CollectionNode({
   );
   const labelContent = useMemo(
     () => ({
-      accentColor: RESERVOIR_THEME.dormantCollection,
+      accentColor: collection.categoryColor ?? RESERVOIR_THEME.dormantCollection,
       eyebrow: "Collection",
       title: collection.title,
     }),
-    [collection.title],
+    [collection.categoryColor, collection.title],
   );
   const placement = useMemo(
     () =>
       getReservoirNodePlacement(
-        collection.vertexId,
-        RESERVOIR_COLLECTION_NODE_RADIUS,
+        direction,
+        nodeRadius,
       ),
-    [collection.vertexId],
+    [direction, nodeRadius],
+  );
+  const embeddedQuaternion = useMemo(
+    () =>
+      placement
+        ? getEmbeddedCollectionNodeQuaternion(placement.normal)
+        : null,
+    [placement],
   );
   const selectedContactDirection = useMemo(
     () =>
-      placement
-        ? placement.normal.clone().negate()
+      placement && embeddedQuaternion
+        ? placement.normal
+            .clone()
+            .negate()
+            .applyQuaternion(embeddedQuaternion.clone().invert())
         : new THREE.Vector3(0, -1, 0),
-    [placement],
+    [embeddedQuaternion, placement],
   );
   const restingColor = useMemo(
     () => new THREE.Color(RESERVOIR_THEME.dormantCollection),
@@ -154,10 +163,16 @@ export function CollectionNode({
     [],
   );
   const hoverProgress = useRef(hovered ? 1 : 0);
+  const filterRadialOffset = useRef(
+    surfaced
+      ? 0
+      : nodeRadius *
+          RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
+  );
   const selectionState = useRef(
     createReservoirNodeSelectionState({
       meshEngaged,
-      nodeRadius: RESERVOIR_COLLECTION_NODE_RADIUS,
+      nodeRadius,
       selected,
     }),
   );
@@ -176,7 +191,7 @@ export function CollectionNode({
     nodeActiveColor: {
       value: new THREE.Color(RESERVOIR_THEME.sphere),
     },
-    nodeActivationProgress: { value: active ? 1 : 0 },
+    nodeActivationProgress: { value: 0 },
   });
   const configureSurfaceMaterial = useCallback(
     (
@@ -198,13 +213,42 @@ export function CollectionNode({
     [],
   );
 
+  useEffect(() => {
+    selectedSurfaceUniforms.current.nodeContactDirection.value
+      .copy(selectedContactDirection);
+  }, [selectedContactDirection]);
+
+  useEffect(() => {
+    selectionState.current = createReservoirNodeSelectionState({
+      meshEngaged,
+      nodeRadius,
+      selected,
+    });
+  }, [meshEngaged, nodeRadius, selected]);
+
+  useEffect(() => {
+    filterRadialOffset.current = surfaced
+      ? 0
+      : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
+  }, [nodeRadius, surfaced]);
+
   useFrame((_, delta) => {
     const visualNode = visualNodeRef.current;
     const material = orbMaterialRef.current;
     if (!visualNode || !material || !placement) return;
+    const filterTarget = surfaced
+      ? 0
+      : nodeRadius *
+        RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
+    filterRadialOffset.current = THREE.MathUtils.damp(
+      filterRadialOffset.current,
+      filterTarget,
+      openingReducedMotion ? 24 : 8,
+      delta,
+    );
 
     const selectionPresentationActive =
-      selected && activationState === "dormant";
+      selected && !selectionRetractionStarted;
     const selectionFrame = advanceReservoirNodeSelection(
       selectionState.current,
       {
@@ -213,7 +257,7 @@ export function CollectionNode({
         hovered: effectiveHovered,
         isDragging,
         meshEngaged,
-        nodeRadius: RESERVOIR_COLLECTION_NODE_RADIUS,
+        nodeRadius,
         reducedMotion: openingReducedMotion,
         selected: selectionPresentationActive,
         selectedPressActive,
@@ -221,34 +265,8 @@ export function CollectionNode({
     );
     selectedSurfaceUniforms.current.nodeSelectedReveal.value =
       selectionFrame.selectedReveal;
-    const entryProgress = activationTarget ? activationProgressRef.current : 0;
-    const returnProgress = returnProgressRef?.current ?? 0;
-    const greyProgress =
-      activationState === "active"
-        ? 1
-        : activationState === "deactivating"
-          ? 1 -
-            getCollectionEntryPhase(
-              returnProgress,
-              COLLECTION_RETURN_PHASES.childGreyDrain,
-            )
-          : getCollectionEntryPhase(
-              entryProgress,
-              COLLECTION_ENTRY_PHASES.destinationGreyFill,
-            );
-    const activeGridProgress =
-      activationState === "active"
-        ? 1
-        : activationState === "deactivating"
-          ? 1 -
-            getCollectionEntryPhase(
-              returnProgress,
-              COLLECTION_RETURN_PHASES.childGridDormancy,
-            )
-          : getCollectionEntryPhase(
-              entryProgress,
-              COLLECTION_ENTRY_PHASES.destinationGridResolve,
-            );
+    const greyProgress = 0;
+    const activeGridProgress = 0;
     activationUniforms.current.nodeActivationProgress.value = greyProgress;
     const gridMaterial = gridMaterialRef.current;
     if (gridMaterial) {
@@ -320,15 +338,9 @@ export function CollectionNode({
     }
 
     let renderedRadialOffset =
-      selectionFrame.radialOffset + selectionFrame.continuationOffset;
-    if (activationTarget) {
-      renderedRadialOffset =
-        RESERVOIR_COLLECTION_NODE_RADIUS *
-        RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
-    }
-    if (activationState === "deactivating") {
-      renderedRadialOffset = 0;
-    }
+      selectionFrame.radialOffset +
+      selectionFrame.continuationOffset +
+      filterRadialOffset.current;
     let openingReactionProgress = 0;
     if (emerging && emergenceProgressRef) {
       const emergenceProgress = getCollectionChildEmergenceProgress(
@@ -337,7 +349,7 @@ export function CollectionNode({
         emergenceChildCount,
       );
       renderedRadialOffset = getReservoirNodeRestorationOffset({
-        nodeRadius: RESERVOIR_COLLECTION_NODE_RADIUS,
+        nodeRadius,
         progress: emergenceProgress,
         restoredOffset: 0,
         selected: false,
@@ -348,19 +360,19 @@ export function CollectionNode({
       const reaction = getReservoirNodeOpeningReaction({
         elapsed: openingElapsedRef.current,
         openingReactionDelay,
-        nodeRadius: RESERVOIR_COLLECTION_NODE_RADIUS,
+        nodeRadius,
         reducedMotion: openingReducedMotion,
         selected: false,
-        startOffset: 0,
+        startOffset: filterRadialOffset.current,
       });
       renderedRadialOffset = reaction.radialOffset;
       openingReactionProgress = reaction.progress;
     }
     if (restoring) {
       renderedRadialOffset = getReservoirNodeRestorationOffset({
-        nodeRadius: RESERVOIR_COLLECTION_NODE_RADIUS,
+        nodeRadius,
         progress: restorationProgressRef.current,
-        restoredOffset: 0,
+        restoredOffset: surfaced ? 0 : filterTarget,
         selected: false,
       });
       openingReactionProgress = 1 - restorationProgressRef.current;
@@ -371,6 +383,7 @@ export function CollectionNode({
       .multiplyScalar(renderedRadialOffset);
     visualNode.userData.currentRadialOffset = renderedRadialOffset;
     visualNode.userData.openingReactionProgress = openingReactionProgress;
+    visualNode.userData.filterSurfaced = surfaced;
 
     if (diagnosticsRef.current) {
       diagnosticsRef.current.dataset.collectionHovered = String(
@@ -399,9 +412,11 @@ export function CollectionNode({
         selectionFrame.radialOffset.toFixed(6);
       diagnosticsRef.current.dataset.selectedCollectionHoverProgress =
         (selected && effectiveHovered ? hoverProgress.current : 0).toFixed(6);
-      diagnosticsRef.current.dataset.selectedCollectionSettled = String(
-        selected && selectionFrame.selectionSettled,
-      );
+      if (selected) {
+        diagnosticsRef.current.dataset.selectedCollectionSettled = String(
+          selectionFrame.selectionSettled,
+        );
+      }
       diagnosticsRef.current.dataset.collectionContinuationCueActive =
         String(selectionFrame.continuationCueActive);
       diagnosticsRef.current.dataset.collectionContinuationCueCount = String(
@@ -413,12 +428,16 @@ export function CollectionNode({
         (continuationRingMaterial?.opacity ?? 0).toFixed(6);
       diagnosticsRef.current.dataset.collectionEntryConfirmationAllowed =
         "false";
-      diagnosticsRef.current.dataset.collectionActivationState =
-        activationState;
-      diagnosticsRef.current.dataset.collectionGreyActivationProgress =
-        greyProgress.toFixed(6);
-      diagnosticsRef.current.dataset.collectionActiveGridProgress =
-        activeGridProgress.toFixed(6);
+      diagnosticsRef.current.dataset.selectedCollectionRetractionStarted =
+        String(selectionRetractionStarted);
+      if (selected) {
+        diagnosticsRef.current.dataset.collectionActivationState =
+          "dormant";
+        diagnosticsRef.current.dataset.collectionGreyActivationProgress =
+          greyProgress.toFixed(6);
+        diagnosticsRef.current.dataset.collectionActiveGridProgress =
+          activeGridProgress.toFixed(6);
+      }
       diagnosticsRef.current.dataset.collectionResolvedGridDetail = String(
         RESERVOIR_GRID_DETAIL,
       );
@@ -427,7 +446,7 @@ export function CollectionNode({
 
   if (!placement) return null;
 
-  const dormantInteractive = activationState === "dormant";
+  const dormantInteractive = surfaced;
 
   return (
     <group
@@ -442,9 +461,9 @@ export function CollectionNode({
       >
         <ringGeometry
           args={[
-            RESERVOIR_COLLECTION_NODE_RADIUS *
+            nodeRadius *
               RESERVOIR_NODE_CONTINUATION_RING_INNER_RADIUS_RATIO,
-            RESERVOIR_COLLECTION_NODE_RADIUS *
+            nodeRadius *
               RESERVOIR_NODE_CONTINUATION_RING_OUTER_RADIUS_RATIO,
             40,
           ]}
@@ -460,16 +479,18 @@ export function CollectionNode({
           side={THREE.DoubleSide}
         />
       </mesh>
-      <group ref={visualNodeRef}>
+      <group
+        ref={visualNodeRef}
+        quaternion={embeddedQuaternion ?? undefined}
+      >
         <CollectionSphere
           collection={collection}
           state="dormant"
-          radius={RESERVOIR_COLLECTION_NODE_RADIUS}
+          radius={nodeRadius}
           surfaceDetail={COLLECTION_SURFACE_DETAIL}
           gridDetail={COLLECTION_GRID_DETAIL}
           surfaceScale={1.012}
           gridArcSegments={4}
-          surfaceRef={active ? activeSurfaceRef : undefined}
           surfaceMaterialRef={orbMaterialRef}
           dormantGridMaterialRef={gridMaterialRef}
           resolvedGridDetail={RESERVOIR_GRID_DETAIL}
@@ -478,7 +499,7 @@ export function CollectionNode({
           surfaceUserData={{ collectionId: collection.id }}
           surfaceOnBeforeCompile={configureSurfaceMaterial}
           surfaceProgramCacheKey={getSurfaceProgramCacheKey}
-          onPointerEnter={() => beginHover("orb")}
+          onPointerEnter={() => interactionEnabled && beginHover("orb")}
           onPointerLeave={() => endHover("orb")}
         />
       </group>
@@ -488,7 +509,7 @@ export function CollectionNode({
         onPointerLeave={() => endHover("orb-hit-area")}
       >
         <sphereGeometry
-          args={[RESERVOIR_COLLECTION_NODE_RADIUS * 2.15, 12, 10]}
+          args={[nodeRadius * 2.15, 12, 10]}
         />
         <meshBasicMaterial
           transparent
@@ -503,7 +524,7 @@ export function CollectionNode({
         onPointerLeave={() => endHover("label-bridge")}
       >
         <sphereGeometry
-          args={[RESERVOIR_COLLECTION_NODE_RADIUS * 2.8, 12, 10]}
+          args={[nodeRadius * 2.8, 12, 10]}
         />
         <meshBasicMaterial
           transparent
@@ -512,13 +533,13 @@ export function CollectionNode({
           colorWrite={false}
         />
       </mesh> : null}
-      {dormantInteractive ? <ReservoirNodeLabel
+      {filterVisible ? <ReservoirNodeLabel
         content={labelContent}
         nodeRef={nodeRef}
         sphereRef={sphereRef}
         position={placement.labelPosition}
-        nodeRadius={RESERVOIR_COLLECTION_NODE_RADIUS}
-        suppressed={labelsSuppressed}
+        nodeRadius={nodeRadius}
+        suppressed={labelsSuppressed || !surfaced}
         hovered={effectiveHovered}
         userData={{ collectionId: collection.id }}
         onPointerEnter={() => beginHover("label")}

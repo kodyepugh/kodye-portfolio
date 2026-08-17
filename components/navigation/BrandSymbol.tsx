@@ -8,12 +8,22 @@ export const BRAND_SYMBOL_LAYER_SELECTORS = {
   center: "#path20-6-1-9",
 } as const;
 
-export function BrandSymbol() {
+type BrandSymbolProps = {
+  variant?: "control" | "artifact-terminal";
+};
+
+export function BrandSymbol({ variant = "control" }: BrandSymbolProps) {
+  const terminal = variant === "artifact-terminal";
+
   return (
-    <div className="brand-symbol" data-brand-symbol>
+    <div
+      className={terminal ? "artifact-terminal-symbol" : "brand-symbol"}
+      data-brand-symbol
+      data-brand-symbol-variant={variant}
+    >
       <svg
         className="brand-symbol__artwork"
-        viewBox="0 0 199.99999 194.89861"
+        viewBox={terminal ? "0 0 199.99999 139" : "0 0 199.99999 194.89861"}
         role="img"
         aria-label="Kodye Pugh"
         preserveAspectRatio="xMidYMid meet"

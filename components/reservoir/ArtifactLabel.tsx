@@ -2,12 +2,11 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import * as THREE from "three";
-import { RESERVOIR_NODE_RADIUS } from "@/lib/reservoir/geometry";
 import {
   RESERVOIR_RENDER_ORDER,
   RESERVOIR_THEME,
 } from "@/lib/reservoir/theme";
-import type { ReservoirArtifact } from "@/types/reservoir";
+import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
 
 const LABEL_CANVAS_HEIGHT = 200;
 const LABEL_HORIZONTAL_PADDING = 30;
@@ -50,9 +49,9 @@ type ReservoirNodeLabelProps = {
 
 type ArtifactLabelProps = Omit<
   ReservoirNodeLabelProps,
-  "content" | "nodeRadius" | "suppressed" | "userData"
+  "content" | "suppressed" | "userData"
 > & {
-  artifact: ReservoirArtifact;
+  artifact: Extract<ReservoirContentNode, { kind: "artifact" }>;
   selectionActive: boolean;
 };
 
@@ -333,8 +332,8 @@ export function ArtifactLabel({
 }: ArtifactLabelProps) {
   const content = useMemo(
     () => ({
-      accentColor: artifact.color,
-      eyebrow: artifact.type,
+      accentColor: artifact.categoryColor ?? RESERVOIR_THEME.inspection,
+      eyebrow: artifact.typeLabel,
       title: artifact.title,
     }),
     [artifact],
@@ -344,7 +343,7 @@ export function ArtifactLabel({
     <ReservoirNodeLabel
       {...labelProps}
       content={content}
-      nodeRadius={RESERVOIR_NODE_RADIUS}
+      nodeRadius={labelProps.nodeRadius}
       suppressed={selectionActive}
       userData={{ artifactId: artifact.id }}
     />

@@ -1,11 +1,11 @@
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import {
-  reservoirVertices,
-  RESERVOIR_NODE_RADIUS,
-} from "@/lib/reservoir/geometry";
+  RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
+} from "@/lib/reservoir/opening";
+import type { ReservoirDirection } from "@/lib/reservoir/layout";
 import { getCollectionChildEmergenceProgress } from "@/lib/reservoir/collection-entry";
 import {
   RESERVOIR_RENDER_ORDER,
@@ -34,18 +34,21 @@ import {
   RESERVOIR_NODE_REDUCED_MOTION_WHITE_MIX,
 } from "@/lib/reservoir/selection";
 import type { ReservoirSelectedSurfaceUniforms } from "@/lib/reservoir/selection";
-import type { ReservoirArtifact } from "@/types/reservoir";
+import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
 import { ArtifactLabel } from "./ArtifactLabel";
 import { useReservoirNodeHover } from "./useReservoirNodeHover";
 
 type ArtifactNodeProps = {
-  artifact: ReservoirArtifact;
+  artifact: Extract<ReservoirContentNode, { kind: "artifact" }>;
+  direction: ReservoirDirection;
+  nodeRadius: number;
   selected: boolean;
   meshEngaged: boolean;
   selectionActive: boolean;
   hovered: boolean;
   isDragging: boolean;
   selectedPressActive: boolean;
+  surfaced: boolean;
   continuationCueEnabled: boolean;
   interactionRevisionRef: MutableRefObject<number>;
   diagnosticsRef: RefObject<HTMLDivElement | null>;
@@ -65,19 +68,20 @@ type ArtifactNodeProps = {
 };
 
 const ORB_RESTING_RADIAL_OFFSET = 0;
-const ORB_SELECTED_RADIAL_OFFSET =
-  RESERVOIR_NODE_RADIUS * RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
 export const ORB_MESH_ENGAGEMENT_DELAY_MS =
   RESERVOIR_NODE_MESH_ENGAGEMENT_DELAY_MS;
 
 export function ArtifactNode({
   artifact,
+  direction,
+  nodeRadius,
   selected,
   meshEngaged,
   selectionActive,
   hovered,
   isDragging,
   selectedPressActive,
+  surfaced,
   continuationCueEnabled,
   interactionRevisionRef,
   diagnosticsRef,
@@ -105,10 +109,13 @@ export function ArtifactNode({
     artifact.id,
     onHoverChange,
   );
-  const vertex = reservoirVertices[artifact.vertexId];
+  const placement = useMemo(
+    () => getReservoirNodePlacement(direction, nodeRadius),
+    [direction, nodeRadius],
+  );
   const artifactColor = useMemo(
-    () => new THREE.Color(artifact.color),
-    [artifact.color],
+    () => new THREE.Color(artifact.categoryColor ?? RESERVOIR_THEME.inspection),
+    [artifact.categoryColor],
   );
   const hoverColor = useMemo(
     () => new THREE.Color(RESERVOIR_THEME.inspection),
@@ -118,16 +125,22 @@ export function ArtifactNode({
   const selectionState = useRef(
     createReservoirNodeSelectionState({
       meshEngaged,
-      nodeRadius: RESERVOIR_NODE_RADIUS,
+      nodeRadius,
       selected,
     }),
   );
   const previousInteractionRevision = useRef(-1);
+  const filterRadialOffset = useRef(
+    surfaced
+      ? 0
+      : nodeRadius *
+          RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
+  );
+  const orbSelectedRadialOffset =
+    nodeRadius * RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
   const orbShaderUniforms = useRef<ReservoirSelectedSurfaceUniforms>({
     nodeContactDirection: {
-      value: vertex
-        ? vertex.clone().normalize().negate()
-        : new THREE.Vector3(0, -1, 0),
+      value: placement.normal.clone().negate(),
     },
     nodeSelectedWhite: {
       value: new THREE.Color(RESERVOIR_THEME.inspection),
@@ -151,10 +164,25 @@ export function ArtifactNode({
     [],
   );
 
-  const placement = useMemo(
-    () => getReservoirNodePlacement(artifact.vertexId, RESERVOIR_NODE_RADIUS),
-    [artifact.vertexId],
-  );
+  useEffect(() => {
+    orbShaderUniforms.current.nodeContactDirection.value
+      .copy(placement.normal)
+      .negate();
+  }, [placement]);
+
+  useEffect(() => {
+    selectionState.current = createReservoirNodeSelectionState({
+      meshEngaged,
+      nodeRadius,
+      selected,
+    });
+  }, [meshEngaged, nodeRadius, selected]);
+
+  useEffect(() => {
+    filterRadialOffset.current = surfaced
+      ? 0
+      : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
+  }, [nodeRadius, surfaced]);
 
   useFrame((_, delta) => {
     const visualOrb = visualOrbRef.current;
@@ -163,6 +191,16 @@ export function ArtifactNode({
 
     const continuationRing = continuationRingRef.current;
     const continuationRingMaterial = continuationRingMaterialRef.current;
+    const filterTarget = surfaced
+      ? 0
+      : nodeRadius *
+        RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
+    filterRadialOffset.current = THREE.MathUtils.damp(
+      filterRadialOffset.current,
+      filterTarget,
+      openingReducedMotion ? 24 : 8,
+      delta,
+    );
 
     const selectionFrame = advanceReservoirNodeSelection(
       selectionState.current,
@@ -172,7 +210,7 @@ export function ArtifactNode({
         hovered,
         isDragging,
         meshEngaged,
-        nodeRadius: RESERVOIR_NODE_RADIUS,
+        nodeRadius,
         reducedMotion: openingReducedMotion,
         selected,
         selectedPressActive,
@@ -212,7 +250,9 @@ export function ArtifactNode({
     }
 
     let renderedRadialOffset =
-      selectionFrame.radialOffset + selectionFrame.continuationOffset;
+      selectionFrame.radialOffset +
+      selectionFrame.continuationOffset +
+      filterRadialOffset.current;
     let openingReactionProgress = 0;
 
     if (emerging && emergenceProgressRef) {
@@ -222,7 +262,7 @@ export function ArtifactNode({
         emergenceChildCount,
       );
       renderedRadialOffset = getReservoirNodeRestorationOffset({
-        nodeRadius: RESERVOIR_NODE_RADIUS,
+        nodeRadius,
         progress: emergenceProgress,
         restoredOffset: ORB_RESTING_RADIAL_OFFSET,
         selected: false,
@@ -232,12 +272,12 @@ export function ArtifactNode({
 
     if (opening) {
       const startOffset = openingSelected
-        ? ORB_SELECTED_RADIAL_OFFSET
-        : ORB_RESTING_RADIAL_OFFSET;
+        ? orbSelectedRadialOffset
+        : filterRadialOffset.current;
       const reaction = getReservoirNodeOpeningReaction({
         elapsed: openingElapsedRef.current,
         openingReactionDelay,
-        nodeRadius: RESERVOIR_NODE_RADIUS,
+        nodeRadius,
         reducedMotion: openingReducedMotion,
         selected: openingSelected,
         startOffset,
@@ -249,11 +289,11 @@ export function ArtifactNode({
     if (restoring) {
       const restorationProgress = restorationProgressRef.current;
       const restoredOffset = openingSelected
-        ? ORB_SELECTED_RADIAL_OFFSET
-        : ORB_RESTING_RADIAL_OFFSET;
+        ? orbSelectedRadialOffset
+        : filterTarget;
 
       renderedRadialOffset = getReservoirNodeRestorationOffset({
-        nodeRadius: RESERVOIR_NODE_RADIUS,
+        nodeRadius,
         progress: restorationProgress,
         restoredOffset,
         selected: openingSelected,
@@ -266,6 +306,7 @@ export function ArtifactNode({
       .multiplyScalar(renderedRadialOffset);
     visualOrb.userData.currentRadialOffset = renderedRadialOffset;
     visualOrb.userData.openingReactionProgress = openingReactionProgress;
+    visualOrb.userData.filterSurfaced = surfaced;
     const hoverWhiteMix = selected
       ? RESERVOIR_NODE_SELECTED_HOVER_WHITE_MIX
       : RESERVOIR_NODE_HOVER_WHITE_MIX;
@@ -331,9 +372,9 @@ export function ArtifactNode({
       >
         <ringGeometry
           args={[
-            RESERVOIR_NODE_RADIUS *
+            nodeRadius *
               RESERVOIR_NODE_CONTINUATION_RING_INNER_RADIUS_RATIO,
-            RESERVOIR_NODE_RADIUS *
+            nodeRadius *
               RESERVOIR_NODE_CONTINUATION_RING_OUTER_RADIUS_RATIO,
             40,
           ]}
@@ -353,14 +394,14 @@ export function ArtifactNode({
         ref={visualOrbRef}
         userData={{ artifactId: artifact.id }}
         renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
-        onPointerEnter={() => beginHover("orb")}
+        onPointerEnter={() => surfaced && beginHover("orb")}
         onPointerLeave={() => endHover("orb")}
       >
-        <sphereGeometry args={[RESERVOIR_NODE_RADIUS, 18, 14]} />
+        <sphereGeometry args={[nodeRadius, 18, 14]} />
         <meshStandardMaterial
           ref={orbMaterialRef}
-          color={artifact.color}
-          emissive={artifact.color}
+          color={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
+          emissive={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
           emissiveIntensity={RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY}
           roughness={0.82}
           onBeforeCompile={configureOrbMaterial}
@@ -369,10 +410,10 @@ export function ArtifactNode({
       </mesh>
       <mesh
         userData={{ artifactId: artifact.id }}
-        onPointerEnter={() => beginHover("orb-hit-area")}
+        onPointerEnter={() => surfaced && beginHover("orb-hit-area")}
         onPointerLeave={() => endHover("orb-hit-area")}
       >
-        <sphereGeometry args={[RESERVOIR_NODE_RADIUS * 2.15, 12, 10]} />
+        <sphereGeometry args={[nodeRadius * 2.15, 12, 10]} />
         <meshBasicMaterial
           transparent
           opacity={0}
@@ -382,10 +423,10 @@ export function ArtifactNode({
       </mesh>
       <mesh
         position={placement.hoverBridgePosition}
-        onPointerEnter={() => beginHover("label-bridge")}
+        onPointerEnter={() => surfaced && beginHover("label-bridge")}
         onPointerLeave={() => endHover("label-bridge")}
       >
-        <sphereGeometry args={[RESERVOIR_NODE_RADIUS * 2.8, 12, 10]} />
+        <sphereGeometry args={[nodeRadius * 2.8, 12, 10]} />
         <meshBasicMaterial
           transparent
           opacity={0}
@@ -398,9 +439,10 @@ export function ArtifactNode({
         nodeRef={nodeRef}
         sphereRef={sphereRef}
         position={placement.labelPosition}
-        selectionActive={selectionActive}
+        selectionActive={selectionActive || !surfaced}
         hovered={hovered}
-        onPointerEnter={() => beginHover("label")}
+        nodeRadius={nodeRadius}
+        onPointerEnter={() => surfaced && beginHover("label")}
         onPointerLeave={() => endHover("label")}
       />
     </group>

@@ -16,27 +16,33 @@ import {
   RESERVOIR_SELECTED_GRID_VERTEX_SHADER,
 } from "@/lib/reservoir/selection";
 import type { ReservoirSelectedGridUniforms } from "@/lib/reservoir/selection";
-import type { ReservoirCollection } from "@/types/reservoir";
+type CollectionLike = {
+  id: string;
+};
 
 export type CollectionRenderState = "active" | "dormant";
 
 type CollectionSphereProps = {
-  collection: ReservoirCollection;
+  collection: CollectionLike;
   state: CollectionRenderState;
   radius: number;
   surfaceDetail: number;
-  gridDetail: number;
+  gridDetail?: number;
   surfaceScale?: number;
   surfaceVisible?: boolean;
   gridArcSegments?: number;
   surfaceRef?: RefObject<THREE.Mesh | null>;
   surfaceMaterialRef?: RefObject<THREE.MeshStandardMaterial | null>;
-  gridMaterialRef?: RefObject<THREE.LineBasicMaterial | null>;
+  surfaceRoughness?: number;
   dormantGridMaterialRef?: RefObject<THREE.ShaderMaterial | null>;
   resolvedGridDetail?: number;
   resolvedGridMaterialRef?: RefObject<THREE.LineBasicMaterial | null>;
   dormantGridContactDirection?: THREE.Vector3;
   surfaceUserData?: Record<string, unknown>;
+  surfaceGeometryFactory?: (
+    radius: number,
+    detail: number,
+  ) => THREE.BufferGeometry;
   surfaceOnBeforeCompile?: THREE.MeshStandardMaterial["onBeforeCompile"];
   surfaceProgramCacheKey?: () => string;
   onPointerEnter?: (event: ThreeEvent<PointerEvent>) => void;
@@ -48,18 +54,19 @@ export function CollectionSphere({
   state,
   radius,
   surfaceDetail,
-  gridDetail,
+  gridDetail = 1,
   surfaceScale = 1.0015,
   surfaceVisible = true,
   gridArcSegments = 1,
   surfaceRef,
   surfaceMaterialRef,
-  gridMaterialRef,
+  surfaceRoughness,
   dormantGridMaterialRef,
   resolvedGridDetail,
   resolvedGridMaterialRef,
   dormantGridContactDirection,
   surfaceUserData,
+  surfaceGeometryFactory = createReservoirSurfaceGeometry,
   surfaceOnBeforeCompile,
   surfaceProgramCacheKey,
   onPointerEnter,
@@ -67,18 +74,19 @@ export function CollectionSphere({
 }: CollectionSphereProps) {
   const active = state === "active";
   const surfaceGeometry = useMemo(
-    () => createReservoirSurfaceGeometry(radius, surfaceDetail),
-    [radius, surfaceDetail],
+    () => surfaceGeometryFactory(radius, surfaceDetail),
+    [radius, surfaceDetail, surfaceGeometryFactory],
   );
   const gridGeometry = useMemo(
-    () =>
-      createReservoirGridLineGeometry(
-        radius,
-        gridDetail,
-        surfaceScale,
-        gridArcSegments,
-      ),
-    [gridArcSegments, gridDetail, radius, surfaceScale],
+    () => active
+      ? null
+      : createReservoirGridLineGeometry(
+          radius,
+          gridDetail,
+          surfaceScale,
+          gridArcSegments,
+        ),
+    [active, gridArcSegments, gridDetail, radius, surfaceScale],
   );
   const dormantGridUniforms = useMemo<ReservoirSelectedGridUniforms>(
     () => ({
@@ -112,7 +120,7 @@ export function CollectionSphere({
   useEffect(
     () => () => {
       surfaceGeometry.dispose();
-      gridGeometry.dispose();
+      gridGeometry?.dispose();
       resolvedGridGeometry?.dispose();
     },
     [gridGeometry, resolvedGridGeometry, surfaceGeometry],
@@ -148,7 +156,7 @@ export function CollectionSphere({
           emissiveIntensity={
             active ? 0 : RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY
           }
-          roughness={active ? 0.96 : 0.82}
+          roughness={surfaceRoughness ?? (active ? 0.96 : 0.82)}
           metalness={0}
           polygonOffset={active}
           polygonOffsetFactor={active ? 1 : 0}
@@ -157,33 +165,20 @@ export function CollectionSphere({
           customProgramCacheKey={surfaceProgramCacheKey}
         />
       </mesh> : null}
-      <lineSegments
+      {gridGeometry ? <lineSegments
         geometry={gridGeometry}
-        renderOrder={
-          active
-            ? RESERVOIR_RENDER_ORDER.baseGrid
-            : RESERVOIR_RENDER_ORDER.collectionGrid
-        }
+        renderOrder={RESERVOIR_RENDER_ORDER.collectionGrid}
       >
-        {active ? (
-          <lineBasicMaterial
-            ref={gridMaterialRef}
-            color={RESERVOIR_THEME.grid}
-            transparent
-            opacity={0.34}
-          />
-        ) : (
-          <shaderMaterial
-            ref={dormantGridMaterialRef}
-            uniforms={dormantGridUniforms}
-            vertexShader={RESERVOIR_SELECTED_GRID_VERTEX_SHADER}
-            fragmentShader={RESERVOIR_SELECTED_GRID_FRAGMENT_SHADER}
-            transparent
-            depthWrite={false}
-            toneMapped={false}
-          />
-        )}
-      </lineSegments>
+        <shaderMaterial
+          ref={dormantGridMaterialRef}
+          uniforms={dormantGridUniforms}
+          vertexShader={RESERVOIR_SELECTED_GRID_VERTEX_SHADER}
+          fragmentShader={RESERVOIR_SELECTED_GRID_FRAGMENT_SHADER}
+          transparent
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </lineSegments> : null}
       {resolvedGridGeometry ? (
         <lineSegments
           geometry={resolvedGridGeometry}

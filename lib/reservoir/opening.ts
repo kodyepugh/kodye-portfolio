@@ -1,10 +1,6 @@
-import { getArtifactSecondSelectionImpactStart } from "@/lib/reservoir/second-selection";
-
 export const RESERVOIR_OPENING_TIMING = {
   totalDuration: 3.1,
   reducedMotionDuration: 0.72,
-  cameraDelay: 0.55,
-  reducedMotionCameraDelay: 0.08,
   shockwaveStart: 0.04,
   shockwaveDuration: 1.72,
   reducedMotionShockwaveDuration: 0.24,
@@ -18,19 +14,13 @@ export const RESERVOIR_OPENING_TIMING = {
 export const RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER = -2.35;
 export const RESERVOIR_EMBEDDED_NODE_OFFSET_MULTIPLIER = -0.62;
 export const RESERVOIR_NODE_PERK_OFFSET_MULTIPLIER = 0.42;
-export const RESERVOIR_SHOCKWAVE_GRAPH_WIDTH = 1.25;
-export const RESERVOIR_SHOCKWAVE_RANGE_GAIN = 1.12;
+const RESERVOIR_REACTION_WAVE_ANGULAR_PADDING = 1.25;
+const RESERVOIR_REACTION_WAVE_RANGE_GAIN = 1.12;
 
 export function getOpeningDuration(reducedMotion: boolean) {
   return reducedMotion
     ? RESERVOIR_OPENING_TIMING.reducedMotionDuration
     : RESERVOIR_OPENING_TIMING.totalDuration;
-}
-
-export function getOpeningCameraDelay(reducedMotion: boolean) {
-  return reducedMotion
-    ? RESERVOIR_OPENING_TIMING.reducedMotionCameraDelay
-    : RESERVOIR_OPENING_TIMING.cameraDelay;
 }
 
 export function getShockwaveDuration(reducedMotion: boolean) {
@@ -40,29 +30,29 @@ export function getShockwaveDuration(reducedMotion: boolean) {
 }
 
 export function getShockwaveStart(reducedMotion: boolean) {
-  return getArtifactSecondSelectionImpactStart(reducedMotion);
+  return reducedMotion ? 0.025 : 0.1;
 }
 
 export function getNodeReactionArrival(
-  graphDistance: number,
-  maximumArtifactDistance: number,
+  angularDistance: number,
+  maximumAngularDistance: number,
   reducedMotion: boolean,
   waveStart: number = RESERVOIR_OPENING_TIMING.shockwaveStart,
 ) {
   if (reducedMotion) return waveStart;
 
-  if (graphDistance === 0) {
+  if (angularDistance === 0) {
     return waveStart;
   }
 
   const waveRange = Math.max(
-    maximumArtifactDistance * RESERVOIR_SHOCKWAVE_RANGE_GAIN,
+    maximumAngularDistance * RESERVOIR_REACTION_WAVE_RANGE_GAIN,
     1,
   );
   const normalizedWaveFront = Math.min(
     Math.max(
-      (graphDistance + RESERVOIR_SHOCKWAVE_GRAPH_WIDTH) /
-        (waveRange + RESERVOIR_SHOCKWAVE_GRAPH_WIDTH * 2),
+      (angularDistance + RESERVOIR_REACTION_WAVE_ANGULAR_PADDING) /
+        (waveRange + RESERVOIR_REACTION_WAVE_ANGULAR_PADDING * 2),
       0,
     ),
     1,

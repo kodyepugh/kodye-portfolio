@@ -1,9 +1,14 @@
-import type { Vector3 } from "three";
+export type ExploreLens = "work" | "self" | "world" | "inquiry";
+export type ActiveExploreFilter = "all" | "collections" | ExploreLens;
+export type DirectArtifactId = "about" | "resume" | "contact";
 
 export type ReservoirArtifact = {
   kind: "artifact";
   id: string;
+  canonicalArtifactId?: string;
   collectionId: string;
+  directArtifactId?: DirectArtifactId;
+  exploreLenses: readonly ExploreLens[];
   type: string;
   title: string;
   subtitle?: string;
@@ -11,12 +16,12 @@ export type ReservoirArtifact = {
   context?: string;
   medium?: string;
   color: string;
-  vertexId: number;
 };
 
 export type ReservoirCollection = {
   kind: "collection";
   id: string;
+  exploreLenses?: readonly ExploreLens[];
   title: string;
   subtitle?: string;
   description?: string;
@@ -27,16 +32,9 @@ export type ReservoirCollection = {
 
 export type EmbeddedReservoirCollection = ReservoirCollection & {
   parentCollectionId: string;
-  vertexId: number;
 };
 
 export type ReservoirNode = ReservoirArtifact | EmbeddedReservoirCollection;
-
-export type ReservoirGridInspection = {
-  active: boolean;
-  revision: number;
-  worldPoint: Vector3;
-};
 
 export type PreparedArtifactContent = {
   artifactId: string;

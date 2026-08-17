@@ -12,9 +12,7 @@ export const rootReservoirCollection = {
   title: "Home",
 } satisfies ReservoirCollection;
 
-// The collection shares the canonical placement-vertex architecture used by
-// artifacts. Placement vertex 104 maps exactly to detail-15 grid vertex 2117.
-export const embeddedReservoirCollections = [
+export const embeddedReservoirCollections: EmbeddedReservoirCollection[] = [
   {
     kind: "collection",
     id: "collection-work",
@@ -22,8 +20,18 @@ export const embeddedReservoirCollections = [
     subtitle: "Selected projects and ongoing studies",
     category: "Practice",
     contentSummary: "Artifacts and collections",
+    exploreLenses: ["work", "inquiry"],
     parentCollectionId: ROOT_COLLECTION_ID,
-    vertexId: 104,
+  },
+  {
+    kind: "collection",
+    id: "collection-field-archive",
+    title: "FIELD ARCHIVE",
+    subtitle: "Observations of place, weather, and public life",
+    category: "Field Studies",
+    contentSummary: "World and inquiry records",
+    exploreLenses: ["world", "inquiry"],
+    parentCollectionId: ROOT_COLLECTION_ID,
   },
   {
     kind: "collection",
@@ -32,10 +40,44 @@ export const embeddedReservoirCollections = [
     subtitle: "Smaller investigations within the work archive",
     category: "Research",
     contentSummary: "Dormant nested collection",
+    exploreLenses: ["inquiry", "world"],
     parentCollectionId: "collection-work",
-    vertexId: 114,
   },
-] satisfies EmbeddedReservoirCollection[];
+  {
+    kind: "collection",
+    id: "collection-inquiry-archive",
+    title: "INQUIRY ARCHIVE",
+    subtitle: "Open questions and unresolved systems",
+    category: "Research",
+    contentSummary: "Nested inquiry collection",
+    exploreLenses: ["inquiry", "self"],
+    parentCollectionId: "collection-work-studies",
+  },
+  ...(process.env.NODE_ENV === "development"
+    ? [
+        {
+          kind: "collection" as const,
+          id: "collection-depth-test-four",
+          title: "DEPTH TEST 04",
+          subtitle: "Development-only recursive navigation fixture",
+          category: "QA",
+          contentSummary: "Direct ancestor retreat fixture",
+          exploreLenses: ["inquiry" as const],
+          parentCollectionId: "collection-inquiry-archive",
+        },
+        {
+          kind: "collection" as const,
+          id: "collection-depth-test-five",
+          title: "DEPTH TEST 05",
+          subtitle: "Development-only recursive navigation fixture",
+          category: "QA",
+          contentSummary: "Depth-independent return fixture",
+          exploreLenses: ["inquiry" as const],
+          parentCollectionId: "collection-depth-test-four",
+        },
+      ]
+    : []),
+];
 
 export const reservoirCollections: readonly ReservoirCollection[] = [
   rootReservoirCollection,

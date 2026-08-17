@@ -1,6 +1,6 @@
 export const RESERVOIR_THEME = {
   environment: "#090b0a",
-  sphere: "#232723",
+  sphere: "#313431",
   sphereRecessed: "#101310",
   dormantCollection: "#000000",
   grid: "#a2a7a1",

@@ -1,28 +1,20 @@
 import type {
+  DirectArtifactId,
+  ExploreLens,
   PreparedArtifactContent,
   ReservoirArtifact,
 } from "@/types/reservoir";
 import {
-  findReservoirGridVertexId,
-  getReservoirGridNeighborIds,
-  getReservoirPlacementNeighborIds,
-  reservoirVertices,
-} from "@/lib/reservoir/geometry";
-import {
   activeCollectionId,
-  embeddedReservoirCollections,
+  reservoirCollections,
 } from "@/content/reservoir/collections";
 
-// Offline maximum-minimum sample from the canonical detail-3 vertex set.
-// Eligible vertices occupy the initial upper-front cap after the fixed base
-// rotation (normalized y >= 0.4 and z >= 0.15). Five-vertex samples are ranked
-// by their minimum angular separation; the maximum-minimum sample wins, with
-// the lexicographically smallest vertex-ID set as the deterministic tie-breaker.
-export const reservoirArtifacts = [
+const canonicalReservoirArtifacts = [
   {
     kind: "artifact",
     id: "artifact-01",
     collectionId: activeCollectionId,
+    exploreLenses: ["world", "inquiry"],
     type: "Field Note",
     title: "Low Tide",
     subtitle: "Observations from the exposed shoreline",
@@ -30,12 +22,12 @@ export const reservoirArtifacts = [
     context: "Field Studies / Water",
     medium: "Text and photographs",
     color: "#b9573f",
-    vertexId: 34,
   },
   {
     kind: "artifact",
     id: "artifact-02",
     collectionId: activeCollectionId,
+    exploreLenses: ["work", "inquiry"],
     type: "Case Study",
     title: "Bellabeat Wellness Analysis",
     subtitle: "Patterns in everyday activity and rest",
@@ -43,12 +35,12 @@ export const reservoirArtifacts = [
     context: "Data / Wellness",
     medium: "Data analysis",
     color: "#28758c",
-    vertexId: 64,
   },
   {
     kind: "artifact",
     id: "artifact-03",
     collectionId: activeCollectionId,
+    exploreLenses: ["self", "world"],
     type: "Moving Image",
     title: "The Distance Between Memory and the Shape of a Place",
     subtitle: "A study in landscape, recall, and distance",
@@ -56,12 +48,12 @@ export const reservoirArtifacts = [
     context: "Memory / Place",
     medium: "Single-channel video",
     color: "#6e5890",
-    vertexId: 96,
   },
   {
     kind: "artifact",
     id: "artifact-04",
     collectionId: activeCollectionId,
+    exploreLenses: ["work", "inquiry"],
     type: "Web Experiment",
     title: "A Small Interface for Things That Refuse to Be Categorized",
     subtitle: "A navigational study in unstable taxonomies",
@@ -69,12 +61,12 @@ export const reservoirArtifacts = [
     context: "Interfaces / Classification",
     medium: "Interactive website",
     color: "#3d8062",
-    vertexId: 114,
   },
   {
     kind: "artifact",
     id: "artifact-05",
     collectionId: activeCollectionId,
+    exploreLenses: ["world"],
     type: "Photo Essay",
     title: "After the Last Train",
     subtitle: "Night studies from the end of the line",
@@ -82,12 +74,12 @@ export const reservoirArtifacts = [
     context: "Transit / Nocturnes",
     medium: "Digital photography",
     color: "#a77a24",
-    vertexId: 134,
   },
   {
     kind: "artifact",
     id: "work-artifact-01",
     collectionId: "collection-work",
+    exploreLenses: ["work", "inquiry"],
     type: "Prototype",
     title: "Reservoir Interface Study",
     subtitle: "A spatial navigation prototype",
@@ -95,12 +87,12 @@ export const reservoirArtifacts = [
     context: "Interaction / Systems",
     medium: "WebGL prototype",
     color: "#b9573f",
-    vertexId: 34,
   },
   {
     kind: "artifact",
     id: "work-artifact-02",
     collectionId: "collection-work",
+    exploreLenses: ["work"],
     type: "Case Study",
     title: "Signals in Motion",
     subtitle: "A concise study of ordered visual transitions",
@@ -108,20 +100,245 @@ export const reservoirArtifacts = [
     context: "Motion / Interface",
     medium: "Interactive study",
     color: "#28758c",
-    vertexId: 96,
   },
 ] satisfies ReservoirArtifact[];
 
+type CanonicalDirectArtifact = {
+  id: DirectArtifactId;
+  type: string;
+  title: string;
+  subtitle: string;
+  context: string;
+  medium: string;
+  color: string;
+  exploreLenses: readonly ExploreLens[];
+};
+
+export const canonicalDirectArtifacts = [
+  {
+    id: "about",
+    type: "Direct Feature",
+    title: "About",
+    subtitle: "A working portrait of practice, context, and intent",
+    context: "Identity / Practice",
+    medium: "Profile",
+    color: "#8d7257",
+    exploreLenses: ["self", "inquiry"],
+  },
+  {
+    id: "resume",
+    type: "Direct Feature",
+    title: "Resume",
+    subtitle: "Experience, capabilities, and selected engagements",
+    context: "Practice / Experience",
+    medium: "Document",
+    color: "#667d83",
+    exploreLenses: ["work", "self"],
+  },
+  {
+    id: "contact",
+    type: "Direct Feature",
+    title: "Contact",
+    subtitle: "Ways to begin a conversation or collaboration",
+    context: "Connection / Collaboration",
+    medium: "Contact record",
+    color: "#6f8065",
+    exploreLenses: ["self", "world"],
+  },
+] satisfies readonly CanonicalDirectArtifact[];
+
+const directArtifactReferences = reservoirCollections.flatMap(
+  ({ id: collectionId }) =>
+  canonicalDirectArtifacts.map(
+    (artifact): ReservoirArtifact => ({
+      ...artifact,
+      kind: "artifact",
+      id: `${collectionId}:direct:${artifact.id}`,
+      canonicalArtifactId: `direct-${artifact.id}`,
+      collectionId,
+      directArtifactId: artifact.id,
+    }),
+  ),
+);
+
+const inspectionArtifacts = [
+  {
+    id: "artifact-06",
+    collectionId: activeCollectionId,
+    exploreLenses: ["self"],
+    type: "Personal Index",
+    title: "Notes Toward a Working Practice",
+    subtitle: "A provisional inventory of methods and attention",
+    context: "Practice / Reflection",
+    medium: "Text",
+    color: "#916d61",
+  },
+  {
+    id: "artifact-07",
+    collectionId: activeCollectionId,
+    exploreLenses: ["self", "world"],
+    type: "Audio Essay",
+    title: "A Voice in Public Space",
+    context: "Identity / Place",
+    medium: "Sound",
+    color: "#657596",
+  },
+  {
+    id: "artifact-08",
+    collectionId: activeCollectionId,
+    exploreLenses: ["work"],
+    type: "System Study",
+    title: "Archive Operations Manual",
+    context: "Systems / Practice",
+    medium: "Interface study",
+    color: "#7a7752",
+  },
+  {
+    id: "artifact-09",
+    collectionId: activeCollectionId,
+    exploreLenses: ["inquiry"],
+    type: "Research Note",
+    title: "Questions for an Unstable Index",
+    context: "Classification / Research",
+    medium: "Text",
+    color: "#725f83",
+  },
+  {
+    id: "work-artifact-03",
+    collectionId: "collection-work",
+    exploreLenses: ["self"],
+    type: "Reflection",
+    title: "Learning Through Systems",
+    color: "#916d61",
+  },
+  {
+    id: "work-artifact-04",
+    collectionId: "collection-work",
+    exploreLenses: ["world"],
+    type: "Field Study",
+    title: "Interfaces in Public",
+    color: "#a77a24",
+  },
+  {
+    id: "work-artifact-05",
+    collectionId: "collection-work",
+    exploreLenses: ["work", "inquiry"],
+    type: "Prototype",
+    title: "Relational Index Study",
+    color: "#3d8062",
+  },
+  {
+    id: "work-artifact-06",
+    collectionId: "collection-work",
+    exploreLenses: ["inquiry"],
+    type: "Research Note",
+    title: "On Persistent Context",
+    color: "#6e5890",
+  },
+  {
+    id: "studies-artifact-01",
+    collectionId: "collection-work-studies",
+    exploreLenses: ["inquiry"],
+    type: "Study",
+    title: "Unresolved Navigation Models",
+    color: "#6e5890",
+  },
+  {
+    id: "studies-artifact-02",
+    collectionId: "collection-work-studies",
+    exploreLenses: ["work", "inquiry"],
+    type: "Prototype",
+    title: "Threshold Behaviors",
+    color: "#3d8062",
+  },
+  {
+    id: "studies-artifact-03",
+    collectionId: "collection-work-studies",
+    exploreLenses: ["self"],
+    type: "Reflection",
+    title: "A Method for Staying Curious",
+    color: "#916d61",
+  },
+  {
+    id: "studies-artifact-04",
+    collectionId: "collection-work-studies",
+    exploreLenses: ["world"],
+    type: "Observation",
+    title: "Signals Beyond the Interface",
+    color: "#a77a24",
+  },
+  {
+    id: "field-artifact-01",
+    collectionId: "collection-field-archive",
+    exploreLenses: ["world"],
+    type: "Field Note",
+    title: "Weather at the Edge of the City",
+    color: "#a77a24",
+  },
+  {
+    id: "field-artifact-02",
+    collectionId: "collection-field-archive",
+    exploreLenses: ["world", "inquiry"],
+    type: "Photo Essay",
+    title: "Public Ground",
+    color: "#28758c",
+  },
+  {
+    id: "field-artifact-03",
+    collectionId: "collection-field-archive",
+    exploreLenses: ["self", "world"],
+    type: "Audio Note",
+    title: "Listening Position",
+    color: "#916d61",
+  },
+  {
+    id: "field-artifact-04",
+    collectionId: "collection-field-archive",
+    exploreLenses: ["inquiry"],
+    type: "Research Note",
+    title: "Who Owns the Horizon",
+    color: "#6e5890",
+  },
+  {
+    id: "inquiry-artifact-01",
+    collectionId: "collection-inquiry-archive",
+    exploreLenses: ["inquiry"],
+    type: "Question",
+    title: "What Can an Archive Remember",
+    color: "#6e5890",
+  },
+  {
+    id: "inquiry-artifact-02",
+    collectionId: "collection-inquiry-archive",
+    exploreLenses: ["work", "inquiry"],
+    type: "Prototype",
+    title: "Recursive Context Study",
+    color: "#3d8062",
+  },
+  {
+    id: "inquiry-artifact-03",
+    collectionId: "collection-inquiry-archive",
+    exploreLenses: ["self"],
+    type: "Reflection",
+    title: "The Researcher in the System",
+    color: "#916d61",
+  },
+].map(
+  (artifact): ReservoirArtifact => ({
+    kind: "artifact",
+    ...artifact,
+    exploreLenses: artifact.exploreLenses as readonly ExploreLens[],
+  }),
+);
+
+export const reservoirArtifacts: ReservoirArtifact[] = [
+  ...canonicalReservoirArtifacts,
+  ...directArtifactReferences,
+  ...inspectionArtifacts,
+];
+
 const FORCE_DENSITY_TEST_MODE = false;
 const DENSITY_TEST_NODE_COUNT = 24;
-
-const DENSITY_CLUSTER_ANCHORS = [
-  [-0.62, 0.74, 0.26],
-  [0.62, 0.74, 0.26],
-  [0, 0.72, -0.69],
-  [-0.58, -0.55, 0.6],
-  [0.62, -0.5, -0.6],
-] as const;
 
 const DENSITY_TEST_TITLES = [
   "Still",
@@ -168,176 +385,26 @@ export const reservoirDensityTestMode =
   (FORCE_DENSITY_TEST_MODE ||
     process.env.NEXT_PUBLIC_RESERVOIR_DENSITY_TEST === "1");
 
-function directionScore(
-  vertexId: number,
-  anchor: readonly [number, number, number],
-) {
-  const vertex = reservoirVertices[vertexId];
-  const anchorLength = Math.hypot(...anchor);
-
-  return (
-    (vertex.x * anchor[0] +
-      vertex.y * anchor[1] +
-      vertex.z * anchor[2]) /
-    (vertex.length() * anchorLength)
-  );
-}
-
-function isPlacementAvailable(
-  vertexId: number,
-  occupiedPlacementVertexIds: ReadonlySet<number>,
-  occupiedGridVertexIds: ReadonlySet<number>,
-) {
-  if (occupiedPlacementVertexIds.has(vertexId)) return false;
-  const gridVertexId = findReservoirGridVertexId(vertexId);
-  if (gridVertexId === null || occupiedGridVertexIds.has(gridVertexId)) {
-    return false;
-  }
-
-  return (
-    getReservoirPlacementNeighborIds(vertexId).every(
-      (neighborId) => !occupiedPlacementVertexIds.has(neighborId),
-    ) &&
-    getReservoirGridNeighborIds(gridVertexId).every(
-      (neighborId) => !occupiedGridVertexIds.has(neighborId),
-    )
-  );
-}
-
-function getDensityTestVertexIds() {
+function getDensityTestArtifactCount() {
   const activeCanonicalArtifacts = reservoirArtifacts.filter(
     (artifact) => artifact.collectionId === activeCollectionId,
   );
-  const activeChildCollections = embeddedReservoirCollections.filter(
-    (collection) => collection.parentCollectionId === activeCollectionId,
-  );
-  const activeCanonicalNodes = [
-    ...activeCanonicalArtifacts,
-    ...activeChildCollections,
-  ];
-  const occupiedPlacementVertexIds = new Set(
-    activeCanonicalNodes.map((node) => node.vertexId),
-  );
-  const occupiedGridVertexIds = new Set(
-    activeCanonicalNodes
-      .map((node) => findReservoirGridVertexId(node.vertexId))
-      .filter((vertexId) => vertexId !== null),
-  );
-  const temporaryVertexIds: number[] = [];
-  const temporaryNodeCount =
-    DENSITY_TEST_NODE_COUNT - activeCanonicalArtifacts.length;
-  const nodesPerCluster = [4, 4, 4, 4, 3];
-
-  for (
-    let anchorIndex = 0;
-    anchorIndex < DENSITY_CLUSTER_ANCHORS.length;
-    anchorIndex += 1
-  ) {
-    const candidates = reservoirVertices
-      .map((_, vertexId) => vertexId)
-      .sort(
-        (a, b) =>
-          directionScore(b, DENSITY_CLUSTER_ANCHORS[anchorIndex]) -
-            directionScore(a, DENSITY_CLUSTER_ANCHORS[anchorIndex]) ||
-          a - b,
-      );
-    let addedToCluster = 0;
-
-    for (const vertexId of candidates) {
-      if (
-        !isPlacementAvailable(
-          vertexId,
-          occupiedPlacementVertexIds,
-          occupiedGridVertexIds,
-        )
-      ) {
-        continue;
-      }
-
-      occupiedPlacementVertexIds.add(vertexId);
-      occupiedGridVertexIds.add(
-        findReservoirGridVertexId(vertexId) as number,
-      );
-      temporaryVertexIds.push(vertexId);
-      addedToCluster += 1;
-
-      if (addedToCluster === nodesPerCluster[anchorIndex]) break;
-    }
-  }
-
-  for (
-    let vertexId = 0;
-    temporaryVertexIds.length < temporaryNodeCount &&
-    vertexId < reservoirVertices.length;
-    vertexId += 1
-  ) {
-    if (
-      !isPlacementAvailable(
-        vertexId,
-        occupiedPlacementVertexIds,
-        occupiedGridVertexIds,
-      )
-    ) {
-      continue;
-    }
-
-    occupiedPlacementVertexIds.add(vertexId);
-    occupiedGridVertexIds.add(
-      findReservoirGridVertexId(vertexId) as number,
-    );
-    temporaryVertexIds.push(vertexId);
-  }
-
-  if (temporaryVertexIds.length !== temporaryNodeCount) {
-    throw new Error(
-      `Unable to place ${temporaryNodeCount} density-test artifacts without adjacency.`,
-    );
-  }
-
-  return temporaryVertexIds;
+  return Math.max(0, DENSITY_TEST_NODE_COUNT - activeCanonicalArtifacts.length);
 }
 
 function createDensityTestArtifacts() {
-  return getDensityTestVertexIds().map(
-    (vertexId, index): ReservoirArtifact => ({
+  return Array.from(
+    { length: getDensityTestArtifactCount() },
+    (_, index): ReservoirArtifact => ({
       kind: "artifact",
       id: `density-artifact-${String(index + 1).padStart(2, "0")}`,
       collectionId: activeCollectionId,
+      exploreLenses: ["inquiry"],
       type: DENSITY_TEST_TYPES[index % DENSITY_TEST_TYPES.length],
       title: DENSITY_TEST_TITLES[index],
       color: DENSITY_TEST_COLORS[index % DENSITY_TEST_COLORS.length],
-      vertexId,
     }),
   );
-}
-
-function getAdjacentArtifactPairs(artifacts: readonly ReservoirArtifact[]) {
-  const artifactByGridVertexId = new Map(
-    artifacts
-      .map(
-        (artifact) =>
-          [
-            findReservoirGridVertexId(artifact.vertexId),
-            artifact,
-          ] as const,
-      )
-      .filter(([gridVertexId]) => gridVertexId !== null),
-  );
-  const pairs: string[] = [];
-
-  for (const artifact of artifacts) {
-    const gridVertexId = findReservoirGridVertexId(artifact.vertexId);
-    if (gridVertexId === null) continue;
-
-    for (const neighborId of getReservoirGridNeighborIds(gridVertexId)) {
-      const neighbor = artifactByGridVertexId.get(neighborId);
-      if (neighbor && artifact.id < neighbor.id) {
-        pairs.push(`${artifact.id}:${neighbor.id}`);
-      }
-    }
-  }
-
-  return pairs;
 }
 
 const densityTestArtifacts = reservoirDensityTestMode
@@ -389,10 +456,5 @@ export const reservoirDensityTestDiagnostics = {
   enabled: reservoirDensityTestMode,
   artifactCount: activeReservoirArtifacts.length,
   temporaryArtifactCount: densityTestArtifacts.length,
-  artifactVertexIds: activeReservoirArtifacts.map(
-    (artifact) => artifact.vertexId,
-  ),
-  adjacentArtifactPairs: reservoirDensityTestMode
-    ? getAdjacentArtifactPairs(activeReservoirArtifacts)
-    : [],
+  artifactIds: activeReservoirArtifacts.map((artifact) => artifact.id),
 };

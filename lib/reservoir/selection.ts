@@ -285,7 +285,7 @@ export function advanceReservoirNodeSelection(
     );
     if (progress === 1) state.popActive = false;
   } else if (state.releaseDelayActive) {
-    // Hold physical depth until the surrounding topology starts retracting.
+    // Hold physical depth until the selected-node release transition begins.
   } else if (state.releaseActive) {
     state.releaseElapsed += delta;
     const progress = Math.min(

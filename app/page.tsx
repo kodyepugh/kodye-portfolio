@@ -10,7 +10,7 @@ export default function Home() {
 
       <div className="interaction-note" aria-hidden="true">
         <span>Drag to traverse</span>
-        <span>Wheel to travel</span>
+        <span>Wheel to zoom</span>
       </div>
     </main>
   );
