@@ -9,98 +9,108 @@ import {
   useRef,
   useState,
 } from "react";
-import type { MutableRefObject, PointerEvent, WheelEvent } from "react";
+import type {
+  ReactNode,
+  MutableRefObject,
+  PointerEvent,
+  WheelEvent,
+} from "react";
 import * as THREE from "three";
+import { ROOT_COLLECTION_ID } from "@/content/digital-reservoir/collections";
+import { getReservoirContentNodes, type ReservoirContentNode } from "@/lib/content/reservoir-adapter";
 import {
-  getReservoirArtifacts,
-  prepareReservoirArtifactContent,
-  reservoirDensityTestDiagnostics,
-} from "@/content/reservoir/artifacts";
-import {
-  activeCollectionId as INITIAL_ACTIVE_COLLECTION_ID,
-  getReservoirChildCollections,
-  getReservoirCollection,
-  rootReservoirCollection,
-} from "@/content/reservoir/collections";
-import {
-  getReservoirNodeDiagnostics,
-  getReservoirNodes,
-} from "@/content/reservoir/nodes";
+  getArtifactById,
+  getCollectionById,
+  getPublishedArtifactCollections,
+} from "@/lib/content/selectors";
 import {
   RESERVOIR_BASE_ROTATION,
-  getReservoirPlacementGraphDistance,
-  RESERVOIR_COLLECTION_NODE_RADIUS,
-  RESERVOIR_COLLECTION_NODE_SCALE,
-  RESERVOIR_GRID_DETAIL,
-  RESERVOIR_MIN_ARTIFACT_VERTEX_STEPS,
-  RESERVOIR_NODE_RADIUS,
   RESERVOIR_RADIUS,
 } from "@/lib/reservoir/geometry";
-import { getReservoirNodePlacement } from "@/lib/reservoir/node";
+import {
+  generateReservoirInitialComposition,
+  generateReservoirLayout,
+  getReservoirDirectionAngularDistance,
+  getReservoirFocusedCapRadius,
+  getReservoirLayoutDiagnostics,
+} from "@/lib/reservoir/layout";
+import type {
+  ReservoirInitialComposition,
+  ReservoirLayoutMode,
+  ReservoirLayout,
+  ReservoirDirection,
+} from "@/lib/reservoir/layout";
+import {
+  getReservoirNodeSizingSnapshot,
+  getReservoirNodeSizingTargets,
+  RESERVOIR_NODE_SIZING_REFERENCE_POPULATION,
+} from "@/lib/reservoir/node-sizing";
+import {
+  getReservoirLabelsVisible,
+  RESERVOIR_LABEL_ZOOM,
+} from "@/lib/reservoir/label";
+import {
+  getReservoirNodePlacement,
+} from "@/lib/reservoir/node";
 import { RESERVOIR_NODE_SELECTED_RADIAL_RATIO } from "@/lib/reservoir/selection";
 import {
-  COLLECTION_RETURN_PHASES,
-  getCollectionEntryPhase,
+  getCollectionReconstitutionDuration,
+  getCollectionReconstitutionFrame,
 } from "@/lib/reservoir/collection-entry";
+import type { CollectionReconstitutionPhase } from "@/lib/reservoir/collection-entry";
 import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
+import { getOpeningDuration } from "@/lib/reservoir/opening";
 import {
-  getOpeningCameraDelay,
-  getOpeningDuration,
-} from "@/lib/reservoir/opening";
+  clampReservoirZoom,
+  getReservoirFrame,
+  getReservoirWorldTransform,
+  RESERVOIR_ZOOM_DEFAULT,
+  RESERVOIR_ZOOM_MAX,
+  RESERVOIR_ZOOM_MIN,
+} from "@/lib/reservoir/frame";
 import {
   getArtifactWindowRetractDuration,
   getReservoirRestoreDuration,
   getReservoirRestoreProgress,
 } from "@/lib/reservoir/reading";
 import type {
-  EmbeddedReservoirCollection,
-  PreparedArtifactContent,
-  ReservoirGridInspection,
+  ActiveExploreFilter,
+  DirectArtifactId,
 } from "@/types/reservoir";
+import type { Collection } from "@/types/content";
 import { AtmosphereContent } from "./AtmosphereContent";
 import { ArtifactWindow } from "./ArtifactWindow";
+import { ReservoirLayoutModeSwitch } from "../navigation/ReservoirLayoutModeSwitch";
 import { ReservoirSphere } from "./ReservoirSphere";
-import { ReturningCollectionNode } from "./ReturningCollectionNode";
 import { CollectionNavigation } from "../navigation/CollectionNavigation";
+import {
+  ReservoirMenu,
+  type ReservoirMenuState,
+} from "../navigation/ReservoirMenu";
+import {
+  ReservoirFooter,
+  type ReservoirFooterState,
+} from "../navigation/ReservoirFooter";
 
 const CAMERA_FOV = 34;
 const CAMERA_NEAR = 0.08;
-const CAMERA_DAMPING = 8;
-const CAMERA_WHEEL_RATE = 0.0018;
-const MAX_WHEEL_DELTA = 100;
-const SPHERE_VIEWPORT_WIDTH = 1.045;
-const SPHERE_TOP_Y = 0.36;
-const OUTER_DRAG_SENSITIVITY = 0.0042;
-const INNER_DRAG_SENSITIVITY = OUTER_DRAG_SENSITIVITY * 0.2;
-const INSPECTION_DISTANCE = 2;
-const ARC_CONTROL_PROGRESS = 0.48;
-const ARC_CLEARANCE = RESERVOIR_RADIUS * 0.18;
-const MIN_CAMERA_CLEARANCE = 0.24;
-const CLEARANCE_SMOOTHING = 0.002;
-const PATH_SAFETY_SAMPLE_COUNT = 100;
-const FRAME_EPSILON = 0.000001;
-const FRAME_POLE_THRESHOLD = 0.08;
-const ENDPOINT_SNAP_THRESHOLD = 0.015;
-const DIVE_TARGET_UNLOCK_PROGRESS = 0.04;
+const CAMERA_DISTANCE = 10;
+const RESERVOIR_ZOOM_DAMPING = 10;
+const RESERVOIR_WHEEL_ZOOM_RATE = 0.0017;
+const RESERVOIR_PINCH_ZOOM_RATE = 0.0045;
+const MAX_WHEEL_DELTA = 120;
+const DRAG_SENSITIVITY = 0.0042;
 const NODE_CLICK_MAX_TRAVEL = 6;
-const ARTIFACT_WINDOW_ATMOSPHERE_GAP = 16;
-const COLLECTION_ENTRY_DURATION = 1.45;
-const COLLECTION_ENTRY_REDUCED_MOTION_DURATION = 0.42;
-const COLLECTION_ENTRY_UPWARD_ARC_CLEARANCE = RESERVOIR_RADIUS * 0.16;
-const COLLECTION_ENTRY_OVERHEAD_CURVATURE_FLOOR = 0.35;
-const COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE = CAMERA_NEAR + 0.012;
-const COLLECTION_ENTRY_ARRIVAL_EPSILON = 0.00001;
-const COLLECTION_CHILD_EMERGENCE_DURATION = 1.05;
-const COLLECTION_CHILD_EMERGENCE_REDUCED_MOTION_DURATION = 0.28;
-// The approved collection-scale retreat keeps its existing duration. Reverse
-// traversal adds a recession lead ahead of it so even the last deterministic
-// node stagger is substantially beneath the active sphere before camera motion
-// becomes visible.
-const COLLECTION_RETURN_RECESSION_LEAD_DURATION = 0.88;
-const COLLECTION_RETURN_REDUCED_MOTION_RECESSION_LEAD_DURATION = 0.32;
-const COLLECTION_RETURN_DURATION = 2.35;
-const COLLECTION_RETURN_REDUCED_MOTION_DURATION = 0.55;
-const EMPTY_REACTION_DISTANCES = new Map<string, number>();
+const DIRECT_LOCATE_DURATION = 0.86;
+const DIRECT_LOCATE_REDUCED_MOTION_DURATION = 0.2;
+const FOOTER_TRIGGER_OVERSCAN = 28;
+const LAYOUT_MODE_SWITCH_DURATION = 0.62;
+
+type ReservoirLayoutTransitionState =
+  | "idle"
+  | "sinking"
+  | "orienting"
+  | "emerging";
 
 type DragState = {
   pointerId: number;
@@ -111,219 +121,147 @@ type DragState = {
   maxTravelSquared: number;
   hoverCancelled: boolean;
 };
-
-type CameraPath = {
-  startProgress: number;
-  sphereCenter: THREE.Vector3;
-  outerPosition: THREE.Vector3;
-  controlPosition: THREE.Vector3;
-  outerTarget: THREE.Vector3;
-  innerPosition: THREE.Vector3;
-  innerTarget: THREE.Vector3;
-  outerDirection: THREE.Vector3;
-  innerDirection: THREE.Vector3;
-  outerCenterDistance: number;
-  innerCenterDistance: number;
-  minimumRawClearance: number;
-  requiresClearanceCorrection: boolean;
-};
-
-type LocalSurfaceFrame = {
-  normal: THREE.Vector3;
-  tangentUp: THREE.Vector3;
-  tangentRight: THREE.Vector3;
-};
-
-type AtmosphericCameraModel = {
-  sphereCenter: THREE.Vector3;
-  canonicalFrame: LocalSurfaceFrame;
-  outerCenterDistance: number;
-  outerRadialTilt: number;
-  outerViewTilt: number;
-  outerCenterViewOffset: number;
-  outerFocusDistance: number;
-};
-
-type RetreatPath = {
-  startProgress: number;
-  frame: LocalSurfaceFrame;
-  sphereCenter: THREE.Vector3;
-  lateralOffset: number;
-  startPlaneDistance: number;
-  startRadialTilt: number;
-  outerPlaneDistance: number;
-  outerRadialTilt: number;
-  startQuaternion: THREE.Quaternion;
-  outerQuaternion: THREE.Quaternion;
-  startFocusDistance: number;
-  outerFocusDistance: number;
-  outerPosition: THREE.Vector3;
-  outerTarget: THREE.Vector3;
-};
-
-type DiveTarget = {
-  point: [number, number, number] | null;
-  source: "pointer" | "default";
-};
-
-type TravelDirection = "inward" | "outward";
 type PickedReservoirNode =
   | { kind: "artifact"; id: string }
   | { kind: "collection"; id: string };
 type ReservoirTransitionState =
   | "idle"
-  | "enteringCollection"
-  | "emergingCollection"
-  | "leavingCollection"
+  | "locatingArtifact"
+  | "reconstitutingCollection"
   | "openingArtifact"
   | "deployingArtifact"
   | "readingArtifact"
   | "closingArtifact"
   | "restoringArtifact";
 
-type VectorTuple = [number, number, number];
 type QuaternionTuple = [number, number, number, number];
+
+type QueryReconciliation = {
+  entering: ReadonlySet<string>;
+  leaving: ReadonlySet<string>;
+  staying: ReadonlySet<string>;
+  target: ReadonlySet<string>;
+};
+
+type QueryActivityMode = "success" | "empty";
+
+type DirectLocateSafeZone = {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+};
+
+const SEMANTIC_EXPLORE_LENSES = new Map<string, readonly ActiveExploreFilter[]>([
+  [ROOT_COLLECTION_ID, ["collections", "inquiry"]],
+  ["collection-work", ["work", "inquiry"]],
+  ["collection-data-analytics", ["work", "inquiry"]],
+  ["collection-web", ["work"]],
+  ["collection-film-creative", ["world"]],
+  ["collection-about-self", ["self", "inquiry"]],
+  ["artifact-bellabeat-wellness-analysis", ["work", "inquiry"]],
+  ["artifact-resume", ["work", "self"]],
+  ["artifact-about", ["self", "inquiry"]],
+  ["artifact-reservoir-interface-study", ["work", "inquiry"]],
+  ["artifact-kodyepugh-symbol", ["self", "world"]],
+]);
+
+const DIRECT_ARTIFACT_TARGETS = new Map<Exclude<DirectArtifactId, "contact">, string>([
+  ["about", "artifact-about"],
+  ["resume", "artifact-resume"],
+]);
+
+function getExploreNodeIds(
+  nodes: readonly ReservoirContentNode[],
+  filter: ActiveExploreFilter,
+) {
+  return new Set(
+    nodes
+      .filter((node) => {
+        if (filter === "all") return true;
+        if (filter === "collections") return node.kind === "collection";
+        return SEMANTIC_EXPLORE_LENSES.get(node.id)?.includes(filter) ?? false;
+      })
+      .map((node) => node.id),
+  );
+}
+
+function getReservoirNodeDiagnostics(nodes: readonly ReservoirContentNode[]) {
+  const seen = new Set<string>();
+  const duplicateNodeIds = new Set<string>();
+  const collectionIds: string[] = [];
+
+  for (const node of nodes) {
+    if (seen.has(node.id)) {
+      duplicateNodeIds.add(node.id);
+    }
+    seen.add(node.id);
+    if (node.kind === "collection") collectionIds.push(node.id);
+  }
+
+  return {
+    nodeCount: nodes.length,
+    nodeIds: nodes.map((node) => node.id),
+    collectionCount: collectionIds.length,
+    collectionIds,
+    duplicateNodeIds: [...duplicateNodeIds].sort((a, b) =>
+      a.localeCompare(b),
+    ),
+  };
+}
 
 type PreservedReservoirState = {
   artifactId: string;
   sphereQuaternion: QuaternionTuple;
-  cameraPosition: VectorTuple;
-  cameraTarget: VectorTuple;
-  cameraQuaternion: QuaternionTuple;
-  cameraProgress: number;
-  cameraTargetProgress: number;
-  travelDirection: TravelDirection;
-  diveTarget: DiveTarget;
-  diveTargetLocked: boolean;
-  inspectionFrame: {
-    normal: VectorTuple;
-    tangentUp: VectorTuple;
-    tangentRight: VectorTuple;
-  } | null;
-  lastInspectionFrame: {
-    normal: VectorTuple;
-    tangentUp: VectorTuple;
-    tangentRight: VectorTuple;
-  } | null;
-  diveOrigin: PreservedCameraPose | null;
-  retreatOrigin: PreservedCameraPose | null;
-};
-
-type PreservedCameraPose = {
-  position: VectorTuple;
-  target: VectorTuple;
-  quaternion: QuaternionTuple;
-  progress: number;
-};
-
-type PreservedCollectionAncestorState = {
-  collectionId: string;
-  selectedDestinationId: string;
-  sphereQuaternion: QuaternionTuple;
-  cameraPosition: VectorTuple;
-  cameraTarget: VectorTuple;
-  cameraQuaternion: QuaternionTuple;
-  cameraProgress: number;
-  cameraTargetProgress: number;
-  travelDirection: TravelDirection;
-  diveTarget: DiveTarget;
-  diveTargetLocked: boolean;
-  inspectionFrame: PreservedLocalSurfaceFrame | null;
-  lastInspectionFrame: PreservedLocalSurfaceFrame | null;
-  diveOrigin: PreservedCameraPose | null;
-  retreatOrigin: PreservedCameraPose | null;
-  activeOuterPosition: VectorTuple;
-  activeOuterTarget: VectorTuple;
-};
-
-type PreservedLocalSurfaceFrame = {
-  normal: VectorTuple;
-  tangentUp: VectorTuple;
-  tangentRight: VectorTuple;
+  zoomLevel: number;
 };
 
 type CollectionHistoryFrame = {
   collectionId: string;
-  preservedState: PreservedCollectionAncestorState | null;
 };
 
-type CollectionReturnMode = "back" | "home";
-
-type CollectionReturnTransition = {
-  exitedCollectionId: string;
-  mode: CollectionReturnMode;
-  sourceCenter: VectorTuple;
-  sourceEndCenter: VectorTuple;
-  sourceEndQuaternion: QuaternionTuple;
-  sourceOuterQuaternion: QuaternionTuple;
-  sourceRadius: number;
-  sourceSafetyOffset: number;
-  sourceScale: number;
-  sourceStartQuaternion: QuaternionTuple;
-  targetHistoryIndex: number;
-  targetLocalTransferDirection: VectorTuple;
-  targetState: PreservedCollectionAncestorState;
+type CollectionNavigationState = {
+  activeCollectionId: string;
+  destinationCollectionId: string | null;
+  transitionPhase: CollectionReconstitutionPhase;
 };
 
-type ActiveOuterFrame = {
-  position: THREE.Vector3;
-  target: THREE.Vector3;
+type PendingCollectionResolution = {
+  history: CollectionHistoryFrame[];
+  spatialSelectionId: string | null;
 };
 
-type CameraPose = {
-  position: THREE.Vector3;
-  target: THREE.Vector3;
-  quaternion: THREE.Quaternion;
-  progress: number;
-};
-
-type CollectionEntryPath = {
-  collectionCenter: THREE.Vector3;
-  collectionId: string;
-  collectionRadius: number;
-  curvatureDirection: THREE.Vector3;
-  curvatureWeight: number;
-  destinationCenterDistance: number;
-  destinationFocusDistance: number;
-  destinationPosition: THREE.Vector3;
-  destinationTarget: THREE.Vector3;
-  endHomeDirection: THREE.Vector3;
-  endHomeDistance: number;
-  frame: LocalSurfaceFrame;
-  homeCenter: THREE.Vector3;
-  minimumCollectionClearance: number;
-  minimumHomeClearance: number;
-  normalizedCenterDistance: number;
-  normalizedFocusDistance: number;
-  startHomeDirection: THREE.Vector3;
-  startHomeDistance: number;
-  startPosition: THREE.Vector3;
-  startProgress: number;
-  startTarget: THREE.Vector3;
-};
-
-type CollectionReturnPath = {
-  destinationFocusDistance: number;
-  destinationPosition: THREE.Vector3;
-  destinationProgress: number;
-  destinationQuaternion: THREE.Quaternion;
-  destinationTarget: THREE.Vector3;
-  endDirection: THREE.Vector3;
-  endDistance: number;
-  frame: LocalSurfaceFrame;
-  minimumClearance: number;
-  sphereCenter: THREE.Vector3;
-  startDirection: THREE.Vector3;
-  startDistance: number;
-  startFocusDistance: number;
-  startPosition: THREE.Vector3;
-  startQuaternion: THREE.Quaternion;
-  startTarget: THREE.Vector3;
+type CollectionTransitionPoseSnapshot = {
+  zoomLevel: number;
 };
 
 type RotationDiagnostics = {
   euler: [number, number, number];
   quaternion: [number, number, number, number];
+};
+
+type RenderedLayoutSnapshot = {
+  collectionId: string;
+  mode: ReservoirLayoutMode;
+  directions: ReservoirLayout;
+  quaternion: QuaternionTuple;
+  nodeSizing: ReturnType<typeof getReservoirNodeSizingSnapshot>;
+};
+
+type LayoutModeFocalDiagnostics = {
+  reservoirWorldPosition: ReservoirDirection;
+  reservoirWorldQuaternion: [number, number, number, number];
+  frontWorld: ReservoirDirection;
+  upTangentWorld: ReservoirDirection;
+  targetWorld: ReservoirDirection;
+  targetLocal: ReservoirDirection;
+  frontLocal: ReservoirDirection;
+  upTangentLocal: ReservoirDirection;
+  roundTripWorld: ReservoirDirection;
+  roundTripAngleDegrees: number;
+  roundTripFrontDot: number;
+  roundTripUpDot: number;
+  assertionsPassed: boolean;
 };
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -332,14 +270,6 @@ function clamp(value: number, minimum: number, maximum: number) {
 
 function smoothstep(value: number) {
   return value * value * (3 - 2 * value);
-}
-
-function getDragSensitivity(cameraProgress: number) {
-  return THREE.MathUtils.lerp(
-    OUTER_DRAG_SENSITIVITY,
-    INNER_DRAG_SENSITIVITY,
-    smoothstep(clamp(cameraProgress, 0, 1)),
-  );
 }
 
 function getRotationDiagnostics(
@@ -353,1341 +283,300 @@ function getRotationDiagnostics(
   };
 }
 
-function cloneCameraPose(pose: CameraPose): CameraPose {
-  return {
-    position: pose.position.clone(),
-    target: pose.target.clone(),
-    quaternion: pose.quaternion.clone(),
-    progress: pose.progress,
-  };
+function getLayoutModeSwitchDuration(reducedMotion: boolean) {
+  return reducedMotion ? 0.16 : LAYOUT_MODE_SWITCH_DURATION;
 }
 
-function toVectorTuple(vector: THREE.Vector3): VectorTuple {
-  return [vector.x, vector.y, vector.z];
+function getLayoutModeTransitionPulse(
+  transitionState: ReservoirLayoutTransitionState,
+  progress: number,
+  reducedMotion: boolean,
+) {
+  const peakPulse = reducedMotion ? 0.56 : 1;
+  const easedProgress = smoothstep(clamp(progress, 0, 1));
+
+  if (transitionState === "idle") return 0;
+  if (transitionState === "sinking") return peakPulse * easedProgress;
+  if (transitionState === "orienting") return peakPulse;
+  if (transitionState === "emerging") {
+    return peakPulse * (1 - easedProgress);
+  }
+
+  return 0;
 }
 
 function toQuaternionTuple(quaternion: THREE.Quaternion): QuaternionTuple {
   return [quaternion.x, quaternion.y, quaternion.z, quaternion.w];
 }
 
-function preserveCameraPose(pose: CameraPose | null): PreservedCameraPose | null {
-  if (!pose) return null;
-
-  return {
-    position: toVectorTuple(pose.position),
-    target: toVectorTuple(pose.target),
-    quaternion: toQuaternionTuple(pose.quaternion),
-    progress: pose.progress,
-  };
+function toDirectionTuple(direction: THREE.Vector3): ReservoirDirection {
+  return [direction.x, direction.y, direction.z];
 }
 
-function restoreCameraPose(pose: PreservedCameraPose | null) {
-  if (!pose) return null;
-
-  return {
-    position: new THREE.Vector3(...pose.position),
-    target: new THREE.Vector3(...pose.target),
-    quaternion: new THREE.Quaternion(...pose.quaternion),
-    progress: pose.progress,
-  };
+function formatDirectionTuple(direction: ReservoirDirection, precision = 6) {
+  return direction.map((value) => value.toFixed(precision)).join(",");
 }
 
-function preserveLocalSurfaceFrame(frame: LocalSurfaceFrame | null) {
-  if (!frame) return null;
+function getRuntimeFocalDiagnostics(
+  surface: THREE.Object3D,
+  camera: THREE.Camera,
+): LayoutModeFocalDiagnostics {
+  surface.updateWorldMatrix(true, false);
+  camera.updateWorldMatrix(true, false);
 
-  return {
-    normal: toVectorTuple(frame.normal),
-    tangentUp: toVectorTuple(frame.tangentUp),
-    tangentRight: toVectorTuple(frame.tangentRight),
-  };
-}
-
-function restoreLocalSurfaceFrame(
-  frame: PreservedReservoirState["inspectionFrame"],
-): LocalSurfaceFrame | null {
-  if (!frame) return null;
-
-  return {
-    normal: new THREE.Vector3(...frame.normal),
-    tangentUp: new THREE.Vector3(...frame.tangentUp),
-    tangentRight: new THREE.Vector3(...frame.tangentRight),
-  };
-}
-
-function easeOutQuadratic(value: number) {
-  return 1 - (1 - value) ** 2;
-}
-
-function quadraticBezier(
-  start: THREE.Vector3,
-  control: THREE.Vector3,
-  end: THREE.Vector3,
-  progress: number,
-  result: THREE.Vector3,
-) {
-  const inverse = 1 - progress;
-
-  return result
-    .copy(start)
-    .multiplyScalar(inverse * inverse)
-    .addScaledVector(control, 2 * inverse * progress)
-    .addScaledVector(end, progress * progress);
-}
-
-function getInitialCameraDistance(aspectRatio: number) {
-  const halfFov = (CAMERA_FOV * Math.PI) / 360;
-  const projectedDiameter = aspectRatio * SPHERE_VIEWPORT_WIDTH;
-  const depth = RESERVOIR_RADIUS / (projectedDiameter * Math.tan(halfFov));
-
-  return Math.sqrt(RESERVOIR_RADIUS ** 2 + depth ** 2);
-}
-
-function getOuterFrame(aspectRatio: number) {
-  const halfFov = (CAMERA_FOV * Math.PI) / 360;
-  const initialDistance = getInitialCameraDistance(aspectRatio);
-  const sphereRadiusInViewport =
-    (aspectRatio * SPHERE_VIEWPORT_WIDTH) / 2;
-  const sphereCenterY = SPHERE_TOP_Y + sphereRadiusInViewport;
-  const verticalDistanceRatio =
-    2 * (sphereCenterY - 0.5) * Math.tan(halfFov);
-  const cameraDistance =
-    initialDistance / Math.sqrt(1 + verticalDistanceRatio ** 2);
-  const sphereCenterWorldY = -cameraDistance * verticalDistanceRatio;
-
-  return { cameraDistance, sphereCenterWorldY };
-}
-
-function getCameraPath(
-  startProgress: number,
-  outerPosition: THREE.Vector3,
-  outerTarget: THREE.Vector3,
-  sphereCenterWorldY: number,
-  surfacePoint: THREE.Vector3,
-): CameraPath {
-  const sphereCenter = new THREE.Vector3(0, sphereCenterWorldY, 0);
-  const surfaceNormal = surfacePoint
-    .clone()
-    .sub(sphereCenter)
-    .normalize();
-  const innerPosition = surfacePoint
-    .clone()
-    .addScaledVector(surfaceNormal, INSPECTION_DISTANCE);
-  const innerTarget = surfacePoint.clone();
-  const controlPosition = outerPosition
-    .clone()
-    .lerp(innerPosition, ARC_CONTROL_PROGRESS)
-    .addScaledVector(surfaceNormal, ARC_CLEARANCE);
-  const outerDirection = outerPosition.clone().sub(sphereCenter).normalize();
-  const innerDirection = innerPosition.clone().sub(sphereCenter).normalize();
-  const samplePosition = new THREE.Vector3();
-  let minimumRawClearance = Number.POSITIVE_INFINITY;
-
-  for (let index = 0; index <= PATH_SAFETY_SAMPLE_COUNT; index += 1) {
-    const sampleProgress = smoothstep(index / PATH_SAFETY_SAMPLE_COUNT);
-
-    quadraticBezier(
-      outerPosition,
-      controlPosition,
-      innerPosition,
-      sampleProgress,
-      samplePosition,
-    );
-    minimumRawClearance = Math.min(
-      minimumRawClearance,
-      samplePosition.distanceTo(sphereCenter) - RESERVOIR_RADIUS,
-    );
-  }
-
-  return {
-    startProgress,
-    sphereCenter,
-    outerPosition: outerPosition.clone(),
-    controlPosition,
-    outerTarget: outerTarget.clone(),
-    innerPosition,
-    innerTarget,
-    outerDirection,
-    innerDirection,
-    outerCenterDistance: outerPosition.distanceTo(sphereCenter),
-    innerCenterDistance: innerPosition.distanceTo(sphereCenter),
-    minimumRawClearance,
-    requiresClearanceCorrection:
-      minimumRawClearance <= MIN_CAMERA_CLEARANCE,
-  };
-}
-
-function isFiniteVector(vector: THREE.Vector3) {
-  return vector
-    .toArray()
-    .every((component) => Number.isFinite(component));
-}
-
-function isValidLocalSurfaceFrame(frame: LocalSurfaceFrame | null) {
-  if (!frame) return false;
-
-  return (
-    isFiniteVector(frame.normal) &&
-    isFiniteVector(frame.tangentUp) &&
-    isFiniteVector(frame.tangentRight) &&
-    Math.abs(frame.normal.lengthSq() - 1) < 0.0001 &&
-    Math.abs(frame.tangentUp.lengthSq() - 1) < 0.0001 &&
-    Math.abs(frame.tangentRight.lengthSq() - 1) < 0.0001 &&
-    Math.abs(frame.normal.dot(frame.tangentUp)) < 0.0001 &&
-    Math.abs(frame.normal.dot(frame.tangentRight)) < 0.0001 &&
-    Math.abs(frame.tangentUp.dot(frame.tangentRight)) < 0.0001
-  );
-}
-
-function getLocalSurfaceFrame(
-  normal: THREE.Vector3,
-  previousFrame?: LocalSurfaceFrame | null,
-): LocalSurfaceFrame | null {
-  if (!isFiniteVector(normal) || normal.lengthSq() < FRAME_EPSILON) {
-    return null;
-  }
-
-  const normalizedSurface = normal.clone().normalize();
-  const worldUp = new THREE.Vector3(0, 1, 0);
-  const upCandidate = worldUp.clone().addScaledVector(
-    normalizedSurface,
-    -normalizedSurface.y,
-  );
-  const upCandidateLength = upCandidate.length();
-  const previousUpCandidate = previousFrame?.tangentUp
-    .clone()
-    .addScaledVector(
-      normalizedSurface,
-      -previousFrame.tangentUp.dot(normalizedSurface),
-    );
-  let tangentUp: THREE.Vector3;
-
-  if (
-    upCandidateLength < FRAME_POLE_THRESHOLD &&
-    previousUpCandidate &&
-    previousUpCandidate.lengthSq() >= FRAME_EPSILON
-  ) {
-    tangentUp = previousUpCandidate.normalize();
-  } else if (upCandidateLength >= FRAME_EPSILON) {
-    tangentUp = upCandidate.normalize();
-  } else {
-    const fallbackReference = new THREE.Vector3(0, 0, -1);
-    tangentUp = fallbackReference.addScaledVector(
-      normalizedSurface,
-      -fallbackReference.dot(normalizedSurface),
-    );
-
-    if (tangentUp.lengthSq() < FRAME_EPSILON) {
-      tangentUp
-        .set(1, 0, 0)
-        .addScaledVector(
-          normalizedSurface,
-          -normalizedSurface.x,
-        );
-    }
-
-    if (tangentUp.lengthSq() < FRAME_EPSILON) return null;
-    tangentUp.normalize();
-  }
-
-  const tangentRight = tangentUp
-    .clone()
-    .cross(normalizedSurface)
-    .normalize();
-  if (tangentRight.lengthSq() < FRAME_EPSILON) return null;
-
-  tangentRight.normalize();
-  tangentUp.copy(normalizedSurface).cross(tangentRight).normalize();
-
-  if (
-    previousFrame &&
-    previousUpCandidate &&
-    previousUpCandidate.lengthSq() >= FRAME_EPSILON &&
-    tangentUp.dot(previousUpCandidate) < 0
-  ) {
-    tangentUp.negate();
-    tangentRight.negate();
-  }
-
-  const frame = {
-    normal: normalizedSurface,
-    tangentUp,
-    tangentRight,
-  };
-
-  return isValidLocalSurfaceFrame(frame) ? frame : null;
-}
-
-function getAtmosphericCameraModel(
-  canonicalOuterPosition: THREE.Vector3,
-  canonicalOuterTarget: THREE.Vector3,
-  sphereCenterWorldY: number,
-): AtmosphericCameraModel {
-  const sphereCenter = new THREE.Vector3(0, sphereCenterWorldY, 0);
-  const viewDirection = canonicalOuterTarget
-    .clone()
-    .sub(canonicalOuterPosition)
-    .normalize();
-  const surfacePoint = new THREE.Ray(
-    canonicalOuterPosition,
-    viewDirection,
-  ).intersectSphere(
-    new THREE.Sphere(sphereCenter, RESERVOIR_RADIUS),
+  const reservoirWorldPosition = surface.getWorldPosition(
     new THREE.Vector3(),
   );
-  const surfaceNormal = (surfacePoint ?? canonicalOuterPosition)
-    .clone()
-    .sub(sphereCenter)
+  const reservoirWorldQuaternion = surface.getWorldQuaternion(
+    new THREE.Quaternion(),
+  );
+  const cameraWorldPosition = camera.getWorldPosition(new THREE.Vector3());
+  const cameraWorldQuaternion = camera.getWorldQuaternion(
+    new THREE.Quaternion(),
+  );
+  const frontWorld = cameraWorldPosition
+    .sub(reservoirWorldPosition)
     .normalize();
-  const frame = getLocalSurfaceFrame(surfaceNormal) ?? {
-    normal: new THREE.Vector3(0, 0, 1),
-    tangentUp: new THREE.Vector3(0, 1, 0),
-    tangentRight: new THREE.Vector3(1, 0, 0),
-  };
-  const outerDirection = canonicalOuterPosition
-    .clone()
-    .sub(sphereCenter)
+  const cameraUpWorld = new THREE.Vector3(0, 1, 0)
+    .applyQuaternion(cameraWorldQuaternion)
     .normalize();
-  const centerDirection = sphereCenter
-    .clone()
-    .sub(canonicalOuterPosition)
+  const upTangentWorld = cameraUpWorld
+    .addScaledVector(frontWorld, -cameraUpWorld.dot(frontWorld))
     .normalize();
-  const centerScreenUp = new THREE.Vector3(0, 1, 0)
-    .addScaledVector(
-      centerDirection,
-      -centerDirection.y,
+  const targetWorld = frontWorld
+    .clone()
+    .multiplyScalar(Math.cos(Math.PI / 12))
+    .add(
+      upTangentWorld
+        .clone()
+        .multiplyScalar(Math.sin(Math.PI / 12)),
     )
     .normalize();
+  const inverseReservoirWorldQuaternion = reservoirWorldQuaternion
+    .clone()
+    .invert();
+  const targetLocal = targetWorld
+    .clone()
+    .applyQuaternion(inverseReservoirWorldQuaternion)
+    .normalize();
+  const frontLocal = frontWorld
+    .clone()
+    .applyQuaternion(inverseReservoirWorldQuaternion)
+    .normalize();
+  const upTangentLocal = upTangentWorld
+    .clone()
+    .applyQuaternion(inverseReservoirWorldQuaternion)
+    .normalize();
+  const roundTripWorld = targetLocal
+    .clone()
+    .applyQuaternion(reservoirWorldQuaternion)
+    .normalize();
+  const roundTripAngleDegrees = THREE.MathUtils.radToDeg(
+    roundTripWorld.angleTo(frontWorld),
+  );
+  const roundTripFrontDot = roundTripWorld.dot(frontWorld);
+  const roundTripUpDot = roundTripWorld.dot(upTangentWorld);
 
   return {
-    sphereCenter,
-    canonicalFrame: frame,
-    outerCenterDistance: canonicalOuterPosition.distanceTo(sphereCenter),
-    outerRadialTilt: Math.atan2(
-      outerDirection.dot(frame.tangentUp),
-      outerDirection.dot(frame.normal),
-    ),
-    outerViewTilt: Math.atan2(
-      viewDirection.dot(frame.tangentUp),
-      viewDirection.dot(frame.normal),
-    ),
-    outerCenterViewOffset: Math.atan2(
-      viewDirection.dot(centerScreenUp),
-      viewDirection.dot(centerDirection),
-    ),
-    outerFocusDistance: canonicalOuterPosition.distanceTo(
-      canonicalOuterTarget,
-    ),
+    reservoirWorldPosition: reservoirWorldPosition.toArray() as [
+      number,
+      number,
+      number,
+    ],
+    reservoirWorldQuaternion: reservoirWorldQuaternion.toArray() as [
+      number,
+      number,
+      number,
+      number,
+    ],
+    frontWorld: toDirectionTuple(frontWorld),
+    upTangentWorld: toDirectionTuple(upTangentWorld),
+    targetWorld: toDirectionTuple(targetWorld),
+    targetLocal: toDirectionTuple(targetLocal),
+    frontLocal: toDirectionTuple(frontLocal),
+    upTangentLocal: toDirectionTuple(upTangentLocal),
+    roundTripWorld: toDirectionTuple(roundTripWorld),
+    roundTripAngleDegrees,
+    roundTripFrontDot,
+    roundTripUpDot,
+    assertionsPassed:
+      Math.abs(roundTripAngleDegrees - 15) < 0.05 &&
+      roundTripFrontDot > 0 &&
+      roundTripUpDot > 0,
   };
 }
 
-function getRetreatPath(
-  startPose: CameraPose,
-  frame: LocalSurfaceFrame,
-  model: AtmosphericCameraModel,
-): RetreatPath {
-  const startOffset = startPose.position
-    .clone()
-    .sub(model.sphereCenter);
-  const lateralOffset = startOffset.dot(frame.tangentRight);
-  const startNormalDistance = startOffset.dot(frame.normal);
-  const startUpDistance = startOffset.dot(frame.tangentUp);
-  const startPlaneDistance = Math.hypot(
-    startNormalDistance,
-    startUpDistance,
-  );
-  const startRadialTilt = Math.atan2(
-    startUpDistance,
-    startNormalDistance,
-  );
-  const outerPlaneDistance = Math.sqrt(
-    Math.max(
-      model.outerCenterDistance ** 2 - lateralOffset ** 2,
-      Number.EPSILON,
-    ),
-  );
-  const outerForward = new THREE.Vector3();
-  const outerPosition = model.sphereCenter
-    .clone()
-    .addScaledVector(frame.tangentRight, lateralOffset)
-    .addScaledVector(
-      frame.normal,
-      Math.cos(model.outerRadialTilt) * outerPlaneDistance,
-    )
-    .addScaledVector(
-      frame.tangentUp,
-      Math.sin(model.outerRadialTilt) * outerPlaneDistance,
-    );
-  const outerCenterDirection = model.sphereCenter
-    .clone()
-    .sub(outerPosition)
-    .normalize();
-  const outerScreenUp = new THREE.Vector3(0, 1, 0).addScaledVector(
-    outerCenterDirection,
-    -outerCenterDirection.y,
-  );
-
-  if (outerScreenUp.lengthSq() < FRAME_POLE_THRESHOLD ** 2) {
-    outerScreenUp
-      .copy(frame.tangentUp)
-      .addScaledVector(
-        outerCenterDirection,
-        -frame.tangentUp.dot(outerCenterDirection),
-      );
-  }
-
-  if (outerScreenUp.lengthSq() < FRAME_EPSILON) {
-    outerScreenUp.set(0, 0, -1).addScaledVector(
-      outerCenterDirection,
-      outerCenterDirection.z,
-    );
-  }
-
-  outerScreenUp.normalize();
-  outerForward
-    .copy(outerCenterDirection)
-    .multiplyScalar(Math.cos(model.outerCenterViewOffset))
-    .addScaledVector(
-      outerScreenUp,
-      Math.sin(model.outerCenterViewOffset),
-    )
-    .normalize();
-  const outerTarget = outerPosition
-    .clone()
-    .addScaledVector(outerForward, model.outerFocusDistance);
-  const outerUp = new THREE.Vector3(0, 1, 0).addScaledVector(
-    outerForward,
-    -outerForward.y,
-  );
-
-  if (outerUp.lengthSq() < FRAME_POLE_THRESHOLD ** 2) {
-    outerUp
-      .copy(frame.tangentUp)
-      .addScaledVector(
-        outerForward,
-        -frame.tangentUp.dot(outerForward),
-      );
-  }
-
-  if (outerUp.lengthSq() < FRAME_EPSILON) {
-    outerUp.set(0, 0, 1).addScaledVector(
-      outerForward,
-      -outerForward.z,
-    );
-  }
-
-  outerUp.normalize();
-  const outerLookMatrix = new THREE.Matrix4().lookAt(
-    outerPosition,
-    outerTarget,
-    outerUp,
-  );
-  const outerQuaternion = new THREE.Quaternion()
-    .setFromRotationMatrix(outerLookMatrix)
-    .normalize();
-
-  return {
-    startProgress: Math.max(startPose.progress, Number.EPSILON),
-    frame,
-    sphereCenter: model.sphereCenter.clone(),
-    lateralOffset,
-    startPlaneDistance,
-    startRadialTilt,
-    outerPlaneDistance,
-    outerRadialTilt: model.outerRadialTilt,
-    startQuaternion: startPose.quaternion.clone().normalize(),
-    outerQuaternion,
-    startFocusDistance: startPose.position.distanceTo(startPose.target),
-    outerFocusDistance: model.outerFocusDistance,
-    outerPosition,
-    outerTarget,
-  };
-}
-
-function slerpUnitVectors(
-  start: THREE.Vector3,
-  end: THREE.Vector3,
-  progress: number,
-  result: THREE.Vector3,
-  axis: THREE.Vector3,
-  rotation: THREE.Quaternion,
-) {
-  const dot = clamp(start.dot(end), -1, 1);
-
-  if (dot > 0.9995) {
-    return result.copy(start).lerp(end, progress).normalize();
-  }
-
-  axis.copy(start).cross(end);
-  if (axis.lengthSq() < FRAME_EPSILON) {
-    axis.copy(start).cross(new THREE.Vector3(0, 1, 0));
-    if (axis.lengthSq() < FRAME_EPSILON) {
-      axis.copy(start).cross(new THREE.Vector3(1, 0, 0));
-    }
-  }
-
-  axis.normalize();
-  rotation.setFromAxisAngle(axis, Math.acos(dot) * progress);
-  return result.copy(start).applyQuaternion(rotation).normalize();
-}
-
-function getCollectionEntryPosition(
-  path: Pick<
-    CollectionEntryPath,
-    | "curvatureDirection"
-    | "curvatureWeight"
-    | "endHomeDirection"
-    | "endHomeDistance"
-    | "homeCenter"
-    | "startHomeDirection"
-    | "startHomeDistance"
-  >,
-  progress: number,
-  result: THREE.Vector3,
-  direction: THREE.Vector3,
-  axis: THREE.Vector3,
-  rotation: THREE.Quaternion,
-) {
-  const easedProgress = smoothstep(clamp(progress, 0, 1));
-  slerpUnitVectors(
-    path.startHomeDirection,
-    path.endHomeDirection,
-    easedProgress,
-    direction,
-    axis,
-    rotation,
-  );
-  const centerDistance =
-    THREE.MathUtils.lerp(
-      path.startHomeDistance,
-      path.endHomeDistance,
-      easedProgress,
-    );
-  const upwardArcOffset =
-    Math.sin(Math.PI * easedProgress) *
-    COLLECTION_ENTRY_UPWARD_ARC_CLEARANCE *
-    path.curvatureWeight;
-
-  return result
-    .copy(path.homeCenter)
-    .addScaledVector(direction, centerDistance)
-    .addScaledVector(path.curvatureDirection, upwardArcOffset);
-}
-
-function getCollectionReturnPosition(
-  path: CollectionReturnPath,
-  progress: number,
-  result: THREE.Vector3,
-  direction: THREE.Vector3,
-  axis: THREE.Vector3,
-  rotation: THREE.Quaternion,
-) {
-  const normalizedProgress = clamp(progress, 0, 1);
-  const directionProgress = smoothstep(normalizedProgress);
-  const distanceProgress = easeOutQuadratic(normalizedProgress);
-  slerpUnitVectors(
-    path.startDirection,
-    path.endDirection,
-    directionProgress,
-    direction,
-    axis,
-    rotation,
-  );
-
-  return result
-    .copy(path.sphereCenter)
-    .addScaledVector(
-      direction,
-      THREE.MathUtils.lerp(
-        path.startDistance,
-        path.endDistance,
-        distanceProgress,
-      ),
-    );
-}
-
-function getPreservedChildCenter({
-  childCollectionId,
-  parentState,
-  selected,
-  sphereCenter,
-}: {
-  childCollectionId: string;
-  parentState: PreservedCollectionAncestorState;
-  selected: boolean;
-  sphereCenter: THREE.Vector3;
-}) {
-  const childCollection = getReservoirCollection(childCollectionId) as
-    | EmbeddedReservoirCollection
-    | null;
-  if (!childCollection) return null;
-  const placement = getReservoirNodePlacement(
-    childCollection.vertexId,
-    RESERVOIR_COLLECTION_NODE_RADIUS,
-  );
-  if (!placement) return null;
-
-  const radialOffset = selected
-    ? RESERVOIR_COLLECTION_NODE_RADIUS *
-      RESERVOIR_NODE_SELECTED_RADIAL_RATIO
-    : 0;
-  const baseQuaternion = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(...RESERVOIR_BASE_ROTATION),
-  );
-  const parentQuaternion = new THREE.Quaternion(
-    ...parentState.sphereQuaternion,
-  );
-
-  return placement.position
-    .clone()
-    .addScaledVector(placement.normal, radialOffset)
-    .applyQuaternion(baseQuaternion)
-    .applyQuaternion(parentQuaternion)
-    .add(sphereCenter);
-}
-
-function mapCollectionReturnToAncestor({
-  collectionHistory,
-  renderedPose,
-  sourceOuterQuaternion,
-  sphereCenter,
-  targetHistoryIndex,
-}: {
-  collectionHistory: readonly CollectionHistoryFrame[];
-  renderedPose: CameraPose;
-  sourceOuterQuaternion: THREE.Quaternion;
-  sphereCenter: THREE.Vector3;
-  targetHistoryIndex: number;
-}) {
-  const collectionScale =
-    RESERVOIR_COLLECTION_NODE_RADIUS / RESERVOIR_RADIUS;
-  const mappedPosition = renderedPose.position.clone();
-  const mappedTarget = renderedPose.target.clone();
-  const mappedCenter = sphereCenter.clone();
-  let sourceScale = 1;
-
-  for (
-    let parentIndex = collectionHistory.length - 2;
-    parentIndex >= targetHistoryIndex;
-    parentIndex -= 1
-  ) {
-    const parentState = collectionHistory[parentIndex]?.preservedState;
-    const childCollectionId = collectionHistory[parentIndex + 1]?.collectionId;
-    if (!parentState || !childCollectionId) return null;
-    const childCenter = getPreservedChildCenter({
-      childCollectionId,
-      parentState,
-      selected: true,
-      sphereCenter,
-    });
-    if (!childCenter) return null;
-
-    mappedPosition
-      .sub(sphereCenter)
-      .multiplyScalar(collectionScale)
-      .add(childCenter);
-    mappedTarget
-      .sub(sphereCenter)
-      .multiplyScalar(collectionScale)
-      .add(childCenter);
-    mappedCenter
-      .sub(sphereCenter)
-      .multiplyScalar(collectionScale)
-      .add(childCenter);
-    sourceScale *= collectionScale;
-  }
-
-  const targetState =
-    collectionHistory[targetHistoryIndex]?.preservedState ?? null;
-  if (!targetState) return null;
-  const targetOuterQuaternion = new THREE.Quaternion(
-    ...targetState.sphereQuaternion,
-  );
-  const baseQuaternion = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(...RESERVOIR_BASE_ROTATION),
-  );
-  const sourceWorldQuaternion = sourceOuterQuaternion
-    .clone()
-    .multiply(baseQuaternion);
-  const targetWorldQuaternion = targetOuterQuaternion
-    .clone()
-    .multiply(baseQuaternion);
-  const directChild =
-    targetHistoryIndex === collectionHistory.length - 2;
-  let sourceSafetyOffset = 0;
-  if (!directChild) {
-    const cameraClearance =
-      mappedPosition.distanceTo(sphereCenter) - RESERVOIR_RADIUS;
-    const requiredClearance = MIN_CAMERA_CLEARANCE;
-    if (cameraClearance < requiredClearance) {
-      const safetyDirection = mappedPosition.clone().sub(sphereCenter);
-      if (safetyDirection.lengthSq() < FRAME_EPSILON) {
-        safetyDirection.copy(mappedCenter).sub(sphereCenter);
-      }
-      if (safetyDirection.lengthSq() < FRAME_EPSILON) {
-        safetyDirection.set(0, 0, 1);
-      }
-      safetyDirection.normalize();
-      sourceSafetyOffset = requiredClearance - cameraClearance;
-      mappedPosition.addScaledVector(safetyDirection, sourceSafetyOffset);
-      mappedTarget.addScaledVector(safetyDirection, sourceSafetyOffset);
-      mappedCenter.addScaledVector(safetyDirection, sourceSafetyOffset);
-    }
-  }
-  const sourceEndCenter = directChild
-    ? getPreservedChildCenter({
-        childCollectionId:
-          collectionHistory[collectionHistory.length - 1].collectionId,
-        parentState: targetState,
-        selected: false,
-        sphereCenter,
-      }) ?? mappedCenter.clone()
-    : mappedCenter.clone();
-  const sourceDirection = mappedCenter
-    .clone()
-    .sub(sphereCenter)
-    .normalize();
-  const targetLocalTransferDirection = sourceDirection
-    .clone()
-    .applyQuaternion(targetWorldQuaternion.clone().invert())
-    .normalize();
-
-  return {
-    mappedPose: {
-      position: mappedPosition,
-      target: mappedTarget,
-      quaternion: renderedPose.quaternion.clone(),
-      progress: renderedPose.progress,
-    } satisfies CameraPose,
-    sourceCenter: mappedCenter,
-    sourceEndCenter,
-    sourceEndQuaternion: directChild
-      ? targetWorldQuaternion
-      : sourceWorldQuaternion.clone(),
-    sourceRadius: RESERVOIR_RADIUS * sourceScale,
-    sourceSafetyOffset,
-    sourceScale,
-    sourceStartQuaternion: sourceWorldQuaternion,
-    targetLocalTransferDirection,
-  };
-}
-
-function getCollectionReturnPath({
-  destinationFrame,
-  destinationProgress,
-  destinationPose,
-  sphereCenter,
-  startPose,
-}: {
-  destinationFrame: LocalSurfaceFrame;
-  destinationProgress: number;
-  destinationPose: CameraPose;
-  sphereCenter: THREE.Vector3;
-  startPose: CameraPose;
-}): CollectionReturnPath | null {
-  const startOffset = startPose.position.clone().sub(sphereCenter);
-  const endOffset = destinationPose.position.clone().sub(sphereCenter);
-  if (
-    startOffset.lengthSq() < FRAME_EPSILON ||
-    endOffset.lengthSq() < FRAME_EPSILON
-  ) {
-    return null;
-  }
-
-  const path: CollectionReturnPath = {
-    destinationFocusDistance: destinationPose.position.distanceTo(
-      destinationPose.target,
-    ),
-    destinationPosition: destinationPose.position.clone(),
-    destinationProgress,
-    destinationQuaternion: destinationPose.quaternion.clone().normalize(),
-    destinationTarget: destinationPose.target.clone(),
-    endDirection: endOffset.clone().normalize(),
-    endDistance: endOffset.length(),
-    frame: destinationFrame,
-    minimumClearance: Number.POSITIVE_INFINITY,
-    sphereCenter: sphereCenter.clone(),
-    startDirection: startOffset.clone().normalize(),
-    startDistance: startOffset.length(),
-    startFocusDistance: startPose.position.distanceTo(startPose.target),
-    startPosition: startPose.position.clone(),
-    startQuaternion: startPose.quaternion.clone().normalize(),
-    startTarget: startPose.target.clone(),
-  };
-  const samplePosition = new THREE.Vector3();
-  const sampleDirection = new THREE.Vector3();
-  const sampleAxis = new THREE.Vector3();
-  const sampleRotation = new THREE.Quaternion();
-
-  for (let index = 0; index <= PATH_SAFETY_SAMPLE_COUNT; index += 1) {
-    getCollectionReturnPosition(
-      path,
-      index / PATH_SAFETY_SAMPLE_COUNT,
-      samplePosition,
-      sampleDirection,
-      sampleAxis,
-      sampleRotation,
-    );
-    path.minimumClearance = Math.min(
-      path.minimumClearance,
-      samplePosition.distanceTo(sphereCenter) - RESERVOIR_RADIUS,
-    );
-  }
-
-  return path.minimumClearance >= COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE
-    ? path
-    : null;
-}
-
-function getCollectionEntryPath({
-  collectionCenter,
-  collectionId,
-  collectionRadius,
-  frame,
-  homeCenter,
-  model,
-  startPose,
-}: {
-  collectionCenter: THREE.Vector3;
-  collectionId: string;
-  collectionRadius: number;
-  frame: LocalSurfaceFrame;
-  homeCenter: THREE.Vector3;
-  model: AtmosphericCameraModel;
-  startPose: CameraPose;
-}): CollectionEntryPath | null {
-  const normalizedCenterDistance =
-    model.outerCenterDistance / RESERVOIR_RADIUS;
-  const normalizedFocusDistance =
-    model.outerFocusDistance / RESERVOIR_RADIUS;
-  const destinationCenterDistance =
-    normalizedCenterDistance * collectionRadius;
-  const destinationFocusDistance =
-    normalizedFocusDistance * collectionRadius;
-  const destinationPosition = collectionCenter
-    .clone()
-    .addScaledVector(
-      frame.normal,
-      Math.cos(model.outerRadialTilt) * destinationCenterDistance,
-    )
-    .addScaledVector(
-      frame.tangentUp,
-      Math.sin(model.outerRadialTilt) * destinationCenterDistance,
-    );
-  const destinationCenterDirection = collectionCenter
-    .clone()
-    .sub(destinationPosition)
-    .normalize();
-  const destinationScreenUp = new THREE.Vector3(0, 1, 0).addScaledVector(
-    destinationCenterDirection,
-    -destinationCenterDirection.y,
-  );
-
-  if (destinationScreenUp.lengthSq() < FRAME_POLE_THRESHOLD ** 2) {
-    destinationScreenUp
-      .copy(frame.tangentUp)
-      .addScaledVector(
-        destinationCenterDirection,
-        -frame.tangentUp.dot(destinationCenterDirection),
-      );
-  }
-  if (destinationScreenUp.lengthSq() < FRAME_EPSILON) return null;
-  destinationScreenUp.normalize();
-
-  const destinationForward = destinationCenterDirection
-    .clone()
-    .multiplyScalar(Math.cos(model.outerCenterViewOffset))
-    .addScaledVector(
-      destinationScreenUp,
-      Math.sin(model.outerCenterViewOffset),
-    )
-    .normalize();
-  const destinationTarget = destinationPosition
-    .clone()
-    .addScaledVector(destinationForward, destinationFocusDistance);
-  const overheadSeparation = Math.sqrt(
-    Math.max(0, 1 - frame.normal.y ** 2),
-  );
-  const overheadCurvatureBlend = smoothstep(
-    clamp(
-      overheadSeparation / (FRAME_POLE_THRESHOLD * 4),
-      0,
-      1,
-    ),
-  );
-  const curvatureWeight = THREE.MathUtils.lerp(
-    COLLECTION_ENTRY_OVERHEAD_CURVATURE_FLOOR,
-    1,
-    overheadCurvatureBlend,
-  );
-  const startHomeOffset = startPose.position.clone().sub(homeCenter);
-  const endHomeOffset = destinationPosition.clone().sub(homeCenter);
-  if (
-    startHomeOffset.lengthSq() < FRAME_EPSILON ||
-    endHomeOffset.lengthSq() < FRAME_EPSILON
-  ) {
-    return null;
-  }
-
-  const path: CollectionEntryPath = {
-    collectionCenter: collectionCenter.clone(),
-    collectionId,
-    collectionRadius,
-    curvatureDirection: frame.tangentUp.clone(),
-    curvatureWeight,
-    destinationCenterDistance,
-    destinationFocusDistance,
-    destinationPosition,
-    destinationTarget,
-    endHomeDirection: endHomeOffset.clone().normalize(),
-    endHomeDistance: endHomeOffset.length(),
-    frame,
-    homeCenter: homeCenter.clone(),
-    minimumCollectionClearance: Number.POSITIVE_INFINITY,
-    minimumHomeClearance: Number.POSITIVE_INFINITY,
-    normalizedCenterDistance,
-    normalizedFocusDistance,
-    startHomeDirection: startHomeOffset.clone().normalize(),
-    startHomeDistance: startHomeOffset.length(),
-    startPosition: startPose.position.clone(),
-    startProgress: startPose.progress,
-    startTarget: startPose.target.clone(),
-  };
-  const samplePosition = new THREE.Vector3();
-  const sampleDirection = new THREE.Vector3();
-  const sampleAxis = new THREE.Vector3();
-  const sampleRotation = new THREE.Quaternion();
-
-  for (let index = 0; index <= PATH_SAFETY_SAMPLE_COUNT; index += 1) {
-    getCollectionEntryPosition(
-      path,
-      index / PATH_SAFETY_SAMPLE_COUNT,
-      samplePosition,
-      sampleDirection,
-      sampleAxis,
-      sampleRotation,
-    );
-    path.minimumHomeClearance = Math.min(
-      path.minimumHomeClearance,
-      samplePosition.distanceTo(homeCenter) - RESERVOIR_RADIUS,
-    );
-    path.minimumCollectionClearance = Math.min(
-      path.minimumCollectionClearance,
-      samplePosition.distanceTo(collectionCenter) - collectionRadius,
-    );
-  }
-
-  if (
-    path.minimumHomeClearance < COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE ||
-    path.minimumCollectionClearance < COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE
-  ) {
-    return null;
-  }
-
-  return path;
-}
-
-function enforceCameraClearance(
-  position: THREE.Vector3,
-  sphereCenter: THREE.Vector3,
-  fallbackDirection: THREE.Vector3,
-  offset: THREE.Vector3,
-) {
-  offset.copy(position).sub(sphereCenter);
-  const rawDistance = offset.length();
-  const minimumCenterDistance =
-    RESERVOIR_RADIUS + MIN_CAMERA_CLEARANCE;
-  const distanceDelta = rawDistance - minimumCenterDistance;
-  const safeDistance =
-    minimumCenterDistance +
-    0.5 *
-      (distanceDelta +
-        Math.sqrt(
-          distanceDelta ** 2 + CLEARANCE_SMOOTHING ** 2,
-        ));
-
-  if (rawDistance < FRAME_EPSILON) {
-    offset.copy(fallbackDirection).normalize();
-  } else {
-    offset.multiplyScalar(1 / rawDistance);
-  }
-
-  position.copy(sphereCenter).addScaledVector(offset, safeDistance);
-}
-
-type ReservoirCameraProps = {
-  collectionEntryPath: CollectionEntryPath | null;
-  collectionEntryProgressRef: MutableRefObject<number>;
-  collectionReturnPath: CollectionReturnPath | null;
-  collectionReturnProgressRef: MutableRefObject<number>;
-  inwardPath: CameraPath;
-  retreatPath: RetreatPath | null;
-  orientationFrame: LocalSurfaceFrame;
-  targetProgress: number;
-  travelDirection: TravelDirection;
-  cameraPoseRef: MutableRefObject<CameraPose | null>;
+type ReservoirTransformProps = {
+  baseScale: number;
+  centerWorldY: number;
+  children: ReactNode;
   diagnosticsRef: MutableRefObject<HTMLDivElement | null>;
+  reducedMotion: boolean;
+  transformRef: MutableRefObject<THREE.Group | null>;
+  zoomLevel: number;
+  renderedZoomRef: MutableRefObject<number>;
+  renderedScaleRef: MutableRefObject<number>;
 };
 
-function ReservoirCamera({
-  collectionEntryPath,
-  collectionEntryProgressRef,
-  collectionReturnPath,
-  collectionReturnProgressRef,
-  inwardPath,
-  retreatPath,
-  orientationFrame,
-  targetProgress,
-  travelDirection,
-  cameraPoseRef,
+function ReservoirTransform({
+  baseScale,
+  centerWorldY,
+  children,
   diagnosticsRef,
-}: ReservoirCameraProps) {
-  const currentProgress = useRef(targetProgress);
-  const position = useMemo(() => new THREE.Vector3(), []);
-  const target = useMemo(() => new THREE.Vector3(), []);
-  const direction = useMemo(() => new THREE.Vector3(), []);
-  const forward = useMemo(() => new THREE.Vector3(), []);
-  const stableUp = useMemo(() => new THREE.Vector3(), []);
-  const frameRight = useMemo(() => new THREE.Vector3(), []);
-  const frameUp = useMemo(() => new THREE.Vector3(), []);
-  const worldUpCandidate = useMemo(() => new THREE.Vector3(), []);
-  const clearanceOffset = useMemo(() => new THREE.Vector3(), []);
-  const pathDirection = useMemo(() => new THREE.Vector3(), []);
-  const slerpAxis = useMemo(() => new THREE.Vector3(), []);
-  const slerpRotation = useMemo(() => new THREE.Quaternion(), []);
-  const candidateQuaternion = useMemo(() => new THREE.Quaternion(), []);
-  const lookMatrix = useMemo(() => new THREE.Matrix4(), []);
+  reducedMotion,
+  transformRef,
+  zoomLevel,
+  renderedZoomRef,
+  renderedScaleRef,
+}: ReservoirTransformProps) {
+  useLayoutEffect(() => {
+    const transform = transformRef.current;
+    if (!transform) return;
+    const renderedScale = baseScale * renderedZoomRef.current;
+    renderedScaleRef.current = renderedScale;
+    transform.position.set(0, centerWorldY, 0);
+    transform.scale.setScalar(renderedScale);
+    transform.updateMatrixWorld();
+  }, [baseScale, centerWorldY, renderedScaleRef, renderedZoomRef, transformRef]);
 
-  useFrame(({ camera }, delta) => {
-    const damping = 1 - Math.exp(-CAMERA_DAMPING * delta);
-    currentProgress.current = THREE.MathUtils.lerp(
-      currentProgress.current,
-      targetProgress,
-      damping,
+  useFrame((_, delta) => {
+    const transform = transformRef.current;
+    if (!transform) return;
+
+    const interpolation = reducedMotion
+      ? 1
+      : 1 - Math.exp(-RESERVOIR_ZOOM_DAMPING * delta);
+    renderedZoomRef.current = THREE.MathUtils.lerp(
+      renderedZoomRef.current,
+      zoomLevel,
+      interpolation,
     );
-
-    const atInnerEndpoint =
-      targetProgress === 1 &&
-      currentProgress.current >= 1 - ENDPOINT_SNAP_THRESHOLD;
-    const atOuterEndpoint =
-      targetProgress === 0 &&
-      currentProgress.current <= ENDPOINT_SNAP_THRESHOLD;
-
-    if (
-      atInnerEndpoint ||
-      atOuterEndpoint ||
-      Math.abs(currentProgress.current - targetProgress) < 0.0001
-    ) {
-      currentProgress.current = targetProgress;
+    if (Math.abs(renderedZoomRef.current - zoomLevel) < 0.0001) {
+      renderedZoomRef.current = zoomLevel;
     }
 
-    let orientationFromRetreat = false;
-    let activeOrientationFrame = orientationFrame;
-
-    if (collectionReturnPath) {
-      const returnProgress = clamp(collectionReturnProgressRef.current, 0, 1);
-      getCollectionReturnPosition(
-        collectionReturnPath,
-        returnProgress,
-        position,
-        pathDirection,
-        slerpAxis,
-        slerpRotation,
-      );
-      target
-        .copy(collectionReturnPath.startTarget)
-        .lerp(
-          collectionReturnPath.destinationTarget,
-          easeOutQuadratic(smoothstep(returnProgress)),
-        );
-      activeOrientationFrame = collectionReturnPath.frame;
-    } else if (collectionEntryPath) {
-      const entryProgress = clamp(collectionEntryProgressRef.current, 0, 1);
-      getCollectionEntryPosition(
-        collectionEntryPath,
-        entryProgress,
-        position,
-        pathDirection,
-        slerpAxis,
-        slerpRotation,
-      );
-      target
-        .copy(collectionEntryPath.startTarget)
-        .lerp(
-          collectionEntryPath.destinationTarget,
-          easeOutQuadratic(smoothstep(entryProgress)),
-        );
-      activeOrientationFrame = collectionEntryPath.frame;
-    } else if (travelDirection === "outward" && retreatPath) {
-      const retreatProgress = smoothstep(
-        1 -
-          clamp(
-            currentProgress.current / retreatPath.startProgress,
-            0,
-            1,
-          ),
-      );
-      const planeDistance = THREE.MathUtils.lerp(
-        retreatPath.startPlaneDistance,
-        retreatPath.outerPlaneDistance,
-        retreatProgress,
-      );
-      const radialTilt = THREE.MathUtils.lerp(
-        retreatPath.startRadialTilt,
-        retreatPath.outerRadialTilt,
-        retreatProgress,
-      );
-      const focusDistance = THREE.MathUtils.lerp(
-        retreatPath.startFocusDistance,
-        retreatPath.outerFocusDistance,
-        retreatProgress,
-      );
-
-      position
-        .copy(retreatPath.sphereCenter)
-        .addScaledVector(
-          retreatPath.frame.tangentRight,
-          retreatPath.lateralOffset,
-        )
-        .addScaledVector(
-          retreatPath.frame.normal,
-          Math.cos(radialTilt) * planeDistance,
-        )
-        .addScaledVector(
-          retreatPath.frame.tangentUp,
-          Math.sin(radialTilt) * planeDistance,
-        );
-      candidateQuaternion
-        .copy(retreatPath.startQuaternion)
-        .slerp(retreatPath.outerQuaternion, retreatProgress)
-        .normalize();
-      forward
-        .set(0, 0, -1)
-        .applyQuaternion(candidateQuaternion)
-        .normalize();
-      target.copy(position).addScaledVector(forward, focusDistance);
-      orientationFromRetreat = true;
-    } else {
-      const inwardProgress = clamp(
-        (currentProgress.current - inwardPath.startProgress) /
-          Math.max(1 - inwardPath.startProgress, Number.EPSILON),
-        0,
-        1,
-      );
-      const positionProgress = smoothstep(inwardProgress);
-      const lookProgress = easeOutQuadratic(inwardProgress);
-
-      if (inwardPath.requiresClearanceCorrection) {
-        slerpUnitVectors(
-          inwardPath.outerDirection,
-          inwardPath.innerDirection,
-          positionProgress,
-          pathDirection,
-          slerpAxis,
-          slerpRotation,
-        );
-        position
-          .copy(inwardPath.sphereCenter)
-          .addScaledVector(
-            pathDirection,
-            THREE.MathUtils.lerp(
-              inwardPath.outerCenterDistance,
-              inwardPath.innerCenterDistance,
-              positionProgress,
-            ),
-          );
-      } else {
-        quadraticBezier(
-          inwardPath.outerPosition,
-          inwardPath.controlPosition,
-          inwardPath.innerPosition,
-          positionProgress,
-          position,
-        );
-      }
-      target
-        .copy(inwardPath.outerTarget)
-        .lerp(inwardPath.innerTarget, lookProgress);
-    }
-
-    const sphereCenter = collectionReturnPath
-      ? collectionReturnPath.sphereCenter
-      : collectionEntryPath
-      ? collectionEntryPath.homeCenter
-      : retreatPath?.sphereCenter ?? inwardPath.sphereCenter;
-    if (!collectionEntryPath && !collectionReturnPath) {
-      enforceCameraClearance(
-        position,
-        sphereCenter,
-        retreatPath?.frame.normal ?? inwardPath.innerDirection,
-        clearanceOffset,
-      );
-    }
-    direction.copy(target).sub(position);
-
-    const homeClearance =
-      position.distanceTo(sphereCenter) - RESERVOIR_RADIUS;
-    const collectionClearance = collectionEntryPath
-      ? position.distanceTo(collectionEntryPath.collectionCenter) -
-        collectionEntryPath.collectionRadius
-      : Number.POSITIVE_INFINITY;
-    const hasValidPose =
-      isFiniteVector(position) &&
-      isFiniteVector(target) &&
-      homeClearance >
-        (collectionEntryPath
-          ? COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE
-          : MIN_CAMERA_CLEARANCE) &&
-      collectionClearance > COLLECTION_ENTRY_MIN_SURFACE_CLEARANCE &&
-      direction.lengthSq() >= FRAME_EPSILON;
-
-    if (!hasValidPose) {
-      if (collectionReturnPath) {
-        position.copy(collectionReturnPath.startPosition);
-        target.copy(collectionReturnPath.startTarget);
-      } else if (collectionEntryPath) {
-        position.copy(collectionEntryPath.startPosition);
-        target.copy(collectionEntryPath.startTarget);
-      } else {
-        position.copy(inwardPath.outerPosition);
-        target.copy(inwardPath.outerTarget);
-        enforceCameraClearance(
-          position,
-          inwardPath.sphereCenter,
-          inwardPath.outerDirection,
-          clearanceOffset,
-        );
-      }
-      direction.copy(target).sub(position);
-      orientationFromRetreat = false;
-    }
-
-    direction.normalize();
-    if (!orientationFromRetreat) {
-      frameRight
-        .copy(activeOrientationFrame.tangentRight)
-        .addScaledVector(
-          direction,
-          -activeOrientationFrame.tangentRight.dot(direction),
-        );
-
-      if (frameRight.lengthSq() < FRAME_EPSILON) {
-        frameRight.set(1, 0, 0).addScaledVector(direction, -direction.x);
-      }
-
-      if (frameRight.lengthSq() < FRAME_EPSILON) {
-        frameRight.set(0, 0, 1).addScaledVector(direction, -direction.z);
-      }
-
-      frameRight.normalize();
-      frameUp.copy(direction).negate().cross(frameRight).normalize();
-      worldUpCandidate
-        .set(0, 1, 0)
-        .addScaledVector(direction, -direction.y);
-
-      if (worldUpCandidate.lengthSq() >= FRAME_POLE_THRESHOLD ** 2) {
-        worldUpCandidate.normalize();
-        if (frameUp.dot(worldUpCandidate) < 0) {
-          frameRight.negate();
-          frameUp.negate();
-        }
-
-        const worldUpWeight = smoothstep(
-          clamp(
-            (Math.sqrt(Math.max(0, 1 - direction.y ** 2)) -
-              FRAME_POLE_THRESHOLD) /
-              FRAME_POLE_THRESHOLD,
-            0,
-            1,
-          ),
-        );
-        stableUp
-          .copy(frameUp)
-          .lerp(worldUpCandidate, worldUpWeight)
-          .normalize();
-      } else {
-        stableUp.copy(frameUp);
-      }
-
-      lookMatrix.lookAt(position, target, stableUp);
-      candidateQuaternion.setFromRotationMatrix(lookMatrix).normalize();
-      if (collectionReturnPath) {
-        const endpointOrientationBlend = getCollectionEntryPhase(
-          collectionReturnProgressRef.current,
-          [0.82, 1],
-        );
-        candidateQuaternion
-          .slerp(
-            collectionReturnPath.destinationQuaternion,
-            endpointOrientationBlend,
-          )
-          .normalize();
-      }
-    }
-    const hasValidOrientation =
-      candidateQuaternion
-        .toArray()
-        .every((component) => Number.isFinite(component)) &&
-      Math.abs(candidateQuaternion.lengthSq() - 1) < 0.0001;
-
-    if (hasValidOrientation) {
-      camera.position.copy(position);
-      camera.quaternion.copy(candidateQuaternion);
-      camera.updateMatrixWorld();
-    }
-
-    if (!cameraPoseRef.current) {
-      cameraPoseRef.current = {
-        position: new THREE.Vector3(),
-        target: new THREE.Vector3(),
-        quaternion: new THREE.Quaternion(),
-        progress: currentProgress.current,
-      };
-    }
-
-    if (hasValidOrientation) {
-      cameraPoseRef.current.position.copy(position);
-      cameraPoseRef.current.target.copy(target);
-      cameraPoseRef.current.quaternion.copy(candidateQuaternion);
-      cameraPoseRef.current.progress = currentProgress.current;
-    }
+    const renderedScale = baseScale * renderedZoomRef.current;
+    renderedScaleRef.current = renderedScale;
+    transform.position.set(0, centerWorldY, 0);
+    transform.scale.setScalar(renderedScale);
+    transform.updateMatrixWorld();
 
     if (diagnosticsRef.current) {
-      diagnosticsRef.current.dataset.currentCameraPosition = camera.position
-        .toArray()
-        .map((value) => value.toFixed(6))
-        .join(",");
-      diagnosticsRef.current.dataset.currentCameraTarget = target
-        .toArray()
-        .map((value) => value.toFixed(6))
-        .join(",");
-      diagnosticsRef.current.dataset.currentCameraQuaternion = camera.quaternion
-        .toArray()
-        .map((value) => value.toFixed(6))
-        .join(",");
-      diagnosticsRef.current.dataset.currentCameraClearance = (
-        camera.position.distanceTo(sphereCenter) - RESERVOIR_RADIUS
-      ).toFixed(6);
-      diagnosticsRef.current.dataset.collectionEntryProgress =
-        collectionEntryProgressRef.current.toFixed(6);
-      diagnosticsRef.current.dataset.collectionReturnProgress =
-        collectionReturnProgressRef.current.toFixed(6);
-      diagnosticsRef.current.dataset.collectionEntryHomeClearance =
-        homeClearance.toFixed(6);
-      diagnosticsRef.current.dataset.collectionEntryTargetClearance =
-        Number.isFinite(collectionClearance)
-          ? collectionClearance.toFixed(6)
-          : "";
-      diagnosticsRef.current.dataset.renderedCameraProgress =
-        currentProgress.current.toFixed(6);
-      diagnosticsRef.current.dataset.currentDragSensitivity =
-        getDragSensitivity(currentProgress.current).toFixed(7);
-      diagnosticsRef.current.dataset.cameraFrameValid = String(
-        hasValidPose && hasValidOrientation,
-      );
+      diagnosticsRef.current.dataset.renderedZoomLevel =
+        renderedZoomRef.current.toFixed(6);
+      diagnosticsRef.current.dataset.renderedReservoirScale =
+        renderedScale.toFixed(6);
     }
   });
 
-  return null;
+  return <group ref={transformRef}>{children}</group>;
+}
+
+type ReservoirOrientationProps = {
+  children: ReactNode;
+  collectionId: string;
+  composition: ReservoirInitialComposition;
+  diagnosticsRef: MutableRefObject<HTMLDivElement | null>;
+  layoutMode: ReservoirLayoutMode;
+  layoutModeTransitionState: ReservoirLayoutTransitionState;
+  onOrientationApplied: (diagnostics: RotationDiagnostics) => void;
+  orientationStoreRef: MutableRefObject<Map<string, QuaternionTuple>>;
+  rotationRef: MutableRefObject<THREE.Group | null>;
+};
+
+function ReservoirOrientation({
+  children,
+  collectionId,
+  composition,
+  diagnosticsRef,
+  layoutMode,
+  layoutModeTransitionState,
+  onOrientationApplied,
+  orientationStoreRef,
+  rotationRef,
+}: ReservoirOrientationProps) {
+  const groupRef = useRef<THREE.Group | null>(null);
+
+  useLayoutEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+
+    if (layoutModeTransitionState !== "idle") {
+      rotationRef.current = group;
+      return;
+    }
+
+    if (layoutMode === "focused") {
+      rotationRef.current = group;
+      return;
+    }
+
+    const preservedOrientation =
+      orientationStoreRef.current.get(collectionId);
+    const orientation =
+      preservedOrientation ??
+      ([...composition.quaternion] as QuaternionTuple);
+    group.quaternion.set(...orientation).normalize();
+    group.updateMatrixWorld();
+    rotationRef.current = group;
+    orientationStoreRef.current.set(
+      collectionId,
+      toQuaternionTuple(group.quaternion),
+    );
+    const diagnostics = getRotationDiagnostics(group.quaternion);
+    onOrientationApplied(diagnostics);
+
+    if (diagnosticsRef.current) {
+      diagnosticsRef.current.dataset.initialOrientationCollectionId =
+        collectionId;
+      diagnosticsRef.current.dataset.initialOrientationLayoutMode =
+        layoutMode;
+      diagnosticsRef.current.dataset.initialOrientationSource =
+        preservedOrientation ? "preserved" : "generated";
+      diagnosticsRef.current.dataset.initialOrientationQuaternion =
+        composition.quaternion
+          .map((value) => value.toFixed(6))
+          .join(",");
+      diagnosticsRef.current.dataset.initialOrientationCandidateCount = String(
+        composition.candidateCount,
+      );
+      diagnosticsRef.current.dataset.initialOrientationVisibleNodeCount = String(
+        composition.visibleNodeCount,
+      );
+      diagnosticsRef.current.dataset.initialOrientationTargetVisibleNodeCount =
+        String(composition.targetVisibleNodeCount);
+      diagnosticsRef.current.dataset.initialOrientationSilhouetteNodeCount =
+        String(composition.silhouetteNodeCount);
+      diagnosticsRef.current.dataset.initialOrientationProjectedMinimumSeparation =
+        composition.projectedMinimumSeparation.toFixed(6);
+      diagnosticsRef.current.dataset.renderedRotation =
+        `${diagnostics.euler[0].toFixed(3)},` +
+        diagnostics.euler[1].toFixed(3);
+      diagnosticsRef.current.dataset.renderedQuaternion = diagnostics.quaternion
+        .map((value) => value.toFixed(6))
+        .join(",");
+    }
+  }, [
+    collectionId,
+    composition,
+    diagnosticsRef,
+    layoutMode,
+    layoutModeTransitionState,
+    onOrientationApplied,
+    orientationStoreRef,
+    rotationRef,
+  ]);
+
+  return (
+    <group
+      ref={(group) => {
+        groupRef.current = group;
+        rotationRef.current = group;
+      }}
+    >
+      {children}
+    </group>
+  );
 }
 
 export function ReservoirScene() {
@@ -1696,46 +585,70 @@ export function ReservoirScene() {
       euler: [0, 0, 0],
       quaternion: [0, 0, 0, 1],
     });
-  const [cameraProgress, setCameraProgress] = useState(0);
-  const [travelDirection, setTravelDirection] =
-    useState<TravelDirection>("inward");
-  const [diveOrigin, setDiveOrigin] = useState<CameraPose | null>(null);
-  const [retreatOrigin, setRetreatOrigin] = useState<CameraPose | null>(null);
-  const [inspectionFrame, setInspectionFrame] =
-    useState<LocalSurfaceFrame | null>(null);
-  const [aspectRatio, setAspectRatio] = useState(16 / 10);
-  const [isDragging, setIsDragging] = useState(false);
-  const [selectedPressActive, setSelectedPressActive] = useState(false);
-  const [diveTarget, setDiveTarget] = useState<DiveTarget>({
-    point: null,
-    source: "default",
+  const [zoomLevel, setZoomLevel] = useState(RESERVOIR_ZOOM_DEFAULT);
+  const [labelsVisible, setLabelsVisible] = useState(() =>
+    getReservoirLabelsVisible(RESERVOIR_ZOOM_DEFAULT, false),
+  );
+  const [viewportFrame, setViewportFrame] = useState({
+    width: 1600,
+    height: 1000,
+    controlPlaneHeight: 120,
   });
-  const [isDiveTargetLocked, setIsDiveTargetLocked] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [activeExploreFilter, setActiveExploreFilter] =
+    useState<ActiveExploreFilter>("all");
+  const [menuState, setMenuState] =
+    useState<ReservoirMenuState>("closed");
+  const [footerState, setFooterState] =
+    useState<ReservoirFooterState>("closed");
+  const [queryActivityRevision, setQueryActivityRevision] = useState<
+    number | null
+  >(null);
+  const [queryActivityMode, setQueryActivityMode] =
+    useState<QueryActivityMode | null>(null);
+  const [rejectedExploreFilter, setRejectedExploreFilter] =
+    useState<ActiveExploreFilter | null>(null);
+  const [layoutMode, setLayoutMode] =
+    useState<ReservoirLayoutMode>("distributed");
+  const [renderedLayoutMode, setRenderedLayoutMode] =
+    useState<ReservoirLayoutMode>("distributed");
+  const [layoutModeTransitionState, setLayoutModeTransitionState] =
+    useState<ReservoirLayoutTransitionState>("idle");
+  const [layoutModeFocalDiagnostics, setLayoutModeFocalDiagnostics] =
+    useState<LayoutModeFocalDiagnostics | null>(null);
+  const [queryVisibleNodeIds, setQueryVisibleNodeIds] = useState<
+    ReadonlySet<string>
+  >(
+    () =>
+      new Set(
+        getReservoirContentNodes(ROOT_COLLECTION_ID).map((node) => node.id),
+      ),
+  );
+  const [queryReconciliation, setQueryReconciliation] =
+    useState<QueryReconciliation | null>(null);
+  const [locatingArtifactId, setLocatingArtifactId] = useState<string | null>(
+    null,
+  );
+  const [selectedPressActive, setSelectedPressActive] = useState(false);
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(
     null,
   );
   const [selectedCollectionId, setSelectedCollectionId] = useState<
     string | null
   >(null);
-  const [currentActiveCollectionId, setCurrentActiveCollectionId] = useState(
-    INITIAL_ACTIVE_COLLECTION_ID,
-  );
-  const [enteringCollectionId, setEnteringCollectionId] = useState<
-    string | null
-  >(null);
-  const [collectionEntryPath, setCollectionEntryPath] = useState<
-    CollectionEntryPath | null
-  >(null);
+  const [collectionNavigation, setCollectionNavigation] =
+    useState<CollectionNavigationState>({
+      activeCollectionId: ROOT_COLLECTION_ID,
+      destinationCollectionId: null,
+      transitionPhase: "idle",
+    });
   const [collectionHistory, setCollectionHistory] = useState<
     CollectionHistoryFrame[]
-  >([{ collectionId: INITIAL_ACTIVE_COLLECTION_ID, preservedState: null }]);
-  const [collectionReturnTransition, setCollectionReturnTransition] =
-    useState<CollectionReturnTransition | null>(null);
-  const [collectionReturnPath, setCollectionReturnPath] = useState<
-    CollectionReturnPath | null
-  >(null);
-  const [activeOuterFrame, setActiveOuterFrame] =
-    useState<ActiveOuterFrame | null>(null);
+  >([{ collectionId: ROOT_COLLECTION_ID }]);
+  const [selectedSpatialDestinationId, setSelectedSpatialDestinationId] =
+    useState<string | null>(null);
+  const [collectionActivityRevision, setCollectionActivityRevision] =
+    useState<number | null>(null);
   const [hoveredArtifactId, setHoveredArtifactId] = useState<string | null>(
     null,
   );
@@ -1746,45 +659,63 @@ export function ReservoirScene() {
   );
   const [preservedReservoirState, setPreservedReservoirState] =
     useState<PreservedReservoirState | null>(null);
-  const [preparedArtifactContent, setPreparedArtifactContent] =
-    useState<PreparedArtifactContent | null>(null);
+  const [artifactFooterReached, setArtifactFooterReached] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [atmosphereBottom, setAtmosphereBottom] = useState(0);
   const interaction = useRef<HTMLDivElement>(null);
   const atmosphereRef = useRef<HTMLElement | null>(null);
   const drag = useRef<DragState | null>(null);
+  const queryRevisionRef = useRef(0);
+  const layoutModeTransitionProgressRef = useRef(0);
+  const layoutModeTransitionElapsedRef = useRef(0);
+  const layoutModeViewResetProgressRef = useRef(0);
+  const layoutModeTransitionPulseRef = useRef(0);
+  const layoutModeTransitionFocusedDirectionRef = useRef<
+    ReservoirDirection | null
+  >(null);
+  const layoutModeSourceSnapshotRef = useRef<RenderedLayoutSnapshot | null>(
+    null,
+  );
+  const layoutModeDestinationSnapshotRef =
+    useRef<RenderedLayoutSnapshot | null>(null);
+  const directLocateStartQuaternionRef = useRef(new THREE.Quaternion());
+  const directLocateTargetQuaternionRef = useRef(new THREE.Quaternion());
+  const layoutModeResetStartZoomRef = useRef(RESERVOIR_ZOOM_DEFAULT);
+  const layoutModeResetTargetZoomRef = useRef(RESERVOIR_ZOOM_DEFAULT);
+  const reservoirTransformRef = useRef<THREE.Group | null>(null);
   const sphereRotationRef = useRef<THREE.Group | null>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
-  const gridInspectionRef = useRef<ReservoirGridInspection>({
-    active: false,
-    revision: 0,
-    worldPoint: new THREE.Vector3(),
-  });
+  const activeTouchPointersRef = useRef(
+    new Map<number, { x: number; y: number }>(),
+  );
+  const pinchDistanceRef = useRef<number | null>(null);
+  const pinchActiveRef = useRef(false);
+  const zoomLevelRef = useRef(RESERVOIR_ZOOM_DEFAULT);
+  const renderedZoomRef = useRef(RESERVOIR_ZOOM_DEFAULT);
+  const renderedScaleRef = useRef(1);
   const interactionRevisionRef = useRef(0);
   const openingElapsedRef = useRef(0);
-  const collectionEntryProgressRef = useRef(0);
-  const collectionEntryElapsedRef = useRef(0);
+  const collectionReconstitutionProgressRef = useRef(0);
+  const collectionReconstitutionElapsedRef = useRef(0);
   const collectionEmergenceProgressRef = useRef(1);
-  const collectionReturnProgressRef = useRef(0);
-  const collectionReturnNodeProgressRef = useRef(0);
-  const collectionReturnElapsedRef = useRef(0);
-  const openingCameraRetreatStartedRef = useRef(false);
+  const pendingCollectionResolutionRef =
+    useRef<PendingCollectionResolution | null>(null);
+  const collectionTransitionPoseSnapshotRef =
+    useRef<CollectionTransitionPoseSnapshot | null>(null);
+  const collectionTransitionSourceSnapshotRef =
+    useRef<RenderedLayoutSnapshot | null>(null);
+  const collectionTransitionDestinationSnapshotRef =
+    useRef<RenderedLayoutSnapshot | null>(null);
+  const pendingDirectArtifactIdRef = useRef<string | null>(null);
+  const pendingDirectCollectionIdRef = useRef<string | null>(null);
+  const collectionOrientationRef = useRef(
+    new Map<string, QuaternionTuple>(),
+  );
   const restorationElapsedRef = useRef(0);
   const restorationProgressRef = useRef(0);
-  const cameraProgressRef = useRef(0);
-  const travelDirectionRef = useRef<TravelDirection>("inward");
-  const cameraPoseRef = useRef<CameraPose | null>(null);
-  const lastInspectionFrameRef = useRef<LocalSurfaceFrame | null>(null);
-  const diveTargetLockedRef = useRef(false);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const surfaceRef = useRef<THREE.Mesh | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const returningDiagnosticsRef = useRef<HTMLDivElement | null>(null);
-  const returningGridInspectionRef = useRef<ReservoirGridInspection>({
-    active: false,
-    revision: 0,
-    worldPoint: new THREE.Vector3(),
-  });
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const pointerNdc = useMemo(() => new THREE.Vector2(), []);
   const cameraWorldQuaternion = useMemo(() => new THREE.Quaternion(), []);
@@ -1804,16 +735,77 @@ export function ReservoirScene() {
     const element = interaction.current;
     if (!element) return;
 
-    element.dataset.renderedRotation = "0.000,0.000";
-    element.dataset.renderedQuaternion = "0.000000,0.000000,0.000000,1.000000";
+    const initialQuaternion =
+      sphereRotationRef.current?.quaternion ?? new THREE.Quaternion();
+    const initialDiagnostics = getRotationDiagnostics(initialQuaternion);
+    setRotationDiagnostics(initialDiagnostics);
+    element.dataset.renderedRotation =
+      `${initialDiagnostics.euler[0].toFixed(3)},` +
+      initialDiagnostics.euler[1].toFixed(3);
+    element.dataset.renderedQuaternion = initialDiagnostics.quaternion
+      .map((value) => value.toFixed(6))
+      .join(",");
 
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      if (width > 0 && height > 0) setAspectRatio(width / height);
-    });
-
+    const controlPlane = document.querySelector<HTMLElement>(
+      ".reservoir-control-panel",
+    );
+    const updateViewportFrame = () => {
+      const { width, height } = element.getBoundingClientRect();
+      const controlPlaneHeight =
+        controlPlane?.getBoundingClientRect().height ?? 0;
+      if (width <= 0 || height <= 0) return;
+      setViewportFrame((currentFrame) => {
+        if (
+          Math.abs(currentFrame.width - width) < 0.5 &&
+          Math.abs(currentFrame.height - height) < 0.5 &&
+          Math.abs(currentFrame.controlPlaneHeight - controlPlaneHeight) < 0.5
+        ) {
+          return currentFrame;
+        }
+        return { width, height, controlPlaneHeight };
+      });
+    };
+    const observer = new ResizeObserver(updateViewportFrame);
     observer.observe(element);
+    if (controlPlane) observer.observe(controlPlane);
+    updateViewportFrame();
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const study = interaction.current?.closest<HTMLElement>(
+      ".reservoir-study",
+    );
+    if (!study) return;
+
+    function completeStackTransition(event: Event) {
+      const transitionEvent = event as globalThis.TransitionEvent;
+      if (transitionEvent.target !== study) return;
+
+      if (transitionEvent.propertyName === "--menu-stack-progress") {
+        setMenuState((currentState) =>
+          currentState === "opening"
+            ? "open"
+            : currentState === "closing"
+              ? "closed"
+              : currentState,
+        );
+      }
+
+      if (transitionEvent.propertyName === "--footer-stack-progress") {
+        setFooterState((currentState) =>
+          currentState === "opening"
+            ? "open"
+            : currentState === "closing"
+              ? "closed"
+              : currentState,
+        );
+      }
+    }
+
+    study.addEventListener("transitionend", completeStackTransition);
+    return () =>
+      study.removeEventListener("transitionend", completeStackTransition);
   }, []);
 
   useEffect(() => {
@@ -1823,9 +815,7 @@ export function ReservoirScene() {
 
     function updateAtmosphereBottom() {
       const nextBottom =
-        measuredAtmosphere.offsetTop +
-        measuredAtmosphere.offsetHeight +
-        ARTIFACT_WINDOW_ATMOSPHERE_GAP;
+        measuredAtmosphere.getBoundingClientRect().bottom;
       setAtmosphereBottom((currentBottom) =>
         Math.abs(currentBottom - nextBottom) < 0.5
           ? currentBottom
@@ -1861,164 +851,203 @@ export function ReservoirScene() {
     return () => mediaQuery.removeEventListener("change", updateReducedMotion);
   }, []);
 
-  const { cameraDistance, sphereCenterWorldY } = getOuterFrame(aspectRatio);
-  const initialOuterPosition = useMemo(
-    () => new THREE.Vector3(0, 0, cameraDistance),
-    [cameraDistance],
-  );
-  const initialOuterTarget = useMemo(() => new THREE.Vector3(0, 0, 0), []);
-  const canonicalOuterPosition =
-    activeOuterFrame?.position ?? initialOuterPosition;
-  const canonicalOuterTarget =
-    activeOuterFrame?.target ?? initialOuterTarget;
-  const atmosphericCameraModel = useMemo(
+  const reservoirFrame = useMemo(
     () =>
-      getAtmosphericCameraModel(
-        canonicalOuterPosition,
-        canonicalOuterTarget,
-        sphereCenterWorldY,
-      ),
-    [canonicalOuterPosition, canonicalOuterTarget, sphereCenterWorldY],
+      getReservoirFrame({
+        viewportWidth: viewportFrame.width,
+        viewportHeight: viewportFrame.height,
+        controlPlaneHeight: viewportFrame.controlPlaneHeight,
+      }),
+    [viewportFrame],
   );
-  const canonicalSurfacePoint = useMemo(
+  const { baseScale, centerWorldY } = useMemo(
     () =>
-      new THREE.Vector3(
-        0,
-        sphereCenterWorldY + RESERVOIR_RADIUS,
-        0,
-      ),
-    [sphereCenterWorldY],
+      getReservoirWorldTransform({
+        frame: reservoirFrame,
+        viewportHeight: viewportFrame.height,
+        cameraDistance: CAMERA_DISTANCE,
+        cameraFovDegrees: CAMERA_FOV,
+        reservoirRadius: RESERVOIR_RADIUS,
+      }),
+    [reservoirFrame, viewportFrame.height],
   );
-  const selectedSurfacePoint = useMemo(
+  const reservoirCenter = useMemo(
+    () => new THREE.Vector3(0, centerWorldY, 0),
+    [centerWorldY],
+  );
+  const renderedActiveCollectionId = collectionNavigation.activeCollectionId;
+  const activeCollection = (
+    getCollectionById(renderedActiveCollectionId) ??
+    getCollectionById(ROOT_COLLECTION_ID)
+  ) as Collection;
+  const visibleCollectionAncestors = useMemo(
     () =>
-      diveTarget.point
-        ? new THREE.Vector3(...diveTarget.point)
-        : canonicalSurfacePoint.clone(),
-    [canonicalSurfacePoint, diveTarget.point],
-  );
-  const inwardCameraPath = useMemo(
-    () =>
-      getCameraPath(
-        diveOrigin?.progress ?? 0,
-        diveOrigin?.position ?? canonicalOuterPosition,
-        diveOrigin?.target ?? canonicalOuterTarget,
-        sphereCenterWorldY,
-        selectedSurfacePoint,
-      ),
-    [
-      canonicalOuterPosition,
-      canonicalOuterTarget,
-      diveOrigin,
-      selectedSurfacePoint,
-      sphereCenterWorldY,
-    ],
-  );
-  const retreatCameraPath = useMemo(
-    () =>
-      retreatOrigin && inspectionFrame
-        ? getRetreatPath(
-            retreatOrigin,
-            inspectionFrame,
-            atmosphericCameraModel,
-          )
-        : null,
-    [
-      atmosphericCameraModel,
-      inspectionFrame,
-      retreatOrigin,
-    ],
-  );
-  const activeOuterPosition =
-    retreatCameraPath?.outerPosition ?? canonicalOuterPosition;
-  const activeOuterTarget =
-    retreatCameraPath?.outerTarget ?? canonicalOuterTarget;
-  const renderedActiveCollectionId =
-    collectionReturnTransition?.targetState.collectionId ??
-    currentActiveCollectionId;
-  const activeCollection =
-    getReservoirCollection(renderedActiveCollectionId) ??
-    rootReservoirCollection;
-  const activeReservoirArtifacts = useMemo(
-    () => getReservoirArtifacts(renderedActiveCollectionId),
-    [renderedActiveCollectionId],
-  );
-  const activeReservoirChildCollections = useMemo(
-    () => getReservoirChildCollections(renderedActiveCollectionId),
-    [renderedActiveCollectionId],
+      collectionHistory.slice(1, -1).flatMap((frame) => {
+        const collection = getCollectionById(frame.collectionId);
+        return collection
+          ? [{ id: collection.id, title: collection.title }]
+          : [];
+      }),
+    [collectionHistory],
   );
   const activeReservoirNodes = useMemo(
-    () => getReservoirNodes(renderedActiveCollectionId),
+    () => getReservoirContentNodes(renderedActiveCollectionId),
     [renderedActiveCollectionId],
+  );
+  const activeReservoirArtifacts = useMemo(
+    () =>
+      activeReservoirNodes.filter(
+        (node): node is Extract<ReservoirContentNode, { kind: "artifact" }> =>
+          node.kind === "artifact",
+      ),
+    [activeReservoirNodes],
+  );
+  const activeReservoirChildCollections = useMemo(
+    () =>
+      activeReservoirNodes.filter(
+        (node): node is Extract<ReservoirContentNode, { kind: "collection" }> =>
+          node.kind === "collection",
+      ),
+    [activeReservoirNodes],
+  );
+  const activeReservoirNodeSizingTargets = getReservoirNodeSizingTargets(
+    activeReservoirNodes.length,
+  );
+  const activeReservoirFocusedMinimumNodeDiameter = Math.max(
+    activeReservoirNodeSizingTargets.desiredArtifactDiameter,
+    activeReservoirNodeSizingTargets.desiredCollectionDiameter,
+  );
+  const focusedLayoutDirection =
+    layoutModeTransitionFocusedDirectionRef.current;
+  const layoutModeSourceSnapshot = layoutModeSourceSnapshotRef.current;
+  const layoutModeDestinationSnapshot =
+    layoutModeDestinationSnapshotRef.current;
+  const collectionTransitionSourceSnapshot =
+    collectionTransitionSourceSnapshotRef.current;
+  const collectionTransitionDestinationSnapshot =
+    collectionTransitionDestinationSnapshotRef.current;
+  const activeReservoirLayoutSnapshot = useMemo(
+    () => {
+      if (
+        layoutModeTransitionState !== "idle" &&
+        layoutModeSourceSnapshot?.collectionId === renderedActiveCollectionId &&
+        layoutModeSourceSnapshot.mode === renderedLayoutMode
+      ) {
+        return layoutModeSourceSnapshot;
+      }
+
+      if (
+        layoutModeDestinationSnapshot?.collectionId ===
+          renderedActiveCollectionId &&
+        layoutModeDestinationSnapshot.mode === renderedLayoutMode
+      ) {
+        return layoutModeDestinationSnapshot;
+      }
+
+      if (
+        collectionTransitionSourceSnapshot?.collectionId ===
+          renderedActiveCollectionId &&
+        collectionNavigation.transitionPhase === "deactivating"
+      ) {
+        return collectionTransitionSourceSnapshot;
+      }
+
+      if (
+        collectionTransitionDestinationSnapshot?.collectionId ===
+        renderedActiveCollectionId
+      ) {
+        return collectionTransitionDestinationSnapshot;
+      }
+
+      const directions = generateReservoirLayout(activeReservoirNodes, {
+        seed: renderedActiveCollectionId,
+        mode: renderedLayoutMode,
+        focusedDirection:
+          renderedLayoutMode === "focused"
+            ? focusedLayoutDirection ?? undefined
+            : undefined,
+        minimumNodeDiameter:
+          renderedLayoutMode === "focused"
+            ? activeReservoirFocusedMinimumNodeDiameter
+            : undefined,
+      });
+      return {
+        collectionId: renderedActiveCollectionId,
+        mode: renderedLayoutMode,
+        directions,
+        quaternion: ([0, 0, 0, 1] as QuaternionTuple),
+        nodeSizing: getReservoirNodeSizingSnapshot(
+          directions,
+          activeReservoirNodes.length,
+        ),
+      };
+    },
+    [
+      activeReservoirNodes,
+      collectionNavigation.transitionPhase,
+      collectionTransitionDestinationSnapshot,
+      collectionTransitionSourceSnapshot,
+      focusedLayoutDirection,
+      activeReservoirFocusedMinimumNodeDiameter,
+      layoutModeDestinationSnapshot,
+      layoutModeSourceSnapshot,
+      layoutModeTransitionState,
+      renderedActiveCollectionId,
+      renderedLayoutMode,
+    ],
+  );
+  const activeReservoirLayout = activeReservoirLayoutSnapshot.directions;
+  const activeNodeSizing = activeReservoirLayoutSnapshot.nodeSizing;
+  const activeInitialComposition = useMemo(
+    () =>
+      generateReservoirInitialComposition(activeReservoirLayout, {
+        seed: renderedActiveCollectionId,
+      }),
+    [activeReservoirLayout, renderedActiveCollectionId],
+  );
+  const activeReservoirLayoutDiagnostics = useMemo(
+    () => getReservoirLayoutDiagnostics(activeReservoirLayout),
+    [activeReservoirLayout],
+  );
+  const focusedLayoutCapRadius = useMemo(
+    () => getReservoirFocusedCapRadius(activeReservoirNodes.length),
+    [activeReservoirNodes.length],
+  );
+  const focusedLayoutFocalDirection = focusedLayoutDirection;
+
+  const surfacedNodeIds = useMemo(
+    () => getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
+    [activeExploreFilter, activeReservoirNodes],
   );
   const reservoirNodeDiagnostics = useMemo(
-    () => getReservoirNodeDiagnostics(renderedActiveCollectionId),
-    [renderedActiveCollectionId],
+    () => getReservoirNodeDiagnostics(activeReservoirNodes),
+    [activeReservoirNodes],
   );
-  const selectedArtifact =
-    activeReservoirArtifacts.find(
-      (artifact) => artifact.id === selectedArtifactId,
-    ) ?? null;
-  const selectedCollection =
-    (getReservoirCollection(selectedCollectionId ?? "") as
-      | EmbeddedReservoirCollection
-      | null) ?? null;
-  const returningCollection =
-    (getReservoirCollection(
-      collectionReturnTransition?.exitedCollectionId ?? "",
-    ) as EmbeddedReservoirCollection | null) ?? null;
-  const returningReservoirNodes = useMemo(
-    () =>
-      collectionReturnTransition
-        ? getReservoirNodes(collectionReturnTransition.exitedCollectionId)
-        : [],
-    [collectionReturnTransition],
-  );
-  const returningSourcePosition = useMemo(
-    () =>
-      collectionReturnTransition
-        ? new THREE.Vector3(...collectionReturnTransition.sourceCenter).sub(
-            atmosphericCameraModel.sphereCenter,
-          )
-        : new THREE.Vector3(),
-    [atmosphericCameraModel.sphereCenter, collectionReturnTransition],
-  );
-  const returningSourceEndPosition = useMemo(
-    () =>
-      collectionReturnTransition
-        ? new THREE.Vector3(
-            ...collectionReturnTransition.sourceEndCenter,
-          ).sub(atmosphericCameraModel.sphereCenter)
-        : new THREE.Vector3(),
-    [atmosphericCameraModel.sphereCenter, collectionReturnTransition],
-  );
-  const returningTransferDirection = useMemo(
-    () =>
-      collectionReturnTransition
-        ? new THREE.Vector3(
-            ...collectionReturnTransition.targetLocalTransferDirection,
-          )
-        : null,
-    [collectionReturnTransition],
-  );
-  const openingArtifact =
-    activeReservoirArtifacts.find(
-      (artifact) => artifact.id === openingArtifactId,
-    ) ?? null;
+  const selectedArtifact = selectedArtifactId
+    ? (getArtifactById(selectedArtifactId) ?? null)
+    : null;
+  const selectedCollection = selectedCollectionId
+    ? (getCollectionById(selectedCollectionId) ?? null)
+    : null;
+  const openingArtifact = openingArtifactId
+    ? (getArtifactById(openingArtifactId) ?? null)
+    : null;
   const openingReactionDistances = useMemo(() => {
     const distances = new Map<string, number>();
     if (!openingArtifact) return distances;
+    const openingDirection = activeReservoirLayout.get(openingArtifact.id);
+    if (!openingDirection) return distances;
 
     for (const node of activeReservoirNodes) {
+      const direction = activeReservoirLayout.get(node.id);
+      if (!direction) continue;
       distances.set(
         node.id,
-        getReservoirPlacementGraphDistance(
-          openingArtifact.vertexId,
-          node.vertexId,
-        ) ?? 0,
+        getReservoirDirectionAngularDistance(openingDirection, direction),
       );
     }
     return distances;
-  }, [activeReservoirNodes, openingArtifact]);
+  }, [activeReservoirLayout, activeReservoirNodes, openingArtifact]);
   const maximumOpeningReactionDistance = Math.max(
     0,
     ...openingReactionDistances.values(),
@@ -2030,12 +1059,6 @@ export function ReservoirScene() {
     "closingArtifact",
   ].includes(transitionState);
   const restoring = transitionState === "restoringArtifact";
-  const collectionPresentationState =
-    transitionState === "enteringCollection"
-      ? "transitioning-out"
-      : transitionState === "leavingCollection"
-        ? "transitioning-in"
-      : "active";
   const artifactWindowPhase =
     transitionState === "deployingArtifact"
       ? "deploying"
@@ -2044,6 +1067,94 @@ export function ReservoirScene() {
         : transitionState === "closingArtifact"
           ? "closing"
           : null;
+  const collectionContextTransition =
+    transitionState === "reconstitutingCollection";
+  const queryTransitionActive = queryActivityRevision !== null;
+  const menuActive = menuState !== "closed";
+  const footerVisible = footerState !== "closed";
+  const footerTransitionActive =
+    footerState === "opening" || footerState === "closing";
+  const layoutModeTransitionActive =
+    layoutModeTransitionState !== "idle";
+  const inputLocked =
+    transitionState !== "idle" ||
+    layoutModeTransitionActive ||
+    menuActive ||
+    queryTransitionActive ||
+    footerTransitionActive;
+  const layoutModeControlDisabled =
+    inputLocked || collectionNavigation.transitionPhase !== "idle";
+  const secondaryControlsDimmed =
+    collectionContextTransition || layoutModeTransitionActive;
+
+  useEffect(() => {
+    if (
+      transitionState !== "locatingArtifact" ||
+      !locatingArtifactId
+    ) {
+      return;
+    }
+
+    let duration = reducedMotion
+      ? DIRECT_LOCATE_REDUCED_MOTION_DURATION
+      : DIRECT_LOCATE_DURATION;
+    const artifactId = locatingArtifactId;
+    let startTime = performance.now();
+    let correctionCount = 0;
+    let animationFrameId = 0;
+
+    function updateDirectLocate(now: number) {
+      const sphere = sphereRotationRef.current;
+      if (!sphere) return;
+      const progress = clamp((now - startTime) / (duration * 1000), 0, 1);
+      const easedProgress = smoothstep(progress);
+      sphere.quaternion
+        .copy(directLocateStartQuaternionRef.current)
+        .slerp(directLocateTargetQuaternionRef.current, easedProgress)
+        .normalize();
+      const diagnostics = getRotationDiagnostics(sphere.quaternion);
+      setRotationDiagnostics(diagnostics);
+
+      if (interaction.current) {
+        interaction.current.dataset.directLocateArtifact = artifactId;
+        interaction.current.dataset.directLocateProgress = progress.toFixed(6);
+        interaction.current.dataset.renderedRotation =
+          `${diagnostics.euler[0].toFixed(3)},${diagnostics.euler[1].toFixed(3)}`;
+        interaction.current.dataset.renderedQuaternion = diagnostics.quaternion
+          .map((value) => value.toFixed(6))
+          .join(",");
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(updateDirectLocate);
+        return;
+      }
+
+      if (!isDirectArtifactSafelyFramed(artifactId)) {
+        if (prepareDirectLocateTarget(artifactId)) {
+          correctionCount += 1;
+          startTime = now;
+          duration = reducedMotion ? 0.12 : 0.32;
+          if (interaction.current) {
+            interaction.current.dataset.directLocateCorrections =
+              String(correctionCount);
+          }
+          animationFrameId = requestAnimationFrame(updateDirectLocate);
+        }
+        return;
+      }
+
+      setLocatingArtifactId(null);
+      beginArtifactOpening(artifactId, true);
+    }
+
+    animationFrameId = requestAnimationFrame(updateDirectLocate);
+    return () => cancelAnimationFrame(animationFrameId);
+    // The opening command must use the exact render that established this
+    // locate phase; adding the render-local command as a dependency would
+    // restart the quaternion timeline on every state update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locatingArtifactId, reducedMotion, transitionState]);
 
   useEffect(() => {
     if (
@@ -2053,9 +1164,7 @@ export function ReservoirScene() {
       return;
     }
 
-    const snapshot = preservedReservoirState;
     const duration = getOpeningDuration(reducedMotion);
-    const cameraDelay = getOpeningCameraDelay(reducedMotion);
     const startTime = performance.now();
     let animationFrameId = 0;
 
@@ -2070,25 +1179,6 @@ export function ReservoirScene() {
         ).toFixed(6);
       }
 
-      if (
-        elapsed >= cameraDelay &&
-        !openingCameraRetreatStartedRef.current
-      ) {
-        openingCameraRetreatStartedRef.current = true;
-        if (snapshot.cameraProgress > 0) {
-          setRetreatOrigin({
-            position: new THREE.Vector3(...snapshot.cameraPosition),
-            target: new THREE.Vector3(...snapshot.cameraTarget),
-            quaternion: new THREE.Quaternion(...snapshot.cameraQuaternion),
-            progress: snapshot.cameraProgress,
-          });
-        }
-        travelDirectionRef.current = "outward";
-        setTravelDirection("outward");
-        cameraProgressRef.current = 0;
-        setCameraProgress(0);
-      }
-
       if (elapsed >= duration) {
         window.scrollTo({ top: 0, left: 0, behavior: "instant" });
         setTransitionState("deployingArtifact");
@@ -2101,246 +1191,312 @@ export function ReservoirScene() {
     animationFrameId = requestAnimationFrame(updateOpeningTimeline);
     return () => cancelAnimationFrame(animationFrameId);
   }, [preservedReservoirState, reducedMotion, transitionState]);
-
   useEffect(() => {
+    const requestedDestinationCollectionId =
+      collectionNavigation.destinationCollectionId;
     if (
-      transitionState !== "enteringCollection" ||
-      !collectionEntryPath
+      transitionState !== "reconstitutingCollection" ||
+      !requestedDestinationCollectionId
     ) {
       return;
     }
+    const destinationCollectionId = requestedDestinationCollectionId;
 
-    const entryPath = collectionEntryPath;
-    const duration = reducedMotion
-      ? COLLECTION_ENTRY_REDUCED_MOTION_DURATION
-      : COLLECTION_ENTRY_DURATION;
+    const duration = getCollectionReconstitutionDuration(reducedMotion);
+    const openingDuration = getOpeningDuration(reducedMotion);
     const startTime = performance.now();
+    let handoffCommitted = false;
+    let reactivationReported = false;
     let animationFrameId = 0;
 
-    function updateCollectionEntry(now: number) {
-      const elapsed = (now - startTime) / 1000;
-      collectionEntryElapsedRef.current = Math.min(elapsed, duration);
-      collectionEntryProgressRef.current = clamp(elapsed / duration, 0, 1);
-
-      if (collectionEntryProgressRef.current >= 1) {
-        const renderedPose = cameraPoseRef.current;
-        const positionError = renderedPose
-          ? renderedPose.position.distanceTo(
-              entryPath.destinationPosition,
-            )
-          : Number.POSITIVE_INFINITY;
-        const targetError = renderedPose
-          ? renderedPose.target.distanceTo(
-              entryPath.destinationTarget,
-            )
-          : Number.POSITIVE_INFINITY;
-
-        if (interaction.current) {
-          interaction.current.dataset.collectionEntryPositionError =
-            positionError.toFixed(9);
-          interaction.current.dataset.collectionEntryTargetError =
-            targetError.toFixed(9);
-        }
-
-        if (
-          positionError <= COLLECTION_ENTRY_ARRIVAL_EPSILON &&
-          targetError <= COLLECTION_ENTRY_ARRIVAL_EPSILON
-        ) {
-          const rebaseScale = RESERVOIR_RADIUS / entryPath.collectionRadius;
-          const rebasedPosition = entryPath.homeCenter
-            .clone()
-            .add(
-              entryPath.destinationPosition
-                .clone()
-                .sub(entryPath.collectionCenter)
-                .multiplyScalar(rebaseScale),
-            );
-          const rebasedTarget = entryPath.homeCenter
-            .clone()
-            .add(
-              entryPath.destinationTarget
-                .clone()
-                .sub(entryPath.collectionCenter)
-                .multiplyScalar(rebaseScale),
-            );
-
-          collectionEmergenceProgressRef.current = 0;
-          cameraProgressRef.current = 0;
-          travelDirectionRef.current = "inward";
-          diveTargetLockedRef.current = false;
-          setActiveOuterFrame({
-            position: rebasedPosition,
-            target: rebasedTarget,
-          });
-          setCurrentActiveCollectionId(entryPath.collectionId);
-          setEnteringCollectionId(null);
-          setCollectionEntryPath(null);
-          setCameraProgress(0);
-          setTravelDirection("inward");
-          setDiveOrigin(null);
-          setRetreatOrigin(null);
-          setInspectionFrame(null);
-          setDiveTarget({ point: null, source: "default" });
-          setIsDiveTargetLocked(false);
-          setTransitionState("emergingCollection");
-          return;
-        }
-      }
-
-      animationFrameId = requestAnimationFrame(updateCollectionEntry);
-    }
-
-    animationFrameId = requestAnimationFrame(updateCollectionEntry);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [collectionEntryPath, reducedMotion, transitionState]);
-
-  useEffect(() => {
-    if (transitionState !== "emergingCollection") return;
-
-    const duration = reducedMotion
-      ? COLLECTION_CHILD_EMERGENCE_REDUCED_MOTION_DURATION
-      : COLLECTION_CHILD_EMERGENCE_DURATION;
-    const startTime = performance.now();
-    let animationFrameId = 0;
-
-    function updateChildEmergence(now: number) {
-      const progress = clamp((now - startTime) / 1000 / duration, 0, 1);
-      collectionEmergenceProgressRef.current = progress;
-
-      if (interaction.current) {
-        interaction.current.dataset.collectionChildEmergenceProgress =
-          progress.toFixed(6);
-      }
-
-      if (progress >= 1) {
-        setSelectedArtifactId(null);
-        setSelectedCollectionId(null);
-        setTransitionState("idle");
-        return;
-      }
-
-      animationFrameId = requestAnimationFrame(updateChildEmergence);
-    }
-
-    animationFrameId = requestAnimationFrame(updateChildEmergence);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [reducedMotion, transitionState]);
-
-  useEffect(() => {
-    if (
-      transitionState !== "leavingCollection" ||
-      !collectionReturnTransition ||
-      !collectionReturnPath
-    ) {
-      return;
-    }
-
-    const returnTransition = collectionReturnTransition;
-    const targetState = returnTransition.targetState;
-    const cameraDuration = reducedMotion
-      ? COLLECTION_RETURN_REDUCED_MOTION_DURATION
-      : COLLECTION_RETURN_DURATION;
-    const cameraDelay = reducedMotion
-      ? COLLECTION_RETURN_REDUCED_MOTION_RECESSION_LEAD_DURATION
-      : COLLECTION_RETURN_RECESSION_LEAD_DURATION;
-    const duration = cameraDelay + cameraDuration;
-    const targetQuaternion = new THREE.Quaternion(
-      ...targetState.sphereQuaternion,
-    );
-    const startTime = performance.now();
-    let animationFrameId = 0;
-
-    function updateCollectionReturn(now: number) {
-      const elapsed = Math.min((now - startTime) / 1000, duration);
+    function updateCollectionReconstitution(now: number) {
       const progress = clamp(
-        (elapsed - cameraDelay) / cameraDuration,
+        (now - startTime) / 1000 / Math.max(duration, Number.EPSILON),
         0,
         1,
       );
-      collectionReturnProgressRef.current = progress;
-      collectionReturnElapsedRef.current = elapsed;
-      collectionReturnNodeProgressRef.current = getCollectionEntryPhase(
-        progress,
-        COLLECTION_RETURN_PHASES.parentChildrenRestore,
-      );
+      const frame = getCollectionReconstitutionFrame(progress);
+      collectionReconstitutionProgressRef.current = progress;
+      collectionReconstitutionElapsedRef.current =
+        openingDuration * frame.deactivationProgress;
+      collectionEmergenceProgressRef.current = frame.emergenceProgress;
 
-      if (interaction.current) {
-        interaction.current.dataset.collectionReturnProgress =
-          progress.toFixed(6);
-        interaction.current.dataset.collectionReturnRecessionElapsed =
-          elapsed.toFixed(6);
-        interaction.current.dataset.collectionReturnCameraDelay =
-          cameraDelay.toFixed(6);
-        interaction.current.dataset.collectionReturnCameraStarted = String(
-          progress > 0,
-        );
-        interaction.current.dataset.collectionReturnNodeProgress =
-          collectionReturnNodeProgressRef.current.toFixed(6);
-      }
-
-      if (progress >= 1) {
-        const restoredInspectionFrame = restoreLocalSurfaceFrame(
-          targetState.inspectionFrame,
-        );
-        const restoredLastInspectionFrame = restoreLocalSurfaceFrame(
-          targetState.lastInspectionFrame,
-        );
-        const restoredDiveOrigin = restoreCameraPose(targetState.diveOrigin);
-        const restoredRetreatOrigin = restoreCameraPose(
-          targetState.retreatOrigin,
-        );
-
-        sphereRotationRef.current?.quaternion.copy(targetQuaternion);
-        lastInspectionFrameRef.current = restoredLastInspectionFrame;
-        cameraProgressRef.current = targetState.cameraTargetProgress;
-        travelDirectionRef.current = targetState.travelDirection;
-        diveTargetLockedRef.current = targetState.diveTargetLocked;
-        setCurrentActiveCollectionId(targetState.collectionId);
-        setCollectionHistory((currentHistory) =>
-          currentHistory
-            .slice(0, returnTransition.targetHistoryIndex + 1)
-            .map((frame, index, nextHistory) =>
-              index === nextHistory.length - 1
-                ? { ...frame, preservedState: null }
-                : frame,
+      if (!handoffCommitted && progress >= 0.5) {
+        handoffCommitted = true;
+        const resolution = pendingCollectionResolutionRef.current;
+        setQueryVisibleNodeIds(
+          new Set(
+            getReservoirContentNodes(destinationCollectionId).map(
+              (node) => node.id,
             ),
+          ),
         );
-        setActiveOuterFrame({
-          position: new THREE.Vector3(...targetState.activeOuterPosition),
-          target: new THREE.Vector3(...targetState.activeOuterTarget),
-        });
-        setCameraProgress(targetState.cameraTargetProgress);
-        setTravelDirection(targetState.travelDirection);
-        setDiveOrigin(restoredDiveOrigin);
-        setRetreatOrigin(restoredRetreatOrigin);
-        setInspectionFrame(restoredInspectionFrame);
-        setDiveTarget({
-          point: targetState.diveTarget.point
-            ? [...targetState.diveTarget.point]
-            : null,
-          source: targetState.diveTarget.source,
-        });
-        setIsDiveTargetLocked(targetState.diveTargetLocked);
+        setQueryReconciliation(null);
+        setQueryActivityRevision(null);
+        setQueryActivityMode(null);
+        setRejectedExploreFilter(null);
+        setActiveExploreFilter("all");
+        if (resolution) setCollectionHistory(resolution.history);
         setSelectedArtifactId(null);
         setSelectedCollectionId(null);
-        setEnteringCollectionId(null);
-        setCollectionReturnPath(null);
-        setCollectionReturnTransition(null);
-        setTransitionState("idle");
+        setCollectionNavigation({
+          activeCollectionId: destinationCollectionId,
+          destinationCollectionId,
+          transitionPhase: "handoff",
+        });
+      } else if (
+        handoffCommitted &&
+        !reactivationReported &&
+        progress > 0.5
+      ) {
+        reactivationReported = true;
+        setCollectionNavigation({
+          activeCollectionId: destinationCollectionId,
+          destinationCollectionId,
+          transitionPhase: "reactivating",
+        });
+      }
+
+      if (interaction.current) {
+        interaction.current.dataset.collectionReconstitutionProgress =
+          progress.toFixed(6);
+        interaction.current.dataset.collectionDeactivationProgress =
+          frame.deactivationProgress.toFixed(6);
+        interaction.current.dataset.collectionReactivationProgress =
+          frame.reactivationProgress.toFixed(6);
+        interaction.current.dataset.collectionChildEmergenceProgress =
+          frame.emergenceProgress.toFixed(6);
+        interaction.current.dataset.collectionDestinationNodesSettled =
+          String(frame.destinationNodesSettled);
+        interaction.current.dataset.collectionTwinkleEnvelope =
+          frame.twinkleEnvelope.toFixed(6);
+        interaction.current.dataset.collectionNeutralHandoffCommitted =
+          String(handoffCommitted);
+        interaction.current.dataset.collectionCameraWrites = "none";
+        interaction.current.dataset.collectionOrientationWrites =
+          "initial-or-preserved-at-handoff";
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(
+          updateCollectionReconstitution,
+        );
         return;
       }
 
-      animationFrameId = requestAnimationFrame(updateCollectionReturn);
+      const snapshot = collectionTransitionPoseSnapshotRef.current;
+      const sphereQuaternion = sphereRotationRef.current?.quaternion;
+      if (interaction.current && snapshot && sphereQuaternion) {
+        const expectedOrientation = collectionOrientationRef.current.get(
+          destinationCollectionId,
+        );
+        interaction.current.dataset.collectionSphereQuaternionError =
+          expectedOrientation
+            ? sphereQuaternion
+                .angleTo(new THREE.Quaternion(...expectedOrientation))
+                .toFixed(9)
+            : "0.000000000";
+        interaction.current.dataset.collectionZoomLevelError = Math.abs(
+          zoomLevelRef.current - snapshot.zoomLevel,
+        ).toFixed(9);
+      }
+
+      collectionReconstitutionProgressRef.current = 1;
+      collectionReconstitutionElapsedRef.current = 0;
+      collectionEmergenceProgressRef.current = 1;
+      pendingCollectionResolutionRef.current = null;
+      collectionTransitionPoseSnapshotRef.current = null;
+      setSelectedSpatialDestinationId(null);
+      setCollectionActivityRevision(null);
+      setCollectionNavigation({
+        activeCollectionId: destinationCollectionId,
+        destinationCollectionId: null,
+        transitionPhase: "idle",
+      });
+      setTransitionState("idle");
     }
 
-    animationFrameId = requestAnimationFrame(updateCollectionReturn);
+    animationFrameId = requestAnimationFrame(updateCollectionReconstitution);
     return () => cancelAnimationFrame(animationFrameId);
   }, [
-    collectionReturnPath,
-    collectionReturnTransition,
+    collectionNavigation.destinationCollectionId,
     reducedMotion,
     transitionState,
   ]);
+
+  useEffect(() => {
+    if (layoutModeTransitionState !== "sinking") {
+      return;
+    }
+
+    const duration = getLayoutModeSwitchDuration(reducedMotion);
+    const startTime = performance.now();
+    let animationFrameId = 0;
+
+    function updateSinking(now: number) {
+      const progress = clamp(
+        (now - startTime) / 1000 / Math.max(duration, Number.EPSILON),
+        0,
+        1,
+      );
+      layoutModeTransitionProgressRef.current = progress;
+      layoutModeTransitionElapsedRef.current = duration * progress;
+      layoutModeTransitionPulseRef.current = getLayoutModeTransitionPulse(
+        "sinking",
+        progress,
+        reducedMotion,
+      );
+
+      if (interaction.current) {
+        interaction.current.dataset.layoutModeTransitionPhase = "sinking";
+        interaction.current.dataset.layoutModeTransitionProgress =
+          progress.toFixed(6);
+        interaction.current.dataset.layoutModeTransitionPulse =
+          layoutModeTransitionPulseRef.current.toFixed(6);
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(updateSinking);
+        return;
+      }
+
+      layoutModeTransitionProgressRef.current = 0;
+      layoutModeTransitionElapsedRef.current = 0;
+      layoutModeTransitionPulseRef.current = getLayoutModeTransitionPulse(
+        "orienting",
+        0,
+        reducedMotion,
+      );
+      renderedZoomRef.current = layoutModeResetTargetZoomRef.current;
+      setReservoirZoom(layoutModeResetTargetZoomRef.current);
+      setRenderedLayoutMode(layoutMode);
+      setLayoutModeTransitionState("orienting");
+    }
+
+    animationFrameId = requestAnimationFrame(updateSinking);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [layoutMode, layoutModeTransitionState, reducedMotion]);
+
+  useEffect(() => {
+    if (layoutModeTransitionState !== "orienting") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLayoutModeTransitionState("emerging");
+    }, 0);
+
+    if (interaction.current) {
+      interaction.current.dataset.layoutModeTransitionPhase = "orienting";
+      interaction.current.dataset.layoutModeTransitionProgress = "0.000000";
+      interaction.current.dataset.layoutModeTransitionPulse =
+        layoutModeTransitionPulseRef.current.toFixed(6);
+    }
+
+    return () => window.clearTimeout(timeoutId);
+  }, [layoutModeTransitionState, reducedMotion]);
+
+  useEffect(() => {
+    if (layoutModeTransitionState !== "emerging") {
+      return;
+    }
+
+    const duration = getLayoutModeSwitchDuration(reducedMotion);
+    const startTime = performance.now();
+    let animationFrameId = 0;
+
+    function updateEmerging(now: number) {
+      const progress = clamp(
+        (now - startTime) / 1000 / Math.max(duration, Number.EPSILON),
+        0,
+        1,
+      );
+      layoutModeTransitionProgressRef.current = progress;
+      layoutModeTransitionPulseRef.current = getLayoutModeTransitionPulse(
+        "emerging",
+        progress,
+        reducedMotion,
+      );
+
+      if (interaction.current) {
+        interaction.current.dataset.layoutModeTransitionPhase = "emerging";
+        interaction.current.dataset.layoutModeTransitionProgress =
+          progress.toFixed(6);
+        interaction.current.dataset.layoutModeTransitionPulse =
+          layoutModeTransitionPulseRef.current.toFixed(6);
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(updateEmerging);
+        return;
+      }
+
+      layoutModeTransitionProgressRef.current = 0;
+      layoutModeTransitionElapsedRef.current = 0;
+      layoutModeTransitionPulseRef.current = 0;
+      setLayoutModeTransitionState("idle");
+      if (interaction.current) {
+        interaction.current.dataset.layoutModeTransitionPhase = "idle";
+        interaction.current.dataset.layoutModeTransitionProgress = "0.000000";
+        interaction.current.dataset.layoutModeTransitionPulse = "0.000000";
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(updateEmerging);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [layoutModeTransitionState, reducedMotion]);
+
+  useEffect(() => {
+    if (!layoutModeTransitionActive) {
+      return;
+    }
+
+    const sinkDuration = getLayoutModeSwitchDuration(reducedMotion);
+    const totalDuration = sinkDuration;
+    const startTime = performance.now();
+    const startZoom = layoutModeResetStartZoomRef.current;
+    const targetZoom = layoutModeResetTargetZoomRef.current;
+    let animationFrameId = 0;
+
+    function updateLayoutModeViewReset(now: number) {
+      const progress = clamp(
+        (now - startTime) / 1000 / Math.max(totalDuration, Number.EPSILON),
+        0,
+        1,
+      );
+      const easedProgress = smoothstep(progress);
+      const currentZoom = startZoom + (targetZoom - startZoom) * easedProgress;
+
+      layoutModeViewResetProgressRef.current = progress;
+
+      renderedZoomRef.current = currentZoom;
+      setReservoirZoom(currentZoom);
+
+      if (interaction.current) {
+        interaction.current.dataset.layoutModeViewResetProgress =
+          progress.toFixed(6);
+        interaction.current.dataset.layoutModeViewResetZoom =
+          currentZoom.toFixed(6);
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(updateLayoutModeViewReset);
+        return;
+      }
+
+      layoutModeViewResetProgressRef.current = 1;
+      renderedZoomRef.current = targetZoom;
+      setReservoirZoom(targetZoom);
+      if (interaction.current) {
+        interaction.current.dataset.layoutModeViewResetProgress = "1.000000";
+        interaction.current.dataset.layoutModeViewResetZoom =
+          targetZoom.toFixed(6);
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(updateLayoutModeViewReset);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [layoutModeTransitionActive, reducedMotion]);
 
   useLayoutEffect(() => {
     const readingMode = [
@@ -2376,6 +1532,7 @@ export function ReservoirScene() {
   }, []);
 
   const requestArtifactClose = useCallback(() => {
+    setArtifactFooterReached(false);
     setTransitionState((currentState) =>
       currentState === "readingArtifact"
         ? "closingArtifact"
@@ -2391,48 +1548,10 @@ export function ReservoirScene() {
       return;
     }
 
-    const snapshot = preservedReservoirState;
     const timeoutId = window.setTimeout(() => {
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       restorationElapsedRef.current = 0;
       restorationProgressRef.current = 0;
-
-      const restoredInspectionFrame = restoreLocalSurfaceFrame(
-        snapshot.inspectionFrame,
-      );
-      const restoredLastInspectionFrame = restoreLocalSurfaceFrame(
-        snapshot.lastInspectionFrame,
-      );
-      const savedCameraPose: CameraPose = {
-        position: new THREE.Vector3(...snapshot.cameraPosition),
-        target: new THREE.Vector3(...snapshot.cameraTarget),
-        quaternion: new THREE.Quaternion(...snapshot.cameraQuaternion),
-        progress: snapshot.cameraProgress,
-      };
-
-      setInspectionFrame(restoredInspectionFrame);
-      lastInspectionFrameRef.current = restoredLastInspectionFrame;
-      setDiveTarget({
-        point: snapshot.diveTarget.point
-          ? [...snapshot.diveTarget.point]
-          : null,
-        source: snapshot.diveTarget.source,
-      });
-      diveTargetLockedRef.current = snapshot.diveTargetLocked;
-      setIsDiveTargetLocked(snapshot.diveTargetLocked);
-      setDiveOrigin(restoreCameraPose(snapshot.diveOrigin));
-      setRetreatOrigin(savedCameraPose);
-      travelDirectionRef.current = "outward";
-      setTravelDirection("outward");
-      cameraProgressRef.current = snapshot.cameraProgress;
-      setCameraProgress(snapshot.cameraProgress);
-
-      if (sphereRotationRef.current) {
-        sphereRotationRef.current.quaternion
-          .set(...snapshot.sphereQuaternion)
-          .normalize();
-      }
-
       setTransitionState("restoringArtifact");
     }, getArtifactWindowRetractDuration(reducedMotion) * 1000);
 
@@ -2450,11 +1569,6 @@ export function ReservoirScene() {
     const snapshot = preservedReservoirState;
     const duration = getReservoirRestoreDuration(reducedMotion);
     const startTime = performance.now();
-    const expectedPosition = new THREE.Vector3(...snapshot.cameraPosition);
-    const expectedTarget = new THREE.Vector3(...snapshot.cameraTarget);
-    const expectedQuaternion = new THREE.Quaternion(
-      ...snapshot.cameraQuaternion,
-    );
     const expectedSphereQuaternion = new THREE.Quaternion(
       ...snapshot.sphereQuaternion,
     );
@@ -2468,43 +1582,23 @@ export function ReservoirScene() {
         reducedMotion,
       );
 
-      const renderedPose = cameraPoseRef.current;
       const renderedSphere = sphereRotationRef.current;
-      const positionError = renderedPose
-        ? renderedPose.position.distanceTo(expectedPosition)
-        : Number.POSITIVE_INFINITY;
-      const targetError = renderedPose
-        ? renderedPose.target.distanceTo(expectedTarget)
-        : Number.POSITIVE_INFINITY;
-      const quaternionError = renderedPose
-        ? renderedPose.quaternion.angleTo(expectedQuaternion)
-        : Number.POSITIVE_INFINITY;
-      const progressError = renderedPose
-        ? Math.abs(renderedPose.progress - snapshot.cameraProgress)
-        : Number.POSITIVE_INFINITY;
       const sphereQuaternionError = renderedSphere
         ? renderedSphere.quaternion.angleTo(expectedSphereQuaternion)
         : Number.POSITIVE_INFINITY;
+      const zoomLevelError = Math.abs(
+        zoomLevelRef.current - snapshot.zoomLevel,
+      );
       const endpointReached =
-        positionError < 0.00001 &&
-        targetError < 0.00001 &&
-        quaternionError < 0.00001 &&
-        progressError < 0.00001 &&
-        sphereQuaternionError < 0.00001;
+        sphereQuaternionError < 0.00001 && zoomLevelError < 0.00001;
 
       if (interaction.current) {
         interaction.current.dataset.restorationProgress =
           restorationProgressRef.current.toFixed(6);
-        interaction.current.dataset.restorationPositionError =
-          positionError.toFixed(9);
-        interaction.current.dataset.restorationTargetError =
-          targetError.toFixed(9);
-        interaction.current.dataset.restorationQuaternionError =
-          quaternionError.toFixed(9);
-        interaction.current.dataset.restorationCameraProgressError =
-          progressError.toFixed(9);
         interaction.current.dataset.restorationSphereQuaternionError =
           sphereQuaternionError.toFixed(9);
+        interaction.current.dataset.restorationZoomLevelError =
+          zoomLevelError.toFixed(9);
       }
 
       if (elapsed >= duration && (endpointReached || elapsed >= duration + 1)) {
@@ -2512,15 +1606,8 @@ export function ReservoirScene() {
         if (renderedSphere) {
           renderedSphere.quaternion.copy(expectedSphereQuaternion);
         }
-
-        setDiveOrigin(restoreCameraPose(snapshot.diveOrigin));
-        setRetreatOrigin(restoreCameraPose(snapshot.retreatOrigin));
-        travelDirectionRef.current = snapshot.travelDirection;
-        setTravelDirection(snapshot.travelDirection);
-        cameraProgressRef.current = snapshot.cameraTargetProgress;
-        setCameraProgress(snapshot.cameraTargetProgress);
+        setReservoirZoom(snapshot.zoomLevel);
         setOpeningArtifactId(null);
-        setPreparedArtifactContent(null);
         setTransitionState("idle");
         return;
       }
@@ -2532,77 +1619,48 @@ export function ReservoirScene() {
     return () => cancelAnimationFrame(animationFrameId);
   }, [preservedReservoirState, reducedMotion, transitionState]);
 
-  function getSurfaceIntersection(clientX: number, clientY: number) {
-    const element = interaction.current;
-    const activeCamera = cameraRef.current;
-    const surface = surfaceRef.current;
-
-    if (!element || !activeCamera || !surface) {
-      return null;
-    }
-
-    const bounds = element.getBoundingClientRect();
-    pointerNdc.set(
-      ((clientX - bounds.left) / bounds.width) * 2 - 1,
-      -((clientY - bounds.top) / bounds.height) * 2 + 1,
+  function setReservoirZoom(nextZoomLevel: number) {
+    const boundedZoomLevel = clampReservoirZoom(nextZoomLevel);
+    zoomLevelRef.current = boundedZoomLevel;
+    setZoomLevel(boundedZoomLevel);
+    setLabelsVisible((currentlyVisible) =>
+      getReservoirLabelsVisible(boundedZoomLevel, currentlyVisible),
     );
-
-    activeCamera.updateMatrixWorld();
-    surface.updateWorldMatrix(true, false);
-    raycaster.setFromCamera(pointerNdc, activeCamera);
-
-    return raycaster.intersectObject(surface, false)[0]?.point ?? null;
-  }
-
-  function updateGridInspection(clientX: number, clientY: number) {
-    const intersection = getSurfaceIntersection(clientX, clientY);
-    const inspection = gridInspectionRef.current;
-
-    inspection.active = Boolean(intersection);
-    if (intersection) inspection.worldPoint.copy(intersection);
-    inspection.revision += 1;
-
     if (interaction.current) {
-      interaction.current.dataset.gridInspectionActive = String(
-        inspection.active,
-      );
-      interaction.current.dataset.gridInspectionPoint = intersection
-        ? intersection
-            .toArray()
-            .map((value) => value.toFixed(6))
-            .join(",")
-        : "";
+      interaction.current.dataset.zoomLevel = boundedZoomLevel.toFixed(6);
     }
   }
 
-  function clearGridInspection() {
-    const inspection = gridInspectionRef.current;
-    if (inspection.active) {
-      inspection.active = false;
-      inspection.revision += 1;
-    }
-    if (interaction.current) {
-      interaction.current.dataset.gridInspectionActive = "false";
-      interaction.current.dataset.gridInspectionPoint = "";
-    }
-  }
-
-  function captureDiveSurfacePoint() {
-    const pointerPosition = pointer.current;
-    if (!pointerPosition) return null;
-
-    return getSurfaceIntersection(
-      pointerPosition.x,
-      pointerPosition.y,
-    )?.clone() ?? null;
+  function getPinchDistance() {
+    const touches = [...activeTouchPointersRef.current.values()];
+    if (touches.length < 2) return null;
+    return Math.hypot(
+      touches[0].x - touches[1].x,
+      touches[0].y - touches[1].y,
+    );
   }
 
   function beginDrag(event: PointerEvent<HTMLDivElement>) {
-    if (
-      transitionState !== "idle" ||
-      !event.isPrimary ||
-      event.button !== 0
-    ) {
+    if (inputLocked || event.button !== 0) {
+      return;
+    }
+
+    if (event.pointerType === "touch") {
+      activeTouchPointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      event.currentTarget.setPointerCapture(event.pointerId);
+      const pinchDistance = getPinchDistance();
+      if (pinchDistance !== null) {
+        pinchActiveRef.current = true;
+        pinchDistanceRef.current = pinchDistance;
+        drag.current = null;
+        setIsDragging(false);
+        setSelectedPressActive(false);
+        return;
+      }
+    } else if (!event.isPrimary) {
       return;
     }
 
@@ -2625,7 +1683,6 @@ export function ReservoirScene() {
       })(),
     );
     interactionRevisionRef.current += 1;
-    clearGridInspection();
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = {
       pointerId: event.pointerId,
@@ -2641,20 +1698,38 @@ export function ReservoirScene() {
 
   function updatePointer(event: PointerEvent<HTMLDivElement>) {
     pointer.current = { x: event.clientX, y: event.clientY };
-    if (transitionState !== "idle") {
-      clearGridInspection();
+    if (inputLocked) {
       return;
     }
     interactionRevisionRef.current += 1;
 
+    if (
+      event.pointerType === "touch" &&
+      activeTouchPointersRef.current.has(event.pointerId)
+    ) {
+      activeTouchPointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      const pinchDistance = getPinchDistance();
+      if (pinchDistance !== null) {
+        event.preventDefault();
+        const previousDistance = pinchDistanceRef.current;
+        pinchDistanceRef.current = pinchDistance;
+        if (previousDistance !== null) {
+          setReservoirZoom(
+            zoomLevelRef.current +
+              (pinchDistance - previousDistance) *
+                RESERVOIR_PINCH_ZOOM_RATE,
+          );
+        }
+        return;
+      }
+    }
+
     const origin = drag.current;
     const rotationGroup = sphereRotationRef.current;
     const activeCamera = cameraRef.current;
-    if (!origin) {
-      updateGridInspection(event.clientX, event.clientY);
-    } else {
-      clearGridInspection();
-    }
     if (
       !origin ||
       origin.pointerId !== event.pointerId ||
@@ -2680,9 +1755,7 @@ export function ReservoirScene() {
       setHoveredArtifactId(null);
       setSelectedPressActive(false);
     }
-    const renderedCameraProgress =
-      cameraPoseRef.current?.progress ?? cameraProgressRef.current;
-    const dragSensitivity = getDragSensitivity(renderedCameraProgress);
+    const dragSensitivity = DRAG_SENSITIVITY;
 
     activeCamera.updateMatrixWorld();
     activeCamera.getWorldQuaternion(cameraWorldQuaternion);
@@ -2752,12 +1825,14 @@ export function ReservoirScene() {
         const collectionId = hit.object.userData.collectionId;
         const hitRadius =
           typeof collectionId === "string"
-            ? RESERVOIR_COLLECTION_NODE_RADIUS
-            : RESERVOIR_NODE_RADIUS;
+            ? activeNodeSizing.collectionRadius
+            : activeNodeSizing.artifactRadius;
 
+        const nodeId =
+          typeof artifactId === "string" ? artifactId : collectionId;
         return (
-          (typeof artifactId === "string" ||
-            typeof collectionId === "string") &&
+          typeof nodeId === "string" &&
+          surfacedNodeIds.has(nodeId) &&
           hit.distance <= surfaceDistance + hitRadius
         );
       });
@@ -2776,261 +1851,332 @@ export function ReservoirScene() {
     artifactId: string,
   ): PreservedReservoirState | null {
     const sphere = sphereRotationRef.current;
-    const activeCamera = cameraRef.current;
-    if (!sphere || !activeCamera) return null;
-
-    const renderedPose = cameraPoseRef.current;
-    const cameraPosition =
-      renderedPose?.position ?? activeCamera.position;
-    const cameraTarget =
-      renderedPose?.target ?? canonicalOuterTarget;
-    const cameraQuaternion =
-      renderedPose?.quaternion ?? activeCamera.quaternion;
+    if (!sphere) return null;
 
     return {
       artifactId,
       sphereQuaternion: toQuaternionTuple(sphere.quaternion),
-      cameraPosition: toVectorTuple(cameraPosition),
-      cameraTarget: toVectorTuple(cameraTarget),
-      cameraQuaternion: toQuaternionTuple(cameraQuaternion),
-      cameraProgress:
-        renderedPose?.progress ?? cameraProgressRef.current,
-      cameraTargetProgress: cameraProgressRef.current,
-      travelDirection: travelDirectionRef.current,
-      diveTarget: {
-        point: diveTarget.point ? [...diveTarget.point] : null,
-        source: diveTarget.source,
-      },
-      diveTargetLocked: diveTargetLockedRef.current,
-      inspectionFrame: preserveLocalSurfaceFrame(inspectionFrame),
-      lastInspectionFrame: preserveLocalSurfaceFrame(
-        lastInspectionFrameRef.current,
-      ),
-      diveOrigin: preserveCameraPose(diveOrigin),
-      retreatOrigin: preserveCameraPose(retreatOrigin),
+      zoomLevel: zoomLevelRef.current,
     };
   }
 
-  function beginArtifactOpening(artifactId: string) {
-    if (transitionState !== "idle") return;
+  function preserveDistributedOrientation(collectionId: string) {
+    if (renderedLayoutMode !== "distributed") return;
+    const sphere = sphereRotationRef.current;
+    if (!sphere) return;
 
-    const artifact = activeReservoirArtifacts.find(
-      (candidate) => candidate.id === artifactId,
+    collectionOrientationRef.current.set(
+      collectionId,
+      toQuaternionTuple(sphere.quaternion),
     );
-    const preservedState = capturePreservedReservoirState(artifactId);
-    if (!artifact || !preservedState) return;
-
-    openingElapsedRef.current = 0;
-    openingCameraRetreatStartedRef.current = false;
-    setOpeningArtifactId(artifactId);
-    setPreservedReservoirState(preservedState);
-    setPreparedArtifactContent(prepareReservoirArtifactContent(artifact));
-    setHoveredArtifactId(null);
-    setSelectedPressActive(false);
-    clearGridInspection();
-    setTransitionState("openingArtifact");
   }
 
-  function beginCollectionReturn(mode: CollectionReturnMode) {
+  function requestLayoutMode(nextLayoutMode: ReservoirLayoutMode) {
     if (
-      transitionState !== "idle" ||
-      collectionHistory.length <= 1
+      nextLayoutMode === layoutMode ||
+      layoutModeTransitionActive ||
+      artifactWindowPhase !== null ||
+      collectionNavigation.transitionPhase !== "idle" ||
+      menuActive ||
+      queryTransitionActive ||
+      footerTransitionActive
     ) {
       return;
     }
 
-    const targetHistoryIndex =
-      mode === "home" ? 0 : collectionHistory.length - 2;
-    const targetFrame = collectionHistory[targetHistoryIndex];
-    const targetState = targetFrame?.preservedState;
-    const renderedPose = cameraPoseRef.current;
-    const sphereRotation = sphereRotationRef.current;
-    if (!targetFrame || !targetState || !renderedPose || !sphereRotation) {
-      return;
-    }
+    const sphere = sphereRotationRef.current;
+    const surface = surfaceRef.current;
+    const camera = cameraRef.current;
+    const currentQuaternion = sphere
+      ? toQuaternionTuple(sphere.quaternion)
+      : ([0, 0, 0, 1] as QuaternionTuple);
 
-    const destinationPose: CameraPose = {
-      position: new THREE.Vector3(...targetState.cameraPosition),
-      target: new THREE.Vector3(...targetState.cameraTarget),
-      quaternion: new THREE.Quaternion(...targetState.cameraQuaternion),
-      progress: targetState.cameraProgress,
+    layoutModeSourceSnapshotRef.current = {
+      collectionId: renderedActiveCollectionId,
+      mode: renderedLayoutMode,
+      directions: new Map(activeReservoirLayout),
+      quaternion: currentQuaternion,
+      nodeSizing: activeNodeSizing,
     };
-    const sourceOuterQuaternion = sphereRotation.quaternion.clone();
-    const hierarchyMapping = mapCollectionReturnToAncestor({
-      collectionHistory,
-      renderedPose: cloneCameraPose(renderedPose),
-      sourceOuterQuaternion,
-      sphereCenter: atmosphericCameraModel.sphereCenter,
-      targetHistoryIndex,
-    });
-    if (!hierarchyMapping) return;
-    const returnPath = getCollectionReturnPath({
-      destinationFrame:
-        restoreLocalSurfaceFrame(targetState.inspectionFrame) ??
-        atmosphericCameraModel.canonicalFrame,
-      destinationProgress: targetState.cameraProgress,
-      destinationPose,
-      sphereCenter: atmosphericCameraModel.sphereCenter,
-      startPose: hierarchyMapping.mappedPose,
-    });
-    if (!returnPath) {
+
+    let destinationFocusedDirection =
+      layoutModeTransitionFocusedDirectionRef.current;
+    if (nextLayoutMode === "focused") {
+      if (!surface || !camera) return;
+      const focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
+      setLayoutModeFocalDiagnostics(focalDiagnostics);
       if (interaction.current) {
-        interaction.current.dataset.collectionReturnRejected =
-          "unsafe-camera-path";
+        interaction.current.dataset.layoutModeFocalAssertions = String(
+          focalDiagnostics.assertionsPassed,
+        );
+        interaction.current.dataset.layoutModeReservoirWorldPosition =
+          focalDiagnostics.reservoirWorldPosition
+            .map((value) => value.toFixed(6))
+            .join(",");
+        interaction.current.dataset.layoutModeReservoirWorldQuaternion =
+          focalDiagnostics.reservoirWorldQuaternion
+            .map((value) => value.toFixed(6))
+            .join(",");
+        interaction.current.dataset.layoutModeFrontWorld = formatDirectionTuple(
+          focalDiagnostics.frontWorld,
+        );
+        interaction.current.dataset.layoutModeUpTangentWorld =
+          formatDirectionTuple(focalDiagnostics.upTangentWorld);
+        interaction.current.dataset.layoutModeTargetWorld =
+          formatDirectionTuple(focalDiagnostics.targetWorld);
+        interaction.current.dataset.layoutModeTargetLocal =
+          formatDirectionTuple(focalDiagnostics.targetLocal);
+        interaction.current.dataset.layoutModeRoundTripWorld =
+          formatDirectionTuple(focalDiagnostics.roundTripWorld);
+        interaction.current.dataset.layoutModeRoundTripAngleDegrees =
+          focalDiagnostics.roundTripAngleDegrees.toFixed(6);
+        interaction.current.dataset.layoutModeRoundTripFrontDot =
+          focalDiagnostics.roundTripFrontDot.toFixed(6);
+        interaction.current.dataset.layoutModeRoundTripUpDot =
+          focalDiagnostics.roundTripUpDot.toFixed(6);
       }
-      return;
+      if (!focalDiagnostics.assertionsPassed) {
+        console.error(
+          "Reservoir focal-position assertions failed",
+          focalDiagnostics,
+        );
+        layoutModeSourceSnapshotRef.current = null;
+        return;
+      }
+      destinationFocusedDirection = focalDiagnostics.targetLocal;
+      layoutModeTransitionFocusedDirectionRef.current =
+        destinationFocusedDirection;
     }
 
-    collectionReturnProgressRef.current = 0;
-    collectionReturnNodeProgressRef.current = 0;
-    collectionReturnElapsedRef.current = 0;
+    const destinationLayout = generateReservoirLayout(activeReservoirNodes, {
+      seed: renderedActiveCollectionId,
+      mode: nextLayoutMode,
+      focusedDirection:
+        nextLayoutMode === "focused"
+          ? destinationFocusedDirection ?? undefined
+          : undefined,
+      minimumNodeDiameter:
+        nextLayoutMode === "focused"
+          ? activeReservoirFocusedMinimumNodeDiameter
+          : undefined,
+    });
+    layoutModeDestinationSnapshotRef.current = {
+      collectionId: renderedActiveCollectionId,
+      mode: nextLayoutMode,
+      directions: destinationLayout,
+      quaternion: currentQuaternion,
+      nodeSizing: getReservoirNodeSizingSnapshot(
+        destinationLayout,
+        activeReservoirNodes.length,
+      ),
+    };
+    collectionOrientationRef.current.set(
+      collectionNavigation.activeCollectionId,
+      currentQuaternion,
+    );
+    layoutModeResetStartZoomRef.current = zoomLevelRef.current;
+    layoutModeResetTargetZoomRef.current = RESERVOIR_ZOOM_DEFAULT;
+    layoutModeViewResetProgressRef.current = 0;
+    layoutModeTransitionPulseRef.current = 0;
     setHoveredArtifactId(null);
     setSelectedArtifactId(null);
     setSelectedCollectionId(null);
     setSelectedPressActive(false);
-    clearGridInspection();
+    setTransitionState("idle");
+    layoutModeTransitionProgressRef.current = 0;
+    layoutModeTransitionElapsedRef.current = 0;
+    setLayoutMode(nextLayoutMode);
+    setLayoutModeTransitionState("sinking");
     if (interaction.current) {
-      delete interaction.current.dataset.collectionReturnRejected;
+      interaction.current.dataset.layoutModeTransitionPhase = "sinking";
+      interaction.current.dataset.layoutModeTransitionProgress = "0.000000";
+      interaction.current.dataset.layoutModeTransitionPulse = "0.000000";
+      interaction.current.dataset.layoutModeViewResetProgress = "0.000000";
+      interaction.current.dataset.layoutModeViewResetTargetZoom =
+        RESERVOIR_ZOOM_DEFAULT.toFixed(6);
     }
-    sphereRotation.quaternion
-      .set(...targetState.sphereQuaternion)
-      .normalize();
-    setCollectionReturnPath(returnPath);
-    setCollectionReturnTransition({
-      exitedCollectionId: currentActiveCollectionId,
-      mode,
-      sourceCenter: toVectorTuple(hierarchyMapping.sourceCenter),
-      sourceEndCenter: toVectorTuple(hierarchyMapping.sourceEndCenter),
-      sourceEndQuaternion: toQuaternionTuple(
-        hierarchyMapping.sourceEndQuaternion,
-      ),
-      sourceOuterQuaternion: toQuaternionTuple(sourceOuterQuaternion),
-      sourceRadius: hierarchyMapping.sourceRadius,
-      sourceSafetyOffset: hierarchyMapping.sourceSafetyOffset,
-      sourceScale: hierarchyMapping.sourceScale,
-      sourceStartQuaternion: toQuaternionTuple(
-        hierarchyMapping.sourceStartQuaternion,
-      ),
-      targetHistoryIndex,
-      targetLocalTransferDirection: toVectorTuple(
-        hierarchyMapping.targetLocalTransferDirection,
-      ),
-      targetState,
-    });
-    setTransitionState("leavingCollection");
   }
 
-  function beginCollectionEntry(collectionId: string) {
+  function beginArtifactOpening(
+    artifactId: string,
+    allowLocatedTransition = false,
+  ) {
     if (
-      transitionState !== "idle" ||
-      selectedCollectionId !== collectionId ||
-      interaction.current?.dataset.selectedCollectionSettled !== "true"
+      transitionState !== "idle" &&
+      !(allowLocatedTransition && transitionState === "locatingArtifact")
     ) {
       return;
     }
 
-    const collection = activeReservoirChildCollections.find(
-      (candidate) => candidate.id === collectionId,
-    );
-    const sphereRotation = sphereRotationRef.current;
-    const renderedPose = cameraPoseRef.current;
-    if (!collection || !sphereRotation || !renderedPose) return;
+    const artifact = getArtifactById(artifactId);
+    const preservedState = capturePreservedReservoirState(artifactId);
+    if (!artifact || artifact.published !== true || !preservedState) return;
 
-    const placement = getReservoirNodePlacement(
-      collection.vertexId,
-      RESERVOIR_COLLECTION_NODE_RADIUS,
-    );
-    if (!placement) return;
+    openingElapsedRef.current = 0;
+    setOpeningArtifactId(artifactId);
+    setPreservedReservoirState(preservedState);
+    setArtifactFooterReached(false);
+    setHoveredArtifactId(null);
+    setSelectedPressActive(false);
+    setTransitionState("openingArtifact");
+  }
 
-    sphereRotation.updateWorldMatrix(true, false);
-    const baseQuaternion = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(...RESERVOIR_BASE_ROTATION),
-    );
-    const sphereWorldQuaternion = sphereRotation.getWorldQuaternion(
-      new THREE.Quaternion(),
-    );
-    const selectedOffset =
-      RESERVOIR_COLLECTION_NODE_RADIUS *
-      RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
-    const collectionCenter = placement.position
-      .clone()
-      .addScaledVector(placement.normal, selectedOffset)
-      .applyQuaternion(baseQuaternion);
-    sphereRotation.localToWorld(collectionCenter);
-    const collectionNormal = placement.normal
-      .clone()
-      .applyQuaternion(baseQuaternion)
-      .applyQuaternion(sphereWorldQuaternion)
-      .normalize();
-    const collectionFrame = getLocalSurfaceFrame(
-      collectionNormal,
-      lastInspectionFrameRef.current,
-    );
-    if (!collectionFrame) return;
-
-    const path = getCollectionEntryPath({
-      collectionCenter,
-      collectionId,
-      collectionRadius: RESERVOIR_COLLECTION_NODE_RADIUS,
-      frame: collectionFrame,
-      homeCenter: atmosphericCameraModel.sphereCenter,
-      model: atmosphericCameraModel,
-      startPose: cloneCameraPose(renderedPose),
-    });
-    if (!path) {
-      if (interaction.current) {
-        interaction.current.dataset.collectionEntryRejected =
-          "unsafe-camera-path";
-      }
+  function requestCollection(
+    destinationCollectionId: string,
+    allowDuringMenuOpen = false,
+  ) {
+    if (
+      (!allowDuringMenuOpen && inputLocked) ||
+      destinationCollectionId === collectionNavigation.activeCollectionId ||
+      getCollectionById(destinationCollectionId)?.published !== true
+    ) {
       return;
     }
 
-    collectionEntryProgressRef.current = 0;
-    collectionEntryElapsedRef.current = 0;
-    const preservedAncestor: PreservedCollectionAncestorState = {
-      collectionId: currentActiveCollectionId,
-      selectedDestinationId: collectionId,
-      sphereQuaternion: toQuaternionTuple(sphereRotation.quaternion),
-      cameraPosition: toVectorTuple(renderedPose.position),
-      cameraTarget: toVectorTuple(renderedPose.target),
-      cameraQuaternion: toQuaternionTuple(renderedPose.quaternion),
-      cameraProgress: renderedPose.progress,
-      cameraTargetProgress: cameraProgressRef.current,
-      travelDirection: travelDirectionRef.current,
-      diveTarget: {
-        point: diveTarget.point ? [...diveTarget.point] : null,
-        source: diveTarget.source,
-      },
-      diveTargetLocked: diveTargetLockedRef.current,
-      inspectionFrame: preserveLocalSurfaceFrame(inspectionFrame),
-      lastInspectionFrame: preserveLocalSurfaceFrame(
-        lastInspectionFrameRef.current,
-      ),
-      diveOrigin: preserveCameraPose(diveOrigin),
-      retreatOrigin: preserveCameraPose(retreatOrigin),
-      activeOuterPosition: toVectorTuple(activeOuterPosition),
-      activeOuterTarget: toVectorTuple(activeOuterTarget),
+    const resolution = pendingCollectionResolutionRef.current;
+    if (!resolution) return;
+
+    const sphere = sphereRotationRef.current;
+    const currentQuaternion = sphere
+      ? toQuaternionTuple(sphere.quaternion)
+      : ([0, 0, 0, 1] as QuaternionTuple);
+    collectionTransitionSourceSnapshotRef.current = {
+      collectionId: renderedActiveCollectionId,
+      mode: renderedLayoutMode,
+      directions: new Map(activeReservoirLayout),
+      quaternion: currentQuaternion,
+      nodeSizing: activeNodeSizing,
     };
-    setCollectionHistory((currentHistory) => [
-      ...currentHistory.slice(0, -1),
-      {
-        ...currentHistory[currentHistory.length - 1],
-        preservedState: preservedAncestor,
-      },
-      { collectionId, preservedState: null },
-    ]);
+    const destinationNodes = getReservoirContentNodes(destinationCollectionId);
+    const destinationNodeSizingTargets = getReservoirNodeSizingTargets(
+      destinationNodes.length,
+    );
+    const destinationFocusedMinimumNodeDiameter = Math.max(
+      destinationNodeSizingTargets.desiredArtifactDiameter,
+      destinationNodeSizingTargets.desiredCollectionDiameter,
+    );
+    const destinationLayout = generateReservoirLayout(destinationNodes, {
+      seed: destinationCollectionId,
+      mode: renderedLayoutMode,
+      focusedDirection:
+        renderedLayoutMode === "focused"
+          ? focusedLayoutDirection ?? undefined
+          : undefined,
+      minimumNodeDiameter:
+        renderedLayoutMode === "focused"
+          ? destinationFocusedMinimumNodeDiameter
+          : undefined,
+    });
+    collectionTransitionDestinationSnapshotRef.current = {
+      collectionId: destinationCollectionId,
+      mode: renderedLayoutMode,
+      directions: destinationLayout,
+      quaternion: currentQuaternion,
+      nodeSizing: getReservoirNodeSizingSnapshot(
+        destinationLayout,
+        destinationNodes.length,
+      ),
+    };
+    collectionOrientationRef.current.set(
+      collectionNavigation.activeCollectionId,
+      currentQuaternion,
+    );
+    collectionOrientationRef.current.set(
+      destinationCollectionId,
+      currentQuaternion,
+    );
+    collectionTransitionPoseSnapshotRef.current = {
+      zoomLevel: zoomLevelRef.current,
+    };
+    collectionReconstitutionProgressRef.current = 0;
+    collectionReconstitutionElapsedRef.current = 0;
+    collectionEmergenceProgressRef.current = 0;
+    queryRevisionRef.current += 1;
+    setCollectionActivityRevision(queryRevisionRef.current);
+    setSelectedSpatialDestinationId(resolution.spatialSelectionId);
     setHoveredArtifactId(null);
+    setSelectedArtifactId(null);
+    if (!resolution.spatialSelectionId) setSelectedCollectionId(null);
     setSelectedPressActive(false);
-    clearGridInspection();
-    setCollectionEntryPath(path);
-    setEnteringCollectionId(collectionId);
-    setTransitionState("enteringCollection");
+    setCollectionNavigation({
+      activeCollectionId: collectionNavigation.activeCollectionId,
+      destinationCollectionId,
+      transitionPhase: "deactivating",
+    });
+    setTransitionState("reconstitutingCollection");
+
+    if (interaction.current) {
+      interaction.current.dataset.collectionRequestedDestination =
+        destinationCollectionId;
+      interaction.current.dataset.collectionRequestModel =
+        "active-destination";
+      interaction.current.dataset.collectionTransitionGeometry =
+        "fixed-reservoir";
+      interaction.current.dataset.collectionDepthAffectsGeometry = "false";
+    }
   }
+
+  function requestAncestorCollection(targetCollectionId: string) {
+    if (inputLocked || collectionHistory.length <= 1) return;
+    const targetHistoryIndex = collectionHistory.findIndex(
+      (frame) => frame.collectionId === targetCollectionId,
+    );
+    if (
+      targetHistoryIndex < 0 ||
+      targetHistoryIndex >= collectionHistory.length - 1
+    ) {
+      return;
+    }
+
+    pendingCollectionResolutionRef.current = {
+      history: collectionHistory.slice(0, targetHistoryIndex + 1),
+      spatialSelectionId: null,
+    };
+    requestCollection(targetCollectionId);
+  }
+
+  function beginCollectionEntry(collectionId: string) {
+    if (
+      inputLocked ||
+      selectedCollectionId !== collectionId ||
+      interaction.current?.dataset.selectedCollectionSettled !== "true" ||
+      !activeReservoirNodes.some(
+        (node) => node.kind === "collection" && node.id === collectionId,
+      )
+    ) {
+      return;
+    }
+
+    pendingCollectionResolutionRef.current = {
+      history: [...collectionHistory, { collectionId }],
+      spatialSelectionId: collectionId,
+    };
+    requestCollection(collectionId);
+  }
+
 
   function endDrag(
     event: PointerEvent<HTMLDivElement>,
     allowSelection = true,
   ) {
+    if (event.pointerType === "touch") {
+      activeTouchPointersRef.current.delete(event.pointerId);
+      if (activeTouchPointersRef.current.size < 2) {
+        pinchDistanceRef.current = null;
+      }
+      if (pinchActiveRef.current) {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        drag.current = null;
+        setIsDragging(false);
+        setSelectedPressActive(false);
+        if (activeTouchPointersRef.current.size === 0) {
+          pinchActiveRef.current = false;
+        }
+        return;
+      }
+    }
     if (drag.current?.pointerId !== event.pointerId) return;
 
     const completedDrag = drag.current;
@@ -3042,8 +2188,10 @@ export function ReservoirScene() {
     setIsDragging(false);
     setSelectedPressActive(false);
     interactionRevisionRef.current += 1;
-    updateGridInspection(event.clientX, event.clientY);
-
+    const renderedSphere = sphereRotationRef.current;
+    if (renderedSphere) {
+      preserveDistributedOrientation(collectionNavigation.activeCollectionId);
+    }
     if (
       allowSelection &&
       completedDrag.maxTravelSquared <= NODE_CLICK_MAX_TRAVEL ** 2
@@ -3053,6 +2201,9 @@ export function ReservoirScene() {
         if (pickedNode.id === selectedCollectionId) {
           beginCollectionEntry(pickedNode.id);
         } else {
+          if (interaction.current) {
+            interaction.current.dataset.selectedCollectionSettled = "false";
+          }
           setTransitionState("idle");
           setSelectedArtifactId(null);
           setSelectedCollectionId(pickedNode.id);
@@ -3074,134 +2225,499 @@ export function ReservoirScene() {
   }
 
   function handleLostPointerCapture(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "touch") {
+      activeTouchPointersRef.current.delete(event.pointerId);
+      if (activeTouchPointersRef.current.size < 2) {
+        pinchDistanceRef.current = null;
+      }
+      if (activeTouchPointersRef.current.size === 0) {
+        pinchActiveRef.current = false;
+      }
+    }
     if (drag.current?.pointerId !== event.pointerId) return;
 
     drag.current = null;
     setIsDragging(false);
     setSelectedPressActive(false);
-    clearGridInspection();
   }
 
   function clearPointer() {
     if (!drag.current) pointer.current = null;
     interactionRevisionRef.current += 1;
-    clearGridInspection();
   }
 
-  function updateCameraTravel(event: WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
-    if (transitionState !== "idle") return;
-    pointer.current = { x: event.clientX, y: event.clientY };
-    interactionRevisionRef.current += 1;
-    clearGridInspection();
+  function getNormalizedWheelDelta(
+    event: Pick<WheelEvent<HTMLElement>, "currentTarget" | "deltaMode" | "deltaY">,
+  ) {
     const deltaScale =
       event.deltaMode === 1
         ? 16
         : event.deltaMode === 2
           ? event.currentTarget.clientHeight
           : 1;
-    const normalizedDelta = clamp(
+    return clamp(
       event.deltaY * deltaScale,
       -MAX_WHEEL_DELTA,
       MAX_WHEEL_DELTA,
     );
-    const nextProgress = clamp(
-      cameraProgressRef.current + normalizedDelta * CAMERA_WHEEL_RATE,
-      0,
-      1,
+  }
+
+  function isFooterTriggerVicinity(clientY: number) {
+    const panel = document.querySelector<HTMLElement>(
+      ".reservoir-control-panel",
     );
-    const wasTravelingOutward = travelDirectionRef.current === "outward";
+    const menu = document.querySelector<HTMLElement>(
+      ".reservoir-menu-reveal",
+    );
+    const panelTop = panel?.getBoundingClientRect().top ?? window.innerHeight;
+    const menuTop = menuActive
+      ? menu?.getBoundingClientRect().top ?? panelTop
+      : panelTop;
+    return clientY >= Math.min(panelTop, menuTop) - FOOTER_TRIGGER_OVERSCAN;
+  }
 
-    if (normalizedDelta > 0) {
-      if (travelDirectionRef.current !== "inward") {
-        travelDirectionRef.current = "inward";
-        setTravelDirection("inward");
-      }
+  function consumeFooterWheel(
+    event: WheelEvent<HTMLElement>,
+    fromBottomInterface: boolean,
+  ) {
+    const normalizedDelta = getNormalizedWheelDelta(event);
 
-      if (!diveTargetLockedRef.current) {
-        const surfacePoint = captureDiveSurfacePoint();
-        const proposedInspectionPoint =
-          surfacePoint ?? canonicalSurfacePoint.clone();
-        const previousFrame =
-          lastInspectionFrameRef.current ??
-          atmosphericCameraModel.canonicalFrame;
-        const proposedSurfaceNormal = proposedInspectionPoint
-          .clone()
-          .sub(atmosphericCameraModel.sphereCenter);
-        const proposedFrame = getLocalSurfaceFrame(
-          proposedSurfaceNormal,
-          previousFrame,
-        );
-        const hasValidProposedFrame =
-          Boolean(surfacePoint) && isValidLocalSurfaceFrame(proposedFrame);
-        const inspectionPoint = hasValidProposedFrame
-          ? proposedInspectionPoint
-          : canonicalSurfacePoint.clone();
-        const surfaceNormal = inspectionPoint
-          .clone()
-          .sub(atmosphericCameraModel.sphereCenter)
-          .normalize();
-        const committedFrame = hasValidProposedFrame
-          ? proposedFrame
-          : (getLocalSurfaceFrame(surfaceNormal, previousFrame) ??
-            atmosphericCameraModel.canonicalFrame);
-        const currentPose = cameraPoseRef.current;
-
-        diveTargetLockedRef.current = true;
-        setIsDiveTargetLocked(true);
-        setInspectionFrame(committedFrame);
-        if (hasValidProposedFrame && committedFrame) {
-          lastInspectionFrameRef.current = committedFrame;
-        }
-        setRetreatOrigin(null);
-        if (currentPose) {
-          setDiveOrigin(cloneCameraPose(currentPose));
-        }
-        setDiveTarget({
-          point: hasValidProposedFrame ? inspectionPoint.toArray() : null,
-          source: hasValidProposedFrame ? "pointer" : "default",
-        });
-      } else if (wasTravelingOutward && cameraPoseRef.current) {
-        const currentPose = cameraPoseRef.current;
-        setDiveOrigin(cloneCameraPose(currentPose));
-      }
+    if (footerTransitionActive) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
     }
 
-    if (normalizedDelta < 0 && cameraProgressRef.current > 0) {
-      if (travelDirectionRef.current !== "outward") {
-        const currentPose = cameraPoseRef.current;
-
-        if (currentPose) {
-          setRetreatOrigin(cloneCameraPose(currentPose));
-        }
-        travelDirectionRef.current = "outward";
-        setTravelDirection("outward");
+    if (footerVisible) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (normalizedDelta < 0 && footerState === "open") {
+        setFooterState("closing");
       }
+      return true;
     }
 
-    if (
-      normalizedDelta < 0 &&
-      nextProgress <= DIVE_TARGET_UNLOCK_PROGRESS
-    ) {
-      diveTargetLockedRef.current = false;
-      setIsDiveTargetLocked(false);
-      setDiveTarget({ point: null, source: "default" });
+    const eligible =
+      fromBottomInterface || isFooterTriggerVicinity(event.clientY);
+    if (normalizedDelta > 0 && eligible) {
+      event.preventDefault();
+      event.stopPropagation();
+      setFooterState("opening");
+      return true;
     }
 
-    cameraProgressRef.current = nextProgress;
-    setCameraProgress(nextProgress);
+    return false;
+  }
+
+  function handleBottomInterfaceWheel(event: WheelEvent<HTMLElement>) {
+    consumeFooterWheel(event, true);
+  }
+
+  function handleMenuOutsideWheel(event: WheelEvent<HTMLElement>) {
+    consumeFooterWheel(event, false);
+  }
+
+  function updateReservoirZoom(event: WheelEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (consumeFooterWheel(event, false)) return;
+    if (inputLocked) return;
+    interactionRevisionRef.current += 1;
+    const normalizedDelta = getNormalizedWheelDelta(event);
+    setReservoirZoom(
+      zoomLevelRef.current +
+        normalizedDelta * RESERVOIR_WHEEL_ZOOM_RATE,
+    );
   }
 
   function updateArtifactHover(artifactId: string, hovered: boolean) {
-    if (transitionState !== "idle") return;
+    if (inputLocked || !surfacedNodeIds.has(artifactId)) return;
     setHoveredArtifactId((currentArtifactId) => {
       if (hovered) return artifactId;
       return currentArtifactId === artifactId ? null : currentArtifactId;
     });
   }
 
+  function openReservoirMenu() {
+    if (
+      transitionState !== "idle" ||
+      menuState !== "closed" ||
+      footerTransitionActive
+    ) {
+      return;
+    }
+
+    setHoveredArtifactId(null);
+    setSelectedPressActive(false);
+    setMenuState("opening");
+  }
+
+  function closeReservoirMenu() {
+    if (menuState !== "opening" && menuState !== "open") return;
+    setMenuState("closing");
+  }
+
+  function selectExploreFilter(filter: ActiveExploreFilter) {
+    if (
+      menuState !== "open" ||
+      queryActivityRevision !== null ||
+      filter === activeExploreFilter
+    ) {
+      return;
+    }
+
+    const targetVisibleIds = getExploreNodeIds(activeReservoirNodes, filter);
+    const meaningfulResults = activeReservoirNodes.filter(
+      (node) => targetVisibleIds.has(node.id),
+    );
+    if (filter !== "all" && meaningfulResults.length === 0) {
+      queryRevisionRef.current += 1;
+      setQueryReconciliation(null);
+      setQueryActivityMode("empty");
+      setRejectedExploreFilter(filter);
+      setQueryActivityRevision(queryRevisionRef.current);
+      setHoveredArtifactId(null);
+      setSelectedArtifactId(null);
+      setSelectedCollectionId(null);
+      setSelectedPressActive(false);
+      return;
+    }
+    const currentVisibleIds = new Set(queryVisibleNodeIds);
+    const leaving = new Set(
+      [...currentVisibleIds].filter((id) => !targetVisibleIds.has(id)),
+    );
+    const staying = new Set(
+      [...currentVisibleIds].filter((id) => targetVisibleIds.has(id)),
+    );
+    const entering = new Set(
+      [...targetVisibleIds].filter((id) => !currentVisibleIds.has(id)),
+    );
+
+    queryRevisionRef.current += 1;
+    setQueryVisibleNodeIds(
+      new Set([...currentVisibleIds, ...targetVisibleIds]),
+    );
+    setQueryReconciliation({
+      entering,
+      leaving,
+      staying,
+      target: targetVisibleIds,
+    });
+    setQueryActivityMode("success");
+    setRejectedExploreFilter(null);
+    setQueryActivityRevision(queryRevisionRef.current);
+    setActiveExploreFilter(filter);
+    setHoveredArtifactId(null);
+    setSelectedArtifactId(null);
+    setSelectedCollectionId(null);
+    setSelectedPressActive(false);
+  }
+
+  function completeQueryTransition() {
+    if (queryActivityMode === "success") {
+      setQueryVisibleNodeIds(
+        new Set(queryReconciliation?.target ?? surfacedNodeIds),
+      );
+    }
+    setQueryReconciliation(null);
+    setQueryActivityRevision(null);
+    setQueryActivityMode(null);
+    setRejectedExploreFilter(null);
+  }
+
+  const getDirectLocateSafeZone = useCallback(
+    (): DirectLocateSafeZone | null => {
+    const element = interaction.current;
+    if (!element) return null;
+    const bounds = element.getBoundingClientRect();
+    const horizontalInset = Math.max(
+      reservoirFrame.safeZones.left,
+      clamp(bounds.width * 0.08, 32, 112),
+    );
+
+    return {
+      top: bounds.top + reservoirFrame.safeZones.top,
+      right: bounds.right - horizontalInset,
+      bottom: bounds.bottom - reservoirFrame.safeZones.bottom,
+      left: bounds.left + horizontalInset,
+    };
+    },
+    [reservoirFrame],
+  );
+
+  const projectDirectArtifact = useCallback(
+    (artifactId: string, sphereQuaternion: THREE.Quaternion) => {
+    const camera = cameraRef.current;
+    const element = interaction.current;
+    const artifact = getArtifactById(artifactId);
+    const direction =
+      artifact?.published === true
+        ? activeReservoirLayout.get(artifact.id)
+        : null;
+    const placement = direction
+      ? getReservoirNodePlacement(direction, activeNodeSizing.artifactRadius)
+      : null;
+    if (!camera || !element || !placement) return null;
+
+    camera.updateMatrixWorld();
+    const baseQuaternion = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(...RESERVOIR_BASE_ROTATION),
+    );
+    const selectedOffset =
+      activeNodeSizing.artifactRadius * RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
+    const worldPosition = placement.normal
+      .clone()
+      .multiplyScalar(
+        RESERVOIR_RADIUS +
+          activeNodeSizing.artifactRadius * 0.04 +
+          selectedOffset,
+      )
+      .applyQuaternion(baseQuaternion)
+      .applyQuaternion(sphereQuaternion)
+      .multiplyScalar(renderedScaleRef.current)
+      .add(reservoirCenter);
+    const projected = worldPosition.clone().project(camera);
+    const bounds = element.getBoundingClientRect();
+
+    return {
+      x: bounds.left + ((projected.x + 1) / 2) * bounds.width,
+      y: bounds.top + ((1 - projected.y) / 2) * bounds.height,
+    };
+    },
+    [activeNodeSizing.artifactRadius, activeReservoirLayout, reservoirCenter],
+  );
+
+  function isDirectArtifactSafelyFramed(artifactId: string) {
+    const sphere = sphereRotationRef.current;
+    const safeZone = getDirectLocateSafeZone();
+    if (!sphere || !safeZone) return false;
+    const projected = projectDirectArtifact(artifactId, sphere.quaternion);
+    if (!projected) return false;
+    const framed =
+      projected.x >= safeZone.left &&
+      projected.x <= safeZone.right &&
+      projected.y >= safeZone.top &&
+      projected.y <= safeZone.bottom;
+
+    if (interaction.current) {
+      interaction.current.dataset.directLocateProjectedScreen =
+        `${projected.x.toFixed(3)},${projected.y.toFixed(3)}`;
+      interaction.current.dataset.directLocateSafeZone = [
+        safeZone.left,
+        safeZone.top,
+        safeZone.right,
+        safeZone.bottom,
+      ]
+        .map((value) => value.toFixed(3))
+        .join(",");
+      interaction.current.dataset.directLocateFramed = String(framed);
+    }
+    return framed;
+  }
+
+  const prepareDirectLocateTarget = useCallback((artifactId: string) => {
+    const sphere = sphereRotationRef.current;
+    const camera = cameraRef.current;
+    const element = interaction.current;
+    const safeZone = getDirectLocateSafeZone();
+    const artifact = getArtifactById(artifactId);
+    const direction =
+      artifact?.published === true
+        ? activeReservoirLayout.get(artifact.id)
+        : null;
+    const placement = direction
+      ? getReservoirNodePlacement(direction, activeNodeSizing.artifactRadius)
+      : null;
+    if (!sphere || !camera || !element || !safeZone || !placement) {
+      return false;
+    }
+
+    camera.updateMatrixWorld();
+    const bounds = element.getBoundingClientRect();
+    const targetScreen = {
+      x: THREE.MathUtils.lerp(safeZone.left, safeZone.right, 0.68),
+      y: THREE.MathUtils.lerp(safeZone.top, safeZone.bottom, 0.54),
+    };
+    const targetNdc = new THREE.Vector3(
+      ((targetScreen.x - bounds.left) / bounds.width) * 2 - 1,
+      -((targetScreen.y - bounds.top) / bounds.height) * 2 + 1,
+      0.5,
+    );
+    const cameraOrigin = camera.getWorldPosition(new THREE.Vector3());
+    const targetRay = new THREE.Ray(
+      cameraOrigin,
+      targetNdc.unproject(camera).sub(cameraOrigin).normalize(),
+    );
+    const targetIntersection = targetRay.intersectSphere(
+      new THREE.Sphere(
+        reservoirCenter,
+        RESERVOIR_RADIUS * renderedScaleRef.current,
+      ),
+      new THREE.Vector3(),
+    );
+    if (!targetIntersection) return false;
+
+    const startQuaternion = sphere.quaternion.clone().normalize();
+    const baseQuaternion = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(...RESERVOIR_BASE_ROTATION),
+    );
+    const currentNodeDirection = placement.normal
+      .clone()
+      .applyQuaternion(baseQuaternion)
+      .applyQuaternion(startQuaternion)
+      .normalize();
+    const inspectionDirection = targetIntersection
+      .sub(reservoirCenter)
+      .normalize();
+    const locateDelta = new THREE.Quaternion().setFromUnitVectors(
+      currentNodeDirection,
+      inspectionDirection,
+    );
+    directLocateStartQuaternionRef.current.copy(startQuaternion);
+    directLocateTargetQuaternionRef.current
+      .copy(locateDelta)
+      .multiply(startQuaternion)
+      .normalize();
+
+    const projectedTarget = projectDirectArtifact(
+      artifactId,
+      directLocateTargetQuaternionRef.current,
+    );
+    if (interaction.current && projectedTarget) {
+      interaction.current.dataset.directLocatePlannedScreen =
+        `${projectedTarget.x.toFixed(3)},${projectedTarget.y.toFixed(3)}`;
+    }
+    return Boolean(projectedTarget);
+  }, [
+    activeNodeSizing.artifactRadius,
+    activeReservoirLayout,
+    getDirectLocateSafeZone,
+    projectDirectArtifact,
+    reservoirCenter,
+  ]);
+
+  function selectDirectArtifact(directArtifactId: DirectArtifactId) {
+    if (menuState !== "open" || queryActivityRevision !== null) return;
+    pendingDirectArtifactIdRef.current = null;
+    pendingDirectCollectionIdRef.current = null;
+    if (directArtifactId === "contact") {
+      if (interaction.current) {
+        interaction.current.dataset.directContactAction = "ui-only";
+      }
+      setHoveredArtifactId(null);
+      setSelectedArtifactId(null);
+      setSelectedCollectionId(null);
+      setSelectedPressActive(false);
+      setTransitionState("idle");
+      setMenuState("closing");
+      return;
+    }
+
+    const artifactId = DIRECT_ARTIFACT_TARGETS.get(directArtifactId);
+    const artifact = artifactId ? getArtifactById(artifactId) : null;
+    if (!artifact || artifact.published !== true) return;
+
+    const containingCollections = getPublishedArtifactCollections(artifact.id);
+    const targetCollection =
+      containingCollections.find(
+        (collection) => collection.id === collectionNavigation.activeCollectionId,
+      ) ?? containingCollections[0];
+    if (!targetCollection) return;
+
+    if (targetCollection.id === collectionNavigation.activeCollectionId) {
+      if (!prepareDirectLocateTarget(artifact.id)) return;
+
+      setSelectedCollectionId(null);
+      setSelectedArtifactId(artifact.id);
+      setHoveredArtifactId(null);
+      setSelectedPressActive(false);
+      setLocatingArtifactId(artifact.id);
+      setTransitionState("locatingArtifact");
+      setMenuState("closing");
+      return;
+    }
+
+    pendingDirectArtifactIdRef.current = artifact.id;
+    pendingDirectCollectionIdRef.current = targetCollection.id;
+    setSelectedArtifactId(null);
+    setSelectedCollectionId(null);
+    setHoveredArtifactId(null);
+    setSelectedPressActive(false);
+    pendingCollectionResolutionRef.current = {
+      history: [...collectionHistory, { collectionId: targetCollection.id }],
+      spatialSelectionId: artifact.id,
+    };
+    requestCollection(targetCollection.id, true);
+    setMenuState("closing");
+  }
+
+  useEffect(() => {
+    const artifactId = pendingDirectArtifactIdRef.current;
+    const collectionId = pendingDirectCollectionIdRef.current;
+    if (
+      !artifactId ||
+      !collectionId ||
+      transitionState !== "idle" ||
+      collectionNavigation.activeCollectionId !== collectionId
+    ) {
+      return;
+    }
+
+    const artifact = getArtifactById(artifactId);
+    if (!artifact || artifact.published !== true) {
+      pendingDirectArtifactIdRef.current = null;
+      pendingDirectCollectionIdRef.current = null;
+      return;
+    }
+
+    if (!prepareDirectLocateTarget(artifactId)) {
+      pendingDirectArtifactIdRef.current = null;
+      pendingDirectCollectionIdRef.current = null;
+      return;
+    }
+
+    pendingDirectArtifactIdRef.current = null;
+    pendingDirectCollectionIdRef.current = null;
+    setSelectedCollectionId(null);
+    setSelectedArtifactId(artifact.id);
+    setHoveredArtifactId(null);
+    setSelectedPressActive(false);
+    setLocatingArtifactId(artifact.id);
+    setTransitionState("locatingArtifact");
+    setMenuState("closing");
+  }, [
+    collectionNavigation.activeCollectionId,
+    prepareDirectLocateTarget,
+    transitionState,
+  ]);
+
   return (
     <>
+      <div
+        className="reservoir-control-panel"
+        aria-hidden="true"
+        data-menu-state={menuState}
+        data-footer-state={footerState}
+      />
+      <div
+        className="reservoir-control-state"
+        aria-hidden="true"
+        data-secondary-dimmed={secondaryControlsDimmed}
+      />
+      <ReservoirMenu
+        activeFilter={activeExploreFilter}
+        controlsLocked={queryTransitionActive || collectionContextTransition}
+        state={menuState}
+        onClose={closeReservoirMenu}
+        onDirectSelect={selectDirectArtifact}
+        onFilterSelect={selectExploreFilter}
+        onOpen={openReservoirMenu}
+        onInterfaceWheel={handleBottomInterfaceWheel}
+        onOutsideWheel={handleMenuOutsideWheel}
+      />
+      <ReservoirFooter
+        state={footerState}
+        onInterfaceWheel={handleBottomInterfaceWheel}
+      />
       <AtmosphereContent
         containerRef={atmosphereRef}
         activeCollection={activeCollection}
@@ -3209,10 +2725,27 @@ export function ReservoirScene() {
         selectedCollection={selectedCollection}
       />
       <CollectionNavigation
+        ancestors={visibleCollectionAncestors}
         depth={collectionHistory.length - 1}
-        disabled={transitionState !== "idle"}
-        onBack={() => beginCollectionReturn("back")}
-        onHome={() => beginCollectionReturn("home")}
+        disabled={inputLocked}
+        onAncestorSelect={requestAncestorCollection}
+        onBack={() => {
+          const previousCollectionId = collectionHistory.at(-2)?.collectionId;
+          if (previousCollectionId) {
+            requestAncestorCollection(previousCollectionId);
+          }
+        }}
+        onHome={() => {
+          const homeCollectionId = collectionHistory[0]?.collectionId;
+          if (homeCollectionId) {
+            requestAncestorCollection(homeCollectionId);
+          }
+        }}
+      />
+      <ReservoirLayoutModeSwitch
+        disabled={layoutModeControlDisabled}
+        mode={layoutMode}
+        onChange={requestLayoutMode}
       />
       <section className="sr-only" aria-label="Reservoir artifacts">
         <h1>{activeCollection.title} collection</h1>
@@ -3239,150 +2772,200 @@ export function ReservoirScene() {
       className="reservoir-interaction"
       aria-hidden={artifactWindowPhase !== null}
       data-dragging={isDragging}
-      data-aspect-ratio={aspectRatio.toFixed(3)}
-      data-camera-progress={cameraProgress.toFixed(3)}
-      data-camera-direction={travelDirection}
-      data-dive-target={selectedSurfacePoint
-        .toArray()
-        .map((value) => value.toFixed(3))
+      data-aspect-ratio={(viewportFrame.width / viewportFrame.height).toFixed(3)}
+      data-camera-model="stable-reference"
+      data-zoom-model="reservoir-scale"
+      data-zoom-level={zoomLevel.toFixed(6)}
+      data-zoom-min={RESERVOIR_ZOOM_MIN.toFixed(3)}
+      data-zoom-max={RESERVOIR_ZOOM_MAX.toFixed(3)}
+      data-labels-visible={labelsVisible}
+      data-label-zoom-enter={RESERVOIR_LABEL_ZOOM.enter.toFixed(3)}
+      data-label-zoom-exit={RESERVOIR_LABEL_ZOOM.exit.toFixed(3)}
+      data-label-zoom-hysteresis="true"
+      data-label-far-hover-reveal="false"
+      data-reservoir-base-scale={baseScale.toFixed(6)}
+      data-reservoir-safe-zones={[
+        reservoirFrame.safeZones.top,
+        reservoirFrame.safeZones.right,
+        reservoirFrame.safeZones.bottom,
+        reservoirFrame.safeZones.left,
+      ].map((value) => value.toFixed(3)).join(",")}
+      data-reservoir-usable-frame={[
+        reservoirFrame.usableWidth,
+        reservoirFrame.usableHeight,
+      ].map((value) => value.toFixed(3)).join(",")}
+      data-reservoir-center-screen={[
+        reservoirFrame.centerScreenX,
+        reservoirFrame.centerScreenY,
+      ].map((value) => value.toFixed(3)).join(",")}
+      data-node-layout-mode={renderedLayoutMode}
+      data-node-layout-model={
+        renderedLayoutMode === "focused"
+          ? "continuous-sphere-cap"
+          : "continuous-sphere-fibonacci"
+      }
+      data-node-layout-seed={renderedActiveCollectionId}
+      data-node-layout-count={activeReservoirLayout.size}
+      data-node-layout-directions={activeReservoirLayoutDiagnostics.entries
+        .map(([nodeId, direction]) =>
+          `${nodeId}:${direction.map((value) => value.toFixed(9)).join("/")}`,
+        )
         .join(",")}
-      data-dive-target-locked={isDiveTargetLocked}
-      data-dive-target-source={diveTarget.source}
-      data-grid-detail={RESERVOIR_GRID_DETAIL}
-      data-min-artifact-vertex-steps={RESERVOIR_MIN_ARTIFACT_VERTEX_STEPS}
-      data-node-radius={RESERVOIR_NODE_RADIUS}
-      data-collection-node-radius={RESERVOIR_COLLECTION_NODE_RADIUS}
-      data-collection-node-scale={RESERVOIR_COLLECTION_NODE_SCALE}
-      data-active-collection-id={currentActiveCollectionId}
+      data-node-layout-invalid-direction-ids={
+        activeReservoirLayoutDiagnostics.invalidDirectionIds.join(",")
+      }
+      data-node-layout-min-direction-length={
+        activeReservoirLayoutDiagnostics.minimumDirectionLength.toFixed(9)
+      }
+      data-node-layout-max-direction-length={
+        activeReservoirLayoutDiagnostics.maximumDirectionLength.toFixed(9)
+      }
+      data-node-layout-minimum-angular-separation={
+        activeReservoirLayoutDiagnostics.minimumAngularSeparation.toFixed(9)
+      }
+      data-node-layout-target-angular-separation={
+        activeReservoirLayoutDiagnostics.minimumAngularSeparationTarget.toFixed(
+          9,
+        )
+      }
+      data-node-layout-cap-angular-radius={
+        renderedLayoutMode === "focused"
+          ? focusedLayoutCapRadius.toFixed(9)
+          : ""
+      }
+      data-node-layout-focal-direction={
+        renderedLayoutMode === "focused"
+          ? focusedLayoutFocalDirection
+            ? focusedLayoutFocalDirection
+                .map((value) => value.toFixed(6))
+                .join("/")
+            : ""
+          : ""
+      }
+      data-node-layout-strategy={
+        renderedLayoutMode === "focused"
+          ? "population-aware-seeded-cap-maximin"
+          : "population-aware-seeded-maximin"
+      }
+      data-layout-mode-view-reset-progress={layoutModeViewResetProgressRef.current.toFixed(
+        6,
+      )}
+      data-layout-mode-view-reset-target-zoom={layoutModeResetTargetZoomRef.current.toFixed(
+        6,
+      )}
+      data-layout-mode-focal-assertions={
+        layoutModeFocalDiagnostics?.assertionsPassed ?? false
+      }
+      data-layout-mode-focal-front-world={
+        layoutModeFocalDiagnostics
+          ? formatDirectionTuple(layoutModeFocalDiagnostics.frontWorld)
+          : ""
+      }
+      data-layout-mode-focal-up-tangent-world={
+        layoutModeFocalDiagnostics
+          ? formatDirectionTuple(layoutModeFocalDiagnostics.upTangentWorld)
+          : ""
+      }
+      data-layout-mode-focal-target-world={
+        layoutModeFocalDiagnostics
+          ? formatDirectionTuple(layoutModeFocalDiagnostics.targetWorld)
+          : ""
+      }
+      data-layout-mode-focal-target-local={
+        layoutModeFocalDiagnostics
+          ? formatDirectionTuple(layoutModeFocalDiagnostics.targetLocal)
+          : ""
+      }
+      data-layout-mode-focal-round-trip-world={
+        layoutModeFocalDiagnostics
+          ? formatDirectionTuple(layoutModeFocalDiagnostics.roundTripWorld)
+          : ""
+      }
+      data-layout-mode-focal-round-trip-angle-degrees={
+        layoutModeFocalDiagnostics?.roundTripAngleDegrees.toFixed(6) ?? ""
+      }
+      data-layout-mode-focal-round-trip-front-dot={
+        layoutModeFocalDiagnostics?.roundTripFrontDot.toFixed(6) ?? ""
+      }
+      data-layout-mode-focal-round-trip-up-dot={
+        layoutModeFocalDiagnostics?.roundTripUpDot.toFixed(6) ?? ""
+      }
+      data-node-sizing-reference-population={
+        RESERVOIR_NODE_SIZING_REFERENCE_POPULATION
+      }
+      data-node-sizing-raw-scale={
+        activeReservoirNodeSizingTargets.rawScale.toFixed(6)
+      }
+      data-node-sizing-artifact-reference-diameter={
+        activeReservoirNodeSizingTargets.artifactReferenceDiameter.toFixed(6)
+      }
+      data-node-sizing-artifact-scale={
+        activeReservoirNodeSizingTargets.artifactScale.toFixed(6)
+      }
+      data-node-sizing-artifact-desired-diameter={
+        activeReservoirNodeSizingTargets.desiredArtifactDiameter.toFixed(6)
+      }
+      data-node-sizing-collection-reference-diameter={
+        activeReservoirNodeSizingTargets.collectionReferenceDiameter.toFixed(6)
+      }
+      data-node-sizing-collection-scale={
+        activeReservoirNodeSizingTargets.collectionScale.toFixed(6)
+      }
+      data-node-sizing-collection-desired-diameter={
+        activeReservoirNodeSizingTargets.desiredCollectionDiameter.toFixed(6)
+      }
+      data-node-radius={activeNodeSizing.artifactRadius.toFixed(6)}
+      data-node-diameter={activeNodeSizing.artifactDiameter.toFixed(6)}
+      data-collection-node-radius={activeNodeSizing.collectionRadius.toFixed(6)}
+      data-collection-node-diameter={activeNodeSizing.collectionDiameter.toFixed(6)}
+      data-node-sizing-population-count={activeNodeSizing.populationCount}
+      data-node-sizing-population-progress={activeNodeSizing.populationProgress.toFixed(6)}
+      data-node-sizing-minimum-angular-separation={activeNodeSizing.minimumAngularSeparation.toFixed(9)}
+      data-node-sizing-minimum-surface-distance={activeNodeSizing.minimumSurfaceDistance.toFixed(9)}
+      data-node-sizing-maximum-safe-diameter={activeNodeSizing.maximumSafeDiameter.toFixed(9)}
+      data-active-collection-id={collectionNavigation.activeCollectionId}
       data-rendered-active-collection-id={renderedActiveCollectionId}
+      data-destination-collection-id={
+        collectionNavigation.destinationCollectionId ?? ""
+      }
+      data-collection-transition-phase={
+        collectionNavigation.transitionPhase
+      }
+      data-collection-transition-model="active-destination"
+      data-collection-reservoir-count="1"
+      data-collection-camera-choreography="none"
+      data-collection-orientation-choreography="initial-composition-at-handoff"
       data-collection-history={collectionHistory
         .map((frame) => frame.collectionId)
         .join(",")}
       data-collection-depth={collectionHistory.length - 1}
-      data-collection-return-mode={collectionReturnTransition?.mode ?? ""}
-      data-collection-return-target={
-        collectionReturnTransition?.targetState.collectionId ?? ""
+      data-selected-spatial-destination={
+        selectedSpatialDestinationId ?? ""
       }
-      data-returning-collection-id={
-        collectionReturnTransition?.exitedCollectionId ?? ""
+      data-collection-entry-retraction-started={
+        collectionNavigation.transitionPhase === "deactivating" &&
+        selectedSpatialDestinationId !== null
       }
-      data-collection-return-source-scale={
-        collectionReturnTransition?.sourceScale.toFixed(9) ?? ""
-      }
-      data-collection-return-source-radius={
-        collectionReturnTransition?.sourceRadius.toFixed(9) ?? ""
-      }
-      data-collection-return-source-safety-offset={
-        collectionReturnTransition?.sourceSafetyOffset.toFixed(9) ?? ""
-      }
-      data-collection-return-source-center={
-        collectionReturnTransition?.sourceCenter.join(",") ?? ""
-      }
-      data-collection-return-camera-distance={
-        collectionReturnPath
-          ? (
-              collectionReturnPath.endDistance -
-              collectionReturnPath.startDistance
-            ).toFixed(6)
-          : ""
-      }
-      data-collection-return-minimum-clearance={
-        collectionReturnPath?.minimumClearance.toFixed(6) ?? ""
-      }
-      data-entering-collection-id={enteringCollectionId ?? ""}
-      data-collection-entry-progress={collectionEntryProgressRef.current.toFixed(
+      data-collection-reconstitution-progress={collectionReconstitutionProgressRef.current.toFixed(
         6,
       )}
       data-collection-child-emergence-progress={collectionEmergenceProgressRef.current.toFixed(
         6,
       )}
       data-collection-child-count={activeReservoirNodes.length}
-      data-collection-entry-normalized-center-distance={
-        collectionEntryPath?.normalizedCenterDistance.toFixed(6) ?? ""
-      }
-      data-collection-entry-normalized-focus-distance={
-        collectionEntryPath?.normalizedFocusDistance.toFixed(6) ?? ""
-      }
-      data-collection-entry-destination-center-distance={
-        collectionEntryPath?.destinationCenterDistance.toFixed(6) ?? ""
-      }
-      data-collection-entry-destination-focus-distance={
-        collectionEntryPath?.destinationFocusDistance.toFixed(6) ?? ""
-      }
-      data-collection-entry-destination-position={collectionEntryPath
-        ?.destinationPosition.toArray()
-        .map((value) => value.toFixed(6))
-        .join(",") ?? ""}
-      data-collection-entry-destination-target={collectionEntryPath
-        ?.destinationTarget.toArray()
-        .map((value) => value.toFixed(6))
-        .join(",") ?? ""}
-      data-collection-entry-minimum-home-clearance={
-        collectionEntryPath?.minimumHomeClearance.toFixed(6) ?? ""
-      }
-      data-collection-entry-minimum-target-clearance={
-        collectionEntryPath?.minimumCollectionClearance.toFixed(6) ?? ""
-      }
-      data-collection-entry-world-radius={
-        collectionEntryPath?.collectionRadius.toFixed(6) ?? ""
-      }
-      data-collection-entry-curvature-model={
-        collectionEntryPath ? "local-tangent-up" : ""
-      }
-      data-collection-entry-curvature-direction={collectionEntryPath
-        ?.curvatureDirection.toArray()
-        .map((value) => value.toFixed(6))
-        .join(",") ?? ""}
-      data-collection-entry-curvature-weight={
-        collectionEntryPath?.curvatureWeight.toFixed(6) ?? ""
-      }
-      data-collection-entry-maximum-curvature-offset={
-        collectionEntryPath
-          ? (
-              COLLECTION_ENTRY_UPWARD_ARC_CLEARANCE *
-              collectionEntryPath.curvatureWeight
-            ).toFixed(6)
-          : ""
-      }
-      data-parent-presentation-state={collectionPresentationState}
-      data-preserved-parent-collection-id={
-        collectionHistory.at(-2)?.preservedState?.collectionId ?? ""
-      }
-      data-preserved-parent-sphere-quaternion={
-        collectionHistory.at(-2)?.preservedState?.sphereQuaternion.join(",") ??
-        ""
-      }
-      data-preserved-parent-selected-destination={
-        collectionHistory.at(-2)?.preservedState?.selectedDestinationId ?? ""
-      }
       data-active-collection-render-state="active"
       data-embedded-collection-render-state="dormant"
       data-reservoir-node-count={reservoirNodeDiagnostics.nodeCount}
       data-collection-count={reservoirNodeDiagnostics.collectionCount}
       data-collection-ids={reservoirNodeDiagnostics.collectionIds.join(",")}
-      data-collection-vertex-ids={
-        reservoirNodeDiagnostics.collectionVertexIds.join(",")
+      data-reservoir-node-ids={reservoirNodeDiagnostics.nodeIds.join(",")}
+      data-duplicate-node-ids={
+        reservoirNodeDiagnostics.duplicateNodeIds.join(",")
       }
-      data-collection-grid-vertex-ids={
-        reservoirNodeDiagnostics.collectionGridVertexIds.join(",")
-      }
-      data-duplicate-node-vertex-ids={
-        reservoirNodeDiagnostics.duplicateVertexIds.join(",")
-      }
-      data-adjacent-node-pairs={
-        reservoirNodeDiagnostics.adjacentNodePairs.join(",")
-      }
-      data-density-test-mode={reservoirDensityTestDiagnostics.enabled}
-      data-artifact-count={reservoirDensityTestDiagnostics.artifactCount}
-      data-temporary-artifact-count={
-        reservoirDensityTestDiagnostics.temporaryArtifactCount
-      }
-      data-artifact-vertex-ids={
-        reservoirDensityTestDiagnostics.artifactVertexIds.join(",")
-      }
-      data-adjacent-artifact-pairs={
-        reservoirDensityTestDiagnostics.adjacentArtifactPairs.join(",")
-      }
+      data-density-test-mode="false"
+      data-artifact-count={activeReservoirArtifacts.length}
+      data-temporary-artifact-count={0}
+      data-artifact-ids={activeReservoirArtifacts.map((artifact) => artifact.id).join(",")}
       data-selected-artifact={selectedArtifactId ?? ""}
       data-selected-collection={selectedCollectionId ?? ""}
       data-selected-node-kind={
@@ -3394,21 +2977,52 @@ export function ReservoirScene() {
       }
       data-selected-node-id={selectedArtifactId ?? selectedCollectionId ?? ""}
       data-transition-state={transitionState}
+      data-layout-mode={layoutMode}
+      data-rendered-layout-mode={renderedLayoutMode}
+      data-layout-switch-state={layoutModeTransitionState}
+      data-layout-switch-target={layoutMode}
+      data-layout-switch-progress={layoutModeTransitionProgressRef.current.toFixed(
+        6,
+      )}
+      data-menu-state={menuState}
+      data-footer-state={footerState}
+      data-footer-visible={footerVisible}
+      data-footer-transition-active={footerTransitionActive}
+      data-active-explore-filter={activeExploreFilter}
+      data-query-transition-active={queryTransitionActive}
+      data-query-activity-revision={queryActivityRevision ?? ""}
+      data-query-activity-mode={queryActivityMode ?? ""}
+      data-query-rejected-filter={rejectedExploreFilter ?? ""}
+      data-query-preserved-filter={
+        rejectedExploreFilter ? activeExploreFilter : ""
+      }
+      data-query-meaningful-result-policy="semantic-membership"
+      data-surfaced-node-ids={[...surfacedNodeIds].join(",")}
+      data-query-visible-node-ids={[...queryVisibleNodeIds].join(",")}
+      data-query-leaving-node-ids={[
+        ...(queryReconciliation?.leaving ?? []),
+      ].join(",")}
+      data-query-staying-node-ids={[
+        ...(queryReconciliation?.staying ?? []),
+      ].join(",")}
+      data-query-entering-node-ids={[
+        ...(queryReconciliation?.entering ?? []),
+      ].join(",")}
+      data-locating-artifact={locatingArtifactId ?? ""}
       data-opening-artifact={openingArtifactId ?? ""}
       data-opening-complete={
         transitionState !== "idle" && transitionState !== "openingArtifact"
       }
-      data-input-locked={transitionState !== "idle"}
+      data-input-locked={inputLocked}
       data-content-open={artifactWindowPhase !== null}
       data-atmosphere-bottom={atmosphereBottom.toFixed(3)}
-      data-artifact-window-atmosphere-gap={ARTIFACT_WINDOW_ATMOSPHERE_GAP}
+      data-artifact-window-atmosphere-gap="clamp(24px, 3.2vw, 48px)"
       data-reading-mode={transitionState === "readingArtifact"}
+      data-artifact-footer-reached={artifactFooterReached}
       data-restoring={restoring}
-      data-artifact-content-ready={preparedArtifactContent !== null}
-      data-prepared-content-artifact={
-        preparedArtifactContent?.artifactId ?? ""
-      }
-      data-prepared-content-title={preparedArtifactContent?.title ?? ""}
+      data-artifact-content-ready={openingArtifact !== null}
+      data-prepared-content-artifact={openingArtifact?.id ?? ""}
+      data-prepared-content-title={openingArtifact?.title ?? ""}
       data-opening-reaction-order={[...openingReactionDistances.entries()]
         .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
         .map(([artifactId, distance]) => `${artifactId}:${distance}`)
@@ -3416,88 +3030,14 @@ export function ReservoirScene() {
       data-preopen-sphere-quaternion={
         preservedReservoirState?.sphereQuaternion.join(",") ?? ""
       }
-      data-preopen-camera-position={
-        preservedReservoirState?.cameraPosition.join(",") ?? ""
-      }
-      data-preopen-camera-target={
-        preservedReservoirState?.cameraTarget.join(",") ?? ""
-      }
-      data-preopen-camera-quaternion={
-        preservedReservoirState?.cameraQuaternion.join(",") ?? ""
-      }
-      data-preopen-camera-progress={
-        preservedReservoirState?.cameraProgress.toFixed(6) ?? ""
-      }
-      data-preopen-camera-target-progress={
-        preservedReservoirState?.cameraTargetProgress.toFixed(6) ?? ""
+      data-preopen-zoom-level={
+        preservedReservoirState?.zoomLevel.toFixed(6) ?? ""
       }
       data-hovered-artifact={hoveredArtifactId ?? ""}
       data-node-click-max-travel={NODE_CLICK_MAX_TRAVEL}
-      data-outer-drag-sensitivity={OUTER_DRAG_SENSITIVITY.toFixed(7)}
-      data-inner-drag-sensitivity={INNER_DRAG_SENSITIVITY.toFixed(7)}
-      data-outer-camera-position={activeOuterPosition
-        .toArray()
-        .map((value) => value.toFixed(3))
-        .join(",")}
-      data-outer-camera-target={activeOuterTarget
-        .toArray()
-        .map((value) => value.toFixed(3))
-        .join(",")}
-      data-outer-center-distance={atmosphericCameraModel.outerCenterDistance.toFixed(
-        3,
-      )}
-      data-outer-surface-distance={(
-        atmosphericCameraModel.outerCenterDistance - RESERVOIR_RADIUS
-      ).toFixed(3)}
-      data-outer-radial-tilt={THREE.MathUtils.radToDeg(
-        atmosphericCameraModel.outerRadialTilt,
-      ).toFixed(3)}
-      data-outer-view-tilt={THREE.MathUtils.radToDeg(
-        atmosphericCameraModel.outerViewTilt,
-      ).toFixed(3)}
-      data-outer-center-view-offset={THREE.MathUtils.radToDeg(
-        atmosphericCameraModel.outerCenterViewOffset,
-      ).toFixed(3)}
-      data-camera-near="0.080"
-      data-min-camera-clearance={MIN_CAMERA_CLEARANCE.toFixed(3)}
-      data-path-minimum-raw-clearance={inwardCameraPath.minimumRawClearance.toFixed(
-        6,
-      )}
-      data-path-clearance-corrected={
-        inwardCameraPath.requiresClearanceCorrection
-      }
-      data-inspection-frame-valid={isValidLocalSurfaceFrame(
-        inspectionFrame ?? atmosphericCameraModel.canonicalFrame,
-      )}
-      data-retreat-lateral-offset={retreatCameraPath?.lateralOffset.toFixed(6)}
-      data-inspection-normal={inspectionFrame?.normal
-        .toArray()
-        .map((value) => value.toFixed(6))
-        .join(",")}
-      data-inspection-up={inspectionFrame?.tangentUp
-        .toArray()
-        .map((value) => value.toFixed(6))
-        .join(",")}
-      data-inspection-right={inspectionFrame?.tangentRight
-        .toArray()
-        .map((value) => value.toFixed(6))
-        .join(",")}
-      data-inward-outer-camera-position={inwardCameraPath.outerPosition
-        .toArray()
-        .map((value) => value.toFixed(3))
-        .join(",")}
-      data-inward-outer-camera-target={inwardCameraPath.outerTarget
-        .toArray()
-        .map((value) => value.toFixed(3))
-        .join(",")}
-      data-inner-camera-position={inwardCameraPath.innerPosition
-        .toArray()
-        .map((value) => value.toFixed(3))
-        .join(",")}
-      data-inner-camera-target={inwardCameraPath.innerTarget
-        .toArray()
-        .map((value) => value.toFixed(3))
-        .join(",")}
+      data-drag-sensitivity={DRAG_SENSITIVITY.toFixed(7)}
+      data-camera-position={`0,0,${CAMERA_DISTANCE.toFixed(3)}`}
+      data-camera-target="0,0,0"
       data-rotation={`${rotationDiagnostics.euler[0].toFixed(3)},${rotationDiagnostics.euler[1].toFixed(3)}`}
       data-rotation-euler={rotationDiagnostics.euler
         .map((value) => value.toFixed(6))
@@ -3505,19 +3045,19 @@ export function ReservoirScene() {
       data-rotation-quaternion={rotationDiagnostics.quaternion
         .map((value) => value.toFixed(6))
         .join(",")}
-      data-sphere-position={`0,${sphereCenterWorldY.toFixed(3)},0`}
+      data-sphere-position={`0,${centerWorldY.toFixed(6)},0`}
       onPointerDown={beginDrag}
       onPointerMove={updatePointer}
       onPointerLeave={clearPointer}
       onPointerUp={endDrag}
       onPointerCancel={(event) => endDrag(event, false)}
       onLostPointerCapture={handleLostPointerCapture}
-      onWheel={updateCameraTravel}
+      onWheel={updateReservoirZoom}
     >
       <Canvas
         dpr={[1, 1.5]}
         camera={{
-          position: [0, 0, cameraDistance],
+          position: [0, 0, CAMERA_DISTANCE],
           fov: CAMERA_FOV,
           near: CAMERA_NEAR,
           far: 40,
@@ -3530,52 +3070,71 @@ export function ReservoirScene() {
         scene={{ background: undefined }}
       >
         <color attach="background" args={[RESERVOIR_THEME.environment]} />
-        <ReservoirCamera
-          collectionEntryPath={collectionEntryPath}
-          collectionEntryProgressRef={collectionEntryProgressRef}
-          collectionReturnPath={collectionReturnPath}
-          collectionReturnProgressRef={collectionReturnProgressRef}
-          inwardPath={inwardCameraPath}
-          retreatPath={retreatCameraPath}
-          orientationFrame={
-            inspectionFrame ?? atmosphericCameraModel.canonicalFrame
-          }
-          targetProgress={cameraProgress}
-          travelDirection={travelDirection}
-          cameraPoseRef={cameraPoseRef}
-          diagnosticsRef={interaction}
-        />
         <ambientLight intensity={1.35} />
         <directionalLight position={[-4, 5, 7]} intensity={2.25} />
         <directionalLight position={[5, -3, 4]} intensity={0.45} />
-        <group position={[0, sphereCenterWorldY, 0]}>
-          <group ref={sphereRotationRef}>
+        <ReservoirTransform
+          baseScale={baseScale}
+          centerWorldY={centerWorldY}
+          diagnosticsRef={interaction}
+          reducedMotion={reducedMotion}
+          transformRef={reservoirTransformRef}
+          zoomLevel={zoomLevel}
+          renderedZoomRef={renderedZoomRef}
+          renderedScaleRef={renderedScaleRef}
+        >
+          <ReservoirOrientation
+            collectionId={renderedActiveCollectionId}
+            composition={activeInitialComposition}
+            diagnosticsRef={interaction}
+            layoutMode={renderedLayoutMode}
+            layoutModeTransitionState={layoutModeTransitionState}
+            onOrientationApplied={setRotationDiagnostics}
+            orientationStoreRef={collectionOrientationRef}
+            rotationRef={sphereRotationRef}
+          >
             <ReservoirSphere
               activeCollection={activeCollection}
               activeNodes={activeReservoirNodes}
-              activeCollectionId={currentActiveCollectionId}
-              collectionEntryElapsedRef={collectionEntryElapsedRef}
-              collectionEntryProgressRef={collectionEntryProgressRef}
-              collectionEntryTargetId={collectionEntryPath?.collectionId ?? null}
-              collectionReturnProgressRef={collectionReturnProgressRef}
-              collectionReturnNodeProgressRef={collectionReturnNodeProgressRef}
-              collectionReturnDirection={returningTransferDirection}
-              returningCollectionId={
-                collectionReturnTransition?.exitedCollectionId ?? null
+              layout={activeReservoirLayout}
+              nodeSizing={activeNodeSizing}
+              layoutModeTransitionState={layoutModeTransitionState}
+              collectionReconstitutionPhase={
+                collectionNavigation.transitionPhase
               }
-              collectionPresentationState={collectionPresentationState}
+              collectionReconstitutionProgressRef={
+                collectionReconstitutionProgressRef
+              }
+              collectionReconstitutionElapsedRef={
+                collectionReconstitutionElapsedRef
+              }
+              layoutModeTransitionElapsedRef={
+                layoutModeTransitionElapsedRef
+              }
+              layoutModeTransitionProgressRef={
+                layoutModeTransitionProgressRef
+              }
+              layoutModeTransitionPulseRef={layoutModeTransitionPulseRef}
+              selectedMeshRetractionStarted={
+                collectionNavigation.transitionPhase === "deactivating" &&
+                selectedSpatialDestinationId !== null
+              }
+              collectionActivityRevision={collectionActivityRevision}
               surfaceRef={surfaceRef}
               selectedArtifactId={selectedArtifactId}
               selectedCollectionId={selectedCollectionId}
               hoveredArtifactId={hoveredArtifactId}
-              interactionEnabled={transitionState === "idle"}
+              interactionEnabled={!inputLocked}
               isDragging={isDragging}
+              labelsVisible={labelsVisible}
               selectedPressActive={selectedPressActive}
-              continuationCueEnabled={transitionState === "idle"}
+              surfacedNodeIds={surfacedNodeIds}
+              filterVisibleNodeIds={queryVisibleNodeIds}
+              locatingArtifactId={locatingArtifactId}
+              continuationCueEnabled={!inputLocked}
               interactionRevisionRef={interactionRevisionRef}
               diagnosticsRef={interaction}
               openingActive={openingActive}
-              shockwaveActive={transitionState === "openingArtifact"}
               openingArtifact={openingArtifact}
               openingElapsedRef={openingElapsedRef}
               openingReducedMotion={reducedMotion}
@@ -3585,97 +3144,29 @@ export function ReservoirScene() {
               }
               restoring={restoring}
               restorationProgressRef={restorationProgressRef}
-              gridInspectionRef={gridInspectionRef}
               emergingChildren={
-                transitionState === "emergingCollection"
+                collectionNavigation.transitionPhase === "handoff" ||
+                collectionNavigation.transitionPhase === "reactivating"
               }
               emergenceProgressRef={collectionEmergenceProgressRef}
               onArtifactHoverChange={updateArtifactHover}
+              queryActivityRevision={queryActivityRevision}
+              queryActivityMode={queryActivityMode}
+              onQueryActivityComplete={completeQueryTransition}
             />
-          </group>
-          {collectionReturnTransition && returningCollection ? (
-            <>
-              <ReturningCollectionNode
-                collection={returningCollection}
-                diagnosticsRef={interaction}
-                endPosition={returningSourceEndPosition}
-                endQuaternion={
-                  new THREE.Quaternion(
-                    ...collectionReturnTransition.sourceEndQuaternion,
-                  )
-                }
-                progressRef={collectionReturnProgressRef}
-                radius={collectionReturnTransition.sourceRadius}
-                startPosition={returningSourcePosition}
-                startQuaternion={
-                  new THREE.Quaternion(
-                    ...collectionReturnTransition.sourceStartQuaternion,
-                  )
-                }
-              />
-              <group
-                position={returningSourcePosition}
-                quaternion={
-                  new THREE.Quaternion(
-                    ...collectionReturnTransition.sourceOuterQuaternion,
-                  )
-                }
-                scale={collectionReturnTransition.sourceScale}
-              >
-                <ReservoirSphere
-                  activeCollection={returningCollection}
-                  activeNodes={returningReservoirNodes}
-                  activeCollectionId={
-                    collectionReturnTransition.exitedCollectionId
-                  }
-                  collectionEntryElapsedRef={collectionReturnElapsedRef}
-                  collectionEntryProgressRef={collectionReturnProgressRef}
-                  collectionEntryTargetId={null}
-                  collectionReturnProgressRef={collectionReturnProgressRef}
-                  collectionReturnNodeProgressRef={
-                    collectionReturnNodeProgressRef
-                  }
-                  returningCollectionId={null}
-                  collectionPresentationState="transitioning-out"
-                  selectedArtifactId={null}
-                  selectedCollectionId={null}
-                  hoveredArtifactId={null}
-                  interactionEnabled={false}
-                  isDragging={false}
-                  selectedPressActive={false}
-                  continuationCueEnabled={false}
-                  interactionRevisionRef={interactionRevisionRef}
-                  diagnosticsRef={returningDiagnosticsRef}
-                  openingActive={false}
-                  shockwaveActive={false}
-                  openingArtifact={null}
-                  openingElapsedRef={collectionReturnElapsedRef}
-                  openingReducedMotion={reducedMotion}
-                  openingReactionDistances={EMPTY_REACTION_DISTANCES}
-                  maximumOpeningReactionDistance={0}
-                  restoring={false}
-                  restorationProgressRef={restorationProgressRef}
-                  gridInspectionRef={returningGridInspectionRef}
-                  emergingChildren={false}
-                  emergenceProgressRef={collectionEmergenceProgressRef}
-                  hideReservoirSurface
-                  reverseRecession
-                  onArtifactHoverChange={() => {}}
-                />
-              </group>
-            </>
-          ) : null}
-        </group>
+          </ReservoirOrientation>
+        </ReservoirTransform>
       </Canvas>
       </div>
-      {artifactWindowPhase && preparedArtifactContent ? (
+      {artifactWindowPhase && openingArtifact ? (
         <ArtifactWindow
           atmosphereBottom={atmosphereBottom}
-          content={preparedArtifactContent}
+          artifact={openingArtifact}
           phase={artifactWindowPhase}
           reducedMotion={reducedMotion}
           onDeployComplete={completeArtifactDeployment}
           onClose={requestArtifactClose}
+          onFooterReachedChange={setArtifactFooterReached}
         />
       ) : null}
     </>
