@@ -1,6 +1,7 @@
 import { RESERVOIR_LAYOUT_MODE_VIEW_QUATERNION } from "@/lib/reservoir/geometry";
 import {
   getReservoirLayoutMaximumSafeDiameter,
+  getReservoirLayoutMaximumSafeScale,
 } from "@/lib/reservoir/node-sizing";
 
 export type ReservoirDirection = readonly [number, number, number];
@@ -21,6 +22,7 @@ type ReservoirLayoutOptions = {
   viewQuaternion?: ReservoirQuaternion;
   focusedDirection?: ReservoirDirection;
   minimumNodeDiameter?: number;
+  nodeDiameters?: ReadonlyMap<string, number>;
 };
 
 type ReservoirViewBasis = {
@@ -420,6 +422,7 @@ function generateReservoirFocusedLayout(
     viewQuaternion = RESERVOIR_LAYOUT_MODE_VIEW_QUATERNION,
     focusedDirection,
     minimumNodeDiameter,
+    nodeDiameters,
   }: ReservoirLayoutOptions,
 ): ReservoirLayout {
   const orderedNodeIds = nodes
@@ -438,6 +441,8 @@ function generateReservoirFocusedLayout(
     (FOCUSED_LAYOUT_MAX_CAP_RADIUS - FOCUSED_LAYOUT_MIN_CAP_RADIUS) /
       FOCUSED_LAYOUT_CAP_STEP,
   ) + 1;
+  let bestLayout: ReservoirLayout | null = null;
+  let bestLayoutSafetyScale = Number.NEGATIVE_INFINITY;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const focusedSeed = `${seed}:focused:${attempt}`;
@@ -464,10 +469,22 @@ function generateReservoirFocusedLayout(
             latchedFocusedDirection,
           ),
       );
-      if (
-        minimumNodeDiameter === undefined ||
-        getReservoirLayoutMaximumSafeDiameter(layout) >= minimumNodeDiameter
-      ) {
+      const layoutSafetyScale = nodeDiameters
+        ? getReservoirLayoutMaximumSafeScale(layout, nodeDiameters)
+        : minimumNodeDiameter === undefined
+          ? 1
+          : Math.min(
+              1,
+              getReservoirLayoutMaximumSafeDiameter(layout) /
+                minimumNodeDiameter,
+            );
+
+      if (layoutSafetyScale > bestLayoutSafetyScale) {
+        bestLayout = layout;
+        bestLayoutSafetyScale = layoutSafetyScale;
+      }
+
+      if (layoutSafetyScale >= 1) {
         return layout;
       }
     } catch {
@@ -483,6 +500,8 @@ function generateReservoirFocusedLayout(
       capRadius + FOCUSED_LAYOUT_CAP_STEP,
     );
   }
+
+  if (bestLayout) return bestLayout;
 
   throw new Error("Unable to place reservoir nodes in focused layout.");
 }
@@ -580,6 +599,7 @@ export function generateReservoirLayout(
     viewQuaternion,
     focusedDirection,
     minimumNodeDiameter,
+    nodeDiameters,
   }: ReservoirLayoutOptions,
 ): ReservoirLayout {
   if (mode === "focused") {
@@ -588,6 +608,7 @@ export function generateReservoirLayout(
       viewQuaternion,
       focusedDirection,
       minimumNodeDiameter,
+      nodeDiameters,
     });
   }
   const orderedNodeIds = nodes
