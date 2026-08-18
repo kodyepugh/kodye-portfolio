@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { RESERVOIR_THEME } from "./theme";
+import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
 
 export const RESERVOIR_NODE_MESH_ENGAGEMENT_DELAY_MS = 75;
 export const RESERVOIR_NODE_PRESS_DOWN_DURATION =
@@ -115,6 +117,29 @@ function moveToward(current: number, target: number, step: number) {
   if (current < target) return Math.min(current + step, target);
   if (current > target) return Math.max(current - step, target);
   return current;
+}
+
+function getColorLuminance(color: THREE.Color) {
+  return color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
+}
+
+function isEffectivelyDarkColor(color: THREE.Color) {
+  return getColorLuminance(color) < 0.12;
+}
+
+export function getNodeSelectionHighlightColor(node: ReservoirContentNode) {
+  const resolvedColor = new THREE.Color(
+    node.categoryColor ??
+      (node.kind === "collection"
+        ? RESERVOIR_THEME.dormantCollection
+        : RESERVOIR_THEME.inspection),
+  );
+
+  if (node.kind === "collection" && isEffectivelyDarkColor(resolvedColor)) {
+    return new THREE.Color(RESERVOIR_THEME.inspection);
+  }
+
+  return resolvedColor;
 }
 
 function getContinuationEnvelope(progress: number) {

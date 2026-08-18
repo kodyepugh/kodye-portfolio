@@ -1,5 +1,5 @@
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import type { ReservoirFrame } from "@/lib/reservoir/frame";
@@ -24,7 +24,6 @@ import {
 } from "@/lib/reservoir/node";
 import {
   advanceReservoirNodeSelection,
-  addSelectedNodeSurfaceGradient,
   createReservoirNodeSelectionState,
   RESERVOIR_NODE_CONTINUATION_RING_INNER_RADIUS_RATIO,
   RESERVOIR_NODE_CONTINUATION_RING_OUTER_RADIUS_RATIO,
@@ -38,7 +37,6 @@ import {
   RESERVOIR_NODE_SELECTED_RADIAL_RATIO,
   RESERVOIR_NODE_REDUCED_MOTION_WHITE_MIX,
 } from "@/lib/reservoir/selection";
-import type { ReservoirSelectedSurfaceUniforms } from "@/lib/reservoir/selection";
 import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
 import { ArtifactLabel } from "./ArtifactLabel";
 import { useReservoirNodeHover } from "./useReservoirNodeHover";
@@ -147,37 +145,6 @@ export function ArtifactNode({
   );
   const orbSelectedRadialOffset =
     nodeRadius * RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
-  const orbShaderUniforms = useRef<ReservoirSelectedSurfaceUniforms>({
-    nodeContactDirection: {
-      value: placement.normal.clone().negate(),
-    },
-    nodeSelectedWhite: {
-      value: new THREE.Color(RESERVOIR_THEME.inspection),
-    },
-    nodeSelectedReveal: {
-      value: selected && meshEngaged ? 1 : 0,
-    },
-  });
-  const configureOrbMaterial = useCallback(
-    (
-      shader: Parameters<
-        THREE.MeshStandardMaterial["onBeforeCompile"]
-      >[0],
-    ) => {
-      addSelectedNodeSurfaceGradient(shader, orbShaderUniforms.current);
-    },
-    [],
-  );
-  const getOrbProgramCacheKey = useCallback(
-    () => "reservoir-orb-white-reveal-gradient-v3",
-    [],
-  );
-
-  useEffect(() => {
-    orbShaderUniforms.current.nodeContactDirection.value
-      .copy(placement.normal)
-      .negate();
-  }, [placement]);
 
   useEffect(() => {
     selectionState.current = createReservoirNodeSelectionState({
@@ -236,8 +203,6 @@ export function ArtifactNode({
       hoverTarget,
       delta / RESERVOIR_NODE_HOVER_TRANSITION_DURATION,
     );
-    orbShaderUniforms.current.nodeSelectedReveal.value =
-      selectionFrame.selectedReveal;
 
     const interactionChanged =
       previousInteractionRevision.current !== interactionRevisionRef.current;
@@ -438,8 +403,6 @@ export function ArtifactNode({
           emissive={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
           emissiveIntensity={RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY}
           roughness={0.82}
-          onBeforeCompile={configureOrbMaterial}
-          customProgramCacheKey={getOrbProgramCacheKey}
         />
       </mesh>
       <mesh

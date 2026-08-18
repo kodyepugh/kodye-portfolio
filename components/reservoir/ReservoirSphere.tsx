@@ -19,7 +19,8 @@ import {
   RESERVOIR_SURFACE_MATERIAL,
   RESERVOIR_SURFACE_PATTERN,
   RESERVOIR_SURFACE_PULSE,
-  addReservoirSurfacePulse,
+  addReservoirSurfacePulseAndSelectionEffect,
+  type ReservoirSurfaceSelectionUniforms,
   type ReservoirSurfacePulseUniforms,
 } from "@/lib/reservoir/surface-material";
 import {
@@ -35,6 +36,7 @@ import {
   getShockwaveStart,
   getSphereRecessionProgress,
 } from "@/lib/reservoir/opening";
+import { getNodeSelectionHighlightColor } from "@/lib/reservoir/selection";
 import {
   ArtifactNode,
   ORB_MESH_ENGAGEMENT_DELAY_MS,
@@ -144,6 +146,17 @@ export function ReservoirSphere({
       value: new THREE.Color(RESERVOIR_SURFACE_PULSE.color),
     },
   });
+  const surfaceSelectionUniforms = useRef<ReservoirSurfaceSelectionUniforms>({
+    selectedNodeDirection: {
+      value: new THREE.Vector3(0, 1, 0),
+    },
+    selectedNodeColor: {
+      value: new THREE.Color(RESERVOIR_THEME.inspection),
+    },
+    selectedGlowReveal: { value: 0 },
+    selectedShockwaveProgress: { value: 0 },
+    selectedShockwaveActive: { value: 0 },
+  });
   const sphereColor = useMemo(() => new THREE.Color(RESERVOIR_THEME.sphere), []);
   const recessedSphereColor = useMemo(
     () => new THREE.Color(RESERVOIR_THEME.sphereRecessed),
@@ -167,6 +180,27 @@ export function ReservoirSphere({
   const layoutModeSwitchHidden =
     layoutModeTransitionState === "orienting";
   const selectedNodeId = selectedArtifactId ?? selectedCollectionId;
+  const selectedNode = useMemo(
+    () =>
+      selectedNodeId
+        ? activeNodes.find((node) => node.id === selectedNodeId) ?? null
+        : null,
+    [activeNodes, selectedNodeId],
+  );
+  const selectedNodeDirection = useMemo(() => {
+    if (!selectedNodeId) return new THREE.Vector3(0, 1, 0);
+    const direction = layout.get(selectedNodeId);
+    return direction
+      ? new THREE.Vector3(direction[0], direction[1], direction[2]).normalize()
+      : new THREE.Vector3(0, 1, 0);
+  }, [layout, selectedNodeId]);
+  const selectedNodeColor = useMemo(
+    () =>
+      selectedNode
+        ? getNodeSelectionHighlightColor(selectedNode)
+        : new THREE.Color(RESERVOIR_THEME.inspection),
+    [selectedNode],
+  );
   const presentedSelectedNodeId =
     selectedMeshRetractionStarted
     ? null
@@ -228,17 +262,33 @@ export function ReservoirSphere({
     (
       shader: Parameters<THREE.MeshStandardMaterial["onBeforeCompile"]>[0],
     ) => {
-      addReservoirSurfacePulse(shader, surfacePulseUniforms.current);
+      addReservoirSurfacePulseAndSelectionEffect(
+        shader,
+        surfacePulseUniforms.current,
+        surfaceSelectionUniforms.current,
+      );
     },
     [],
   );
 
   const getSurfacePulseProgramCacheKey = useCallback(
-    () => "reservoir-surface-pulse-v1",
+    () => "reservoir-surface-pulse-selection-v2",
     [],
   );
 
-  useFrame(() => {
+  useEffect(() => {
+    surfaceSelectionUniforms.current.selectedNodeDirection.value.copy(
+      selectedNodeDirection,
+    );
+  }, [selectedNodeDirection]);
+
+  useEffect(() => {
+    surfaceSelectionUniforms.current.selectedNodeColor.value.copy(
+      selectedNodeColor,
+    );
+  }, [selectedNodeColor]);
+
+  useFrame((_, delta) => {
     const openingProgress = restoring
       ? 1 - restorationProgressRef.current
       : openingActive
@@ -258,6 +308,22 @@ export function ReservoirSphere({
       .copy(sphereColor)
       .lerp(recessedSphereColor, openingProgress)
       .lerp(neutralSphereColor, neutrality);
+    surfaceSelectionUniforms.current.selectedGlowReveal.value =
+      THREE.MathUtils.damp(
+        surfaceSelectionUniforms.current.selectedGlowReveal.value,
+        selectedNode ? 1 : 0,
+        openingReducedMotion ? 24 : 12,
+        delta,
+      );
+    surfaceSelectionUniforms.current.selectedShockwaveProgress.value =
+      openingActive && openingArtifact?.id === selectedArtifactId
+        ? getSphereRecessionProgress(
+            openingElapsedRef.current,
+            openingReducedMotion,
+          )
+        : 0;
+    surfaceSelectionUniforms.current.selectedShockwaveActive.value =
+      openingActive && openingArtifact?.id === selectedArtifactId ? 1 : 0;
     const patternMaterial = surfacePatternMaterialRef.current;
     if (patternMaterial) {
       patternMaterial.uniforms.lineOpacity.value =
@@ -280,6 +346,10 @@ export function ReservoirSphere({
         collectionReconstitutionPhase;
       diagnosticsRef.current.dataset.layoutModeTransitionPulse =
         layoutTransitionPulse.toFixed(6);
+      diagnosticsRef.current.dataset.surfaceSelectedGlowReveal =
+        surfaceSelectionUniforms.current.selectedGlowReveal.value.toFixed(6);
+      diagnosticsRef.current.dataset.surfaceSelectedShockwaveProgress =
+        surfaceSelectionUniforms.current.selectedShockwaveProgress.value.toFixed(6);
     }
   });
 
