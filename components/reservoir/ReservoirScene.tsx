@@ -2974,7 +2974,7 @@ export function ReservoirScene() {
       data-collection-node-radius={activeNodeSizing.collectionRadius.toFixed(6)}
       data-collection-node-diameter={activeNodeSizing.collectionDiameter.toFixed(6)}
       data-node-sizing-population-count={activeNodeSizing.populationCount}
-      data-node-sizing-population-progress={activeNodeSizing.populationProgress.toFixed(6)}
+      data-node-sizing-density-progress={activeNodeSizing.densityProgress.toFixed(6)}
       data-node-sizing-layout-safety-scale={activeNodeSizing.layoutSafetyScale.toFixed(6)}
       data-node-sizing-minimum-angular-separation={activeNodeSizing.minimumAngularSeparation.toFixed(9)}
       data-node-sizing-minimum-surface-distance={activeNodeSizing.minimumSurfaceDistance.toFixed(9)}

@@ -14,12 +14,6 @@ export const RESERVOIR_NODE_SPARSE_MAX_POPULATION = 2;
 export const RESERVOIR_NODE_SPARSE_MAX_SCALE = 7;
 export const RESERVOIR_NODE_SPARSE_SHOULDER_POPULATION = 6;
 export const RESERVOIR_NODE_SPARSE_SHOULDER_SCALE = 5.5;
-export const RESERVOIR_NODE_MIN_SCALE = 0.25;
-
-export const RESERVOIR_NODE_SPARSE_PLATEAU_MAX_POPULATION =
-  RESERVOIR_NODE_SPARSE_MAX_POPULATION;
-export const RESERVOIR_NODE_SPARSE_PLATEAU_SCALE =
-  RESERVOIR_NODE_SPARSE_MAX_SCALE;
 
 export const RESERVOIR_ARTIFACT_NODE_REFERENCE_DIAMETER =
   RESERVOIR_NODE_RADIUS * 2;
@@ -28,15 +22,13 @@ export const RESERVOIR_COLLECTION_NODE_REFERENCE_DIAMETER =
 
 export const RESERVOIR_ARTIFACT_NODE_MAX_SCALE =
   RESERVOIR_NODE_SPARSE_MAX_SCALE;
-export const RESERVOIR_ARTIFACT_NODE_MIN_SCALE = RESERVOIR_NODE_MIN_SCALE;
 export const RESERVOIR_COLLECTION_NODE_MAX_SCALE =
   RESERVOIR_NODE_SPARSE_MAX_SCALE;
-export const RESERVOIR_COLLECTION_NODE_MIN_SCALE = RESERVOIR_NODE_MIN_SCALE;
 
 type ReservoirNodeSizingTargets = {
   populationCount: number;
   rawScale: number;
-  populationProgress: number;
+  densityProgress: number;
   artifactReferenceDiameter: number;
   artifactScale: number;
   collectionReferenceDiameter: number;
@@ -58,16 +50,6 @@ export type ReservoirNodeSizingSnapshot = ReservoirNodeSizingTargets & {
 
 function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
-}
-
-function inverseLerp(minimum: number, maximum: number, value: number) {
-  const denominator = maximum - minimum;
-  if (Math.abs(denominator) < Number.EPSILON) return 0;
-  return (value - minimum) / denominator;
-}
-
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.min(maximum, Math.max(minimum, value));
 }
 
 function lerp(start: number, end: number, progress: number) {
@@ -112,21 +94,12 @@ export function getReservoirNodePopulationScale(totalNodeCount: number) {
     return lerp(RESERVOIR_NODE_SPARSE_SHOULDER_SCALE, 1, progress);
   }
 
-  return Math.max(
-    RESERVOIR_NODE_MIN_SCALE,
-    Math.sqrt(RESERVOIR_NODE_SIZING_REFERENCE_POPULATION / populationCount),
-  );
+  return Math.sqrt(RESERVOIR_NODE_SIZING_REFERENCE_POPULATION / populationCount);
 }
 
-export function getReservoirNodePopulationProgress(totalNodeCount: number) {
+export function getReservoirNodeDensityProgress(totalNodeCount: number) {
   const populationScale = getReservoirNodePopulationScale(totalNodeCount);
-  return 1 - clamp01(
-    inverseLerp(
-      RESERVOIR_NODE_MIN_SCALE,
-      RESERVOIR_NODE_SPARSE_MAX_SCALE,
-      populationScale,
-    ),
-  );
+  return 1 - clamp01(populationScale / RESERVOIR_NODE_SPARSE_MAX_SCALE);
 }
 
 export function getReservoirNodeSizingTargets(
@@ -138,7 +111,7 @@ export function getReservoirNodeSizingTargets(
   return {
     populationCount: totalNodeCount,
     rawScale,
-    populationProgress: getReservoirNodePopulationProgress(populationCount),
+    densityProgress: getReservoirNodeDensityProgress(populationCount),
     artifactReferenceDiameter: RESERVOIR_ARTIFACT_NODE_REFERENCE_DIAMETER,
     artifactScale: rawScale,
     collectionReferenceDiameter:
@@ -351,11 +324,11 @@ export function getReservoirNodeSizingSnapshot(
     layout,
     nodeDiameters,
   );
-  const resolvedScale = clamp(
-    targets.rawScale * layoutSafetyScale,
-    RESERVOIR_NODE_MIN_SCALE,
-    RESERVOIR_NODE_SPARSE_MAX_SCALE,
-  );
+  if (!Number.isFinite(layoutSafetyScale) || layoutSafetyScale <= 0) {
+    throw new Error("Invalid reservoir layout safety scale.");
+  }
+
+  const resolvedScale = targets.rawScale * layoutSafetyScale;
   const artifactDiameter =
     RESERVOIR_ARTIFACT_NODE_REFERENCE_DIAMETER * resolvedScale;
   const collectionDiameter =
@@ -370,7 +343,7 @@ export function getReservoirNodeSizingSnapshot(
     layoutSafetyScale,
     minimumAngularSeparation,
     minimumSurfaceDistance,
-    maximumSafeDiameter: Math.max(artifactDiameter, collectionDiameter),
+    maximumSafeDiameter: getReservoirLayoutMaximumSafeDiameter(layout),
     artifactDiameter,
     artifactRadius: artifactDiameter / 2,
     collectionDiameter,
