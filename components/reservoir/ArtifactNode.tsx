@@ -2,6 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
+import type { ReservoirFrame } from "@/lib/reservoir/frame";
 import {
   RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
 } from "@/lib/reservoir/opening";
@@ -64,6 +65,8 @@ type ArtifactNodeProps = {
   emergenceOrder?: number;
   emergenceChildCount?: number;
   sphereRef: RefObject<THREE.Group | null>;
+  reservoirFrame: ReservoirFrame;
+  zoomLevel: number;
   onHoverChange: (artifactId: string, hovered: boolean) => void;
 };
 
@@ -97,6 +100,8 @@ export function ArtifactNode({
   emergenceOrder = 0,
   emergenceChildCount = 1,
   sphereRef,
+  reservoirFrame,
+  zoomLevel,
   onHoverChange,
 }: ArtifactNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
@@ -421,24 +426,12 @@ export function ArtifactNode({
           colorWrite={false}
         />
       </mesh>
-      <mesh
-        position={placement.hoverBridgePosition}
-        onPointerEnter={() => surfaced && beginHover("label-bridge")}
-        onPointerLeave={() => endHover("label-bridge")}
-      >
-        <sphereGeometry args={[nodeRadius * 2.8, 12, 10]} />
-        <meshBasicMaterial
-          transparent
-          opacity={0}
-          depthWrite={false}
-          colorWrite={false}
-        />
-      </mesh>
       <ArtifactLabel
         artifact={artifact}
         nodeRef={nodeRef}
         sphereRef={sphereRef}
-        position={placement.labelPosition}
+        reservoirFrame={reservoirFrame}
+        zoomLevel={zoomLevel}
         selectionActive={selectionActive || !surfaced}
         hovered={hovered}
         nodeRadius={nodeRadius}

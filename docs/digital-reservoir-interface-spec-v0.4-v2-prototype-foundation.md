@@ -814,6 +814,8 @@ The approved sizing curve is continuous and population-aware:
 
 Layout safety may proportionally reduce the resulting size when actual mixed-radius spacing requires it, but the curve itself does not impose a minimum size cap.
 
+V2 also introduces adaptive inspectability: the active collection may raise its maximum useful zoom when the smallest actual node in view still needs more screen-space resolution, while preserving the centered transform model and the approved baseline zoom ceiling as the default floor for denser collections.
+
 # 11. Nodes
 
 ## 11.1 Artifact Node
@@ -851,6 +853,8 @@ The collection node should not become visually louder than every artifact merely
 ## 11.3 Node Labels
 
 Artifact labels may float near or slightly in front of nodes.
+
+The V2 label MVP should resolve labels per node instead of through one global zoom toggle. Labels may move through hidden, inspection, and persistent visibility levels using projected node size and zoom thresholds, keep upright canvas sprites and front-facing suppression, and place themselves in screen space with dynamic anchors that follow the viewport center/outward direction while preserving hover bridging behavior.
 
 Default state may show:
 

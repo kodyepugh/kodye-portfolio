@@ -2,11 +2,18 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import * as THREE from "three";
-import {
-  RESERVOIR_RENDER_ORDER,
-  RESERVOIR_THEME,
-} from "@/lib/reservoir/theme";
 import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import { getProjectedWorldDiameterPixels } from "@/lib/reservoir/projection";
+import { getReservoirLabelLevel } from "@/lib/reservoir/label";
+import type { ReservoirLabelLevel } from "@/lib/reservoir/label";
+import type { ReservoirFrame } from "@/lib/reservoir/frame";
+import { RESERVOIR_RENDER_ORDER } from "@/lib/reservoir/theme";
+import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
+
+export const RESERVOIR_NODE_HOVER_TRANSITION_DURATION = 0.16;
+export const RESERVOIR_NODE_HOVER_WHITE_MIX = 0.045;
+export const RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY = 0.06;
+export const RESERVOIR_NODE_HOVER_EMISSIVE_INTENSITY = 0.085;
 
 const LABEL_CANVAS_HEIGHT = 200;
 const LABEL_HORIZONTAL_PADDING = 30;
@@ -24,6 +31,8 @@ const LABEL_FADE_DAMPING = 10;
 const LABEL_REFERENCE_DISTANCE = 10;
 const LABEL_WORLD_UNITS_PER_PIXEL = 0.00135;
 const LABEL_NODE_CLEARANCE = 0.012;
+const LABEL_ANCHOR_DAMPING = 12;
+const LABEL_BRIDGE_RADIUS_MULTIPLIER = 2.8;
 const CAROUSEL_HOVER_DWELL_SECONDS = 0.7;
 const MARQUEE_SPEED = 105;
 const MARQUEE_COPY_GAP = 48;
@@ -38,7 +47,8 @@ type ReservoirNodeLabelProps = {
   content: ReservoirNodeLabelContent;
   nodeRef: RefObject<THREE.Group | null>;
   sphereRef: RefObject<THREE.Group | null>;
-  position: THREE.Vector3;
+  reservoirFrame: ReservoirFrame;
+  zoomLevel: number;
   nodeRadius: number;
   suppressed: boolean;
   hovered: boolean;
@@ -62,6 +72,10 @@ type LabelCanvas = {
   titleWidth: number;
   titleClipWidth: number;
 };
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
 
 function drawLabel(
   labelCanvas: LabelCanvas,
@@ -120,7 +134,8 @@ export function ReservoirNodeLabel({
   content,
   nodeRef,
   sphereRef,
-  position,
+  reservoirFrame,
+  zoomLevel,
   nodeRadius,
   suppressed,
   hovered,
@@ -128,21 +143,37 @@ export function ReservoirNodeLabel({
   onPointerEnter,
   onPointerLeave,
 }: ReservoirNodeLabelProps) {
+  const labelGroupRef = useRef<THREE.Group | null>(null);
   const spriteRef = useRef<THREE.Sprite | null>(null);
+  const bridgeRef = useRef<THREE.Mesh | null>(null);
   const materialRef = useRef<THREE.SpriteMaterial | null>(null);
+  const bridgeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const labelCanvasRef = useRef<LabelCanvas | null>(null);
   const elapsedRef = useRef(0);
   const lastOffsetRef = useRef(Number.NaN);
   const clearanceRef = useRef(0);
+  const currentLevelRef = useRef<ReservoirLabelLevel>("hidden");
+  const fallbackScreenDirectionRef = useRef(
+    new THREE.Vector2(1, -0.6).normalize(),
+  );
   const worldNode = useRef(new THREE.Vector3());
   const worldCenter = useRef(new THREE.Vector3());
-  const referenceViewDirection = useRef(new THREE.Vector3());
+  const worldAnchor = useRef(new THREE.Vector3());
+  const worldBridgeAnchor = useRef(new THREE.Vector3());
+  const worldScale = useRef(new THREE.Vector3(1, 1, 1));
+  const screenNode = useRef(new THREE.Vector2());
+  const screenCenter = useRef(new THREE.Vector2());
+  const targetScreen = useRef(new THREE.Vector2());
+  const screenNdc = useRef(new THREE.Vector2());
+  const anchorDirection = useRef(new THREE.Vector2());
   const surfaceNormal = useRef(new THREE.Vector3());
-  const localRadialDirection = useMemo(
-    () => position.clone().normalize(),
-    [position],
-  );
-
+  const referenceViewDirection = useRef(new THREE.Vector3());
+  const cameraForward = useRef(new THREE.Vector3());
+  const screenRaycaster = useRef(new THREE.Raycaster());
+  const anchorPlane = useRef(new THREE.Plane());
+  const bridgeLocal = useRef(new THREE.Vector3());
+  const localAnchor = useRef(new THREE.Vector3());
+  const localBridgeAnchor = useRef(new THREE.Vector3());
   useEffect(() => {
     const canvas = document.createElement("canvas");
     canvas.width = MAX_LABEL_WIDTH;
@@ -199,25 +230,54 @@ export function ReservoirNodeLabel({
     };
   }, [content]);
 
-  useFrame(({ camera }, delta) => {
+  useFrame(({ camera, size }, delta) => {
+    const labelGroup = labelGroupRef.current;
     const sprite = spriteRef.current;
+    const bridge = bridgeRef.current;
+    const bridgeMaterial = bridgeMaterialRef.current;
     const material = materialRef.current;
     const node = nodeRef.current;
     const sphere = sphereRef.current;
     const labelCanvas = labelCanvasRef.current;
-    if (!sprite || !material || !node || !sphere || !labelCanvas) return;
+    if (
+      !labelGroup ||
+      !sprite ||
+      !bridge ||
+      !bridgeMaterial ||
+      !material ||
+      !node ||
+      !sphere ||
+      !labelCanvas
+    ) {
+      return;
+    }
 
     node.getWorldPosition(worldNode.current);
     sphere.getWorldPosition(worldCenter.current);
+    node.getWorldScale(worldScale.current);
     surfaceNormal.current
       .copy(worldNode.current)
       .sub(worldCenter.current)
       .normalize();
-    camera.getWorldDirection(referenceViewDirection.current).negate();
+    camera.getWorldDirection(referenceViewDirection.current);
+    camera.getWorldDirection(cameraForward.current);
 
     const facing = surfaceNormal.current.dot(referenceViewDirection.current);
     const isFrontFacing = facing > LABEL_FRONT_FACING_THRESHOLD;
-    const eligible = isFrontFacing && !suppressed;
+    const projectedNodePixels = getProjectedWorldDiameterPixels({
+      camera,
+      viewportHeight: size.height,
+      worldDiameter: nodeRadius * 2 * worldScale.current.x,
+      worldPosition: worldNode.current,
+    });
+    const labelLevel = getReservoirLabelLevel({
+      currentLevel: currentLevelRef.current,
+      projectedNodePixels,
+      suppressed,
+      zoomLevel,
+    });
+    currentLevelRef.current = labelLevel;
+    const eligible = isFrontFacing && labelLevel !== "hidden";
     const targetOpacity = eligible ? 1 : 0;
     material.opacity = THREE.MathUtils.damp(
       material.opacity,
@@ -226,6 +286,8 @@ export function ReservoirNodeLabel({
       delta,
     );
     sprite.visible = material.opacity > 0.01 || targetOpacity > 0;
+    bridge.visible = eligible;
+    bridgeMaterial.opacity = material.opacity;
 
     const horizonProximity =
       1 -
@@ -243,9 +305,90 @@ export function ReservoirNodeLabel({
       LABEL_CLEARANCE_DAMPING,
       delta,
     );
-    sprite.position
-      .copy(position)
-      .addScaledVector(localRadialDirection, clearanceRef.current);
+
+    const projectedNode = worldNode.current.clone().project(camera);
+    screenNode.current.set(
+      ((projectedNode.x + 1) / 2) * size.width,
+      ((1 - projectedNode.y) / 2) * size.height,
+    );
+    screenCenter.current.set(
+      reservoirFrame.centerScreenX,
+      reservoirFrame.centerScreenY,
+    );
+    anchorDirection.current
+      .copy(screenNode.current)
+      .sub(screenCenter.current);
+    if (anchorDirection.current.lengthSq() < 1) {
+      anchorDirection.current.copy(fallbackScreenDirectionRef.current);
+    } else {
+      anchorDirection.current.normalize();
+      fallbackScreenDirectionRef.current.copy(anchorDirection.current);
+    }
+
+    const gapPixels = clamp(
+      projectedNodePixels * (labelLevel === "persistent" ? 0.68 : 0.58) + 18,
+      20,
+      120,
+    );
+    targetScreen.current
+      .copy(screenNode.current)
+      .addScaledVector(anchorDirection.current, gapPixels);
+    const safeLeft = reservoirFrame.safeZones.left + 24;
+    const safeRight = size.width - reservoirFrame.safeZones.right - 24;
+    const safeTop = reservoirFrame.safeZones.top + 20;
+    const safeBottom = size.height - reservoirFrame.safeZones.bottom - 20;
+    if (safeLeft <= safeRight) {
+      targetScreen.current.x = clamp(
+        targetScreen.current.x,
+        safeLeft,
+        safeRight,
+      );
+    } else {
+      targetScreen.current.x = reservoirFrame.centerScreenX;
+    }
+    if (safeTop <= safeBottom) {
+      targetScreen.current.y = clamp(
+        targetScreen.current.y,
+        safeTop,
+        safeBottom,
+      );
+    } else {
+      targetScreen.current.y = reservoirFrame.centerScreenY;
+    }
+
+    const ndcX = (targetScreen.current.x / size.width) * 2 - 1;
+    const ndcY = -(targetScreen.current.y / size.height) * 2 + 1;
+    screenNdc.current.set(ndcX, ndcY);
+    anchorPlane.current.setFromNormalAndCoplanarPoint(
+      cameraForward.current,
+      worldNode.current,
+    );
+    screenRaycaster.current.setFromCamera(screenNdc.current, camera);
+    if (
+      !screenRaycaster.current.ray.intersectPlane(
+        anchorPlane.current,
+        worldAnchor.current,
+      )
+    ) {
+      worldAnchor.current.copy(worldNode.current);
+    }
+
+    localAnchor.current.copy(worldAnchor.current);
+    node.worldToLocal(localAnchor.current);
+    labelGroup.position.lerp(
+      localAnchor.current,
+      1 - Math.exp(-LABEL_ANCHOR_DAMPING * delta),
+    );
+
+    worldBridgeAnchor.current
+      .copy(worldNode.current)
+      .lerp(worldAnchor.current, 0.5);
+    localBridgeAnchor.current.copy(worldBridgeAnchor.current);
+    node.worldToLocal(localBridgeAnchor.current);
+    bridgeLocal.current
+      .copy(localBridgeAnchor.current)
+      .sub(labelGroup.position);
+    bridge.position.copy(bridgeLocal.current);
 
     const distance = camera.position.distanceTo(worldNode.current);
     const distanceCompensation = THREE.MathUtils.clamp(
@@ -304,24 +447,42 @@ export function ReservoirNodeLabel({
   });
 
   return (
-    <sprite
-      ref={spriteRef}
-      position={position}
-      renderOrder={RESERVOIR_RENDER_ORDER.artifactLabel}
-      userData={userData}
-      onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
-    >
-      <spriteMaterial
-        ref={materialRef}
-        transparent
-        opacity={0}
-        depthTest
-        depthWrite={false}
-        alphaTest={0.02}
-        toneMapped={false}
-      />
-    </sprite>
+    <group ref={labelGroupRef}>
+      <sprite
+        ref={spriteRef}
+        position={[0, 0, 0]}
+        renderOrder={RESERVOIR_RENDER_ORDER.artifactLabel}
+        userData={userData}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+      >
+        <spriteMaterial
+          ref={materialRef}
+          transparent
+          opacity={0}
+          depthTest
+          depthWrite={false}
+          alphaTest={0.02}
+          toneMapped={false}
+        />
+      </sprite>
+      <mesh
+        ref={bridgeRef}
+        position={[0, 0, 0]}
+        visible={false}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+      >
+        <sphereGeometry args={[nodeRadius * LABEL_BRIDGE_RADIUS_MULTIPLIER, 12, 10]} />
+        <meshBasicMaterial
+          ref={bridgeMaterialRef}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          colorWrite={false}
+        />
+      </mesh>
+    </group>
   );
 }
 

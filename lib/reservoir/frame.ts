@@ -1,5 +1,6 @@
 export const RESERVOIR_ZOOM_MIN = 0.72;
 export const RESERVOIR_ZOOM_MAX = 2.15;
+export const RESERVOIR_ZOOM_HARD_CAP = 4;
 export const RESERVOIR_ZOOM_DEFAULT = 1;
 
 export type ReservoirSafeZones = {
@@ -100,6 +101,13 @@ export function getReservoirWorldTransform({
   };
 }
 
-export function clampReservoirZoom(zoomLevel: number) {
-  return clamp(zoomLevel, RESERVOIR_ZOOM_MIN, RESERVOIR_ZOOM_MAX);
+export function clampReservoirZoom(
+  zoomLevel: number,
+  maximumZoomLevel = RESERVOIR_ZOOM_MAX,
+) {
+  return clamp(
+    zoomLevel,
+    RESERVOIR_ZOOM_MIN,
+    Math.min(maximumZoomLevel, RESERVOIR_ZOOM_HARD_CAP),
+  );
 }

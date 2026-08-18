@@ -45,10 +45,7 @@ import {
   getReservoirNodeSizingTargets,
   RESERVOIR_NODE_SIZING_REFERENCE_POPULATION,
 } from "@/lib/reservoir/node-sizing";
-import {
-  getReservoirLabelsVisible,
-  RESERVOIR_LABEL_ZOOM,
-} from "@/lib/reservoir/label";
+import { RESERVOIR_LABEL_LEVEL } from "@/lib/reservoir/label";
 import {
   getReservoirNodePlacement,
 } from "@/lib/reservoir/node";
@@ -64,10 +61,12 @@ import {
   clampReservoirZoom,
   getReservoirFrame,
   getReservoirWorldTransform,
+  RESERVOIR_ZOOM_HARD_CAP,
   RESERVOIR_ZOOM_DEFAULT,
   RESERVOIR_ZOOM_MAX,
   RESERVOIR_ZOOM_MIN,
 } from "@/lib/reservoir/frame";
+import { getProjectedWorldDiameterPixels } from "@/lib/reservoir/projection";
 import {
   getArtifactWindowRetractDuration,
   getReservoirRestoreDuration,
@@ -223,6 +222,26 @@ function getReservoirNodeDiameters(
     );
   }
   return diameters;
+}
+
+function getReservoirNodeWorldPosition(
+  direction: ReservoirDirection,
+  nodeRadius: number,
+  sphereQuaternion: THREE.Quaternion,
+  renderedScale: number,
+  reservoirCenter: THREE.Vector3,
+) {
+  const placement = getReservoirNodePlacement(direction, nodeRadius);
+  const baseQuaternion = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(...RESERVOIR_BASE_ROTATION),
+  );
+
+  return placement.position
+    .clone()
+    .applyQuaternion(baseQuaternion)
+    .applyQuaternion(sphereQuaternion)
+    .multiplyScalar(renderedScale)
+    .add(reservoirCenter);
 }
 
 type PreservedReservoirState = {
@@ -601,9 +620,6 @@ export function ReservoirScene() {
       quaternion: [0, 0, 0, 1],
     });
   const [zoomLevel, setZoomLevel] = useState(RESERVOIR_ZOOM_DEFAULT);
-  const [labelsVisible, setLabelsVisible] = useState(() =>
-    getReservoirLabelsVisible(RESERVOIR_ZOOM_DEFAULT, false),
-  );
   const [viewportFrame, setViewportFrame] = useState({
     width: 1600,
     height: 1000,
@@ -1052,6 +1068,95 @@ export function ReservoirScene() {
     [activeReservoirNodes.length],
   );
   const focusedLayoutFocalDirection = focusedLayoutDirection;
+  function getReservoirZoomMaximum() {
+    const camera = cameraRef.current;
+    const sphere = sphereRotationRef.current;
+    if (!camera || !sphere || activeReservoirNodes.length === 0) {
+      return RESERVOIR_ZOOM_MAX;
+    }
+
+    const renderedScale = renderedScaleRef.current;
+    const renderedZoom = renderedZoomRef.current;
+    const smallestDiameter = Math.min(
+      activeNodeSizing.artifactDiameter,
+      activeNodeSizing.collectionDiameter,
+    );
+    const smallestKind =
+      activeNodeSizing.artifactDiameter <= activeNodeSizing.collectionDiameter
+        ? "artifact"
+        : "collection";
+    const smallestNodeRadius =
+      smallestKind === "artifact"
+        ? activeNodeSizing.artifactRadius
+        : activeNodeSizing.collectionRadius;
+    const smallestNodeDiametersMatch =
+      Math.abs(
+        activeNodeSizing.artifactDiameter -
+          activeNodeSizing.collectionDiameter,
+      ) < 1e-6;
+    let smallestProjectedDiameter = Number.POSITIVE_INFINITY;
+
+    for (const node of activeReservoirNodes) {
+      if (node.kind !== smallestKind && !smallestNodeDiametersMatch) {
+        continue;
+      }
+
+      const direction = activeReservoirLayout.get(node.id);
+      if (!direction) continue;
+
+      const worldPosition = getReservoirNodeWorldPosition(
+        direction,
+        smallestNodeRadius,
+        sphere.quaternion,
+        renderedScale,
+        reservoirCenter,
+      );
+      const projectedDiameter = getProjectedWorldDiameterPixels({
+        camera,
+        viewportHeight: viewportFrame.height,
+        worldDiameter: smallestDiameter * renderedScale,
+        worldPosition,
+      });
+
+      if (
+        Number.isFinite(projectedDiameter) &&
+        projectedDiameter > 0 &&
+        projectedDiameter < smallestProjectedDiameter
+      ) {
+        smallestProjectedDiameter = projectedDiameter;
+      }
+    }
+
+    if (
+      !Number.isFinite(smallestProjectedDiameter) ||
+      smallestProjectedDiameter <= 0
+    ) {
+      return RESERVOIR_ZOOM_MAX;
+    }
+
+    const requiredZoom = (renderedZoom *
+      RESERVOIR_LABEL_LEVEL.inspection.nodePixels.enter) /
+      smallestProjectedDiameter;
+    return Math.min(
+      RESERVOIR_ZOOM_HARD_CAP,
+      Math.max(RESERVOIR_ZOOM_MAX, requiredZoom),
+    );
+  }
+  const reservoirZoomMaximum = getReservoirZoomMaximum();
+  const setReservoirZoom = useCallback(
+    (nextZoomLevel: number) => {
+      const boundedZoomLevel = clampReservoirZoom(
+        nextZoomLevel,
+        reservoirZoomMaximum,
+      );
+      zoomLevelRef.current = boundedZoomLevel;
+      setZoomLevel(boundedZoomLevel);
+      if (interaction.current) {
+        interaction.current.dataset.zoomLevel = boundedZoomLevel.toFixed(6);
+      }
+    },
+    [reservoirZoomMaximum],
+  );
 
   const surfacedNodeIds = useMemo(
     () => getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
@@ -1228,7 +1333,7 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateOpeningTimeline);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [preservedReservoirState, reducedMotion, transitionState]);
+  }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
   useEffect(() => {
     const requestedDestinationCollectionId =
       collectionNavigation.destinationCollectionId;
@@ -1413,7 +1518,7 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateSinking);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [layoutMode, layoutModeTransitionState, reducedMotion]);
+  }, [layoutMode, layoutModeTransitionState, reducedMotion, setReservoirZoom]);
 
   useEffect(() => {
     if (layoutModeTransitionState !== "orienting") {
@@ -1432,7 +1537,7 @@ export function ReservoirScene() {
     }
 
     return () => window.clearTimeout(timeoutId);
-  }, [layoutModeTransitionState, reducedMotion]);
+  }, [layoutModeTransitionState, reducedMotion, setReservoirZoom]);
 
   useEffect(() => {
     if (layoutModeTransitionState !== "emerging") {
@@ -1534,7 +1639,7 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateLayoutModeViewReset);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [layoutModeTransitionActive, reducedMotion]);
+  }, [layoutModeTransitionActive, reducedMotion, setReservoirZoom]);
 
   useLayoutEffect(() => {
     const readingMode = [
@@ -1594,7 +1699,7 @@ export function ReservoirScene() {
     }, getArtifactWindowRetractDuration(reducedMotion) * 1000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [preservedReservoirState, reducedMotion, transitionState]);
+  }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
 
   useEffect(() => {
     if (
@@ -1655,19 +1760,7 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateRestoration);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [preservedReservoirState, reducedMotion, transitionState]);
-
-  function setReservoirZoom(nextZoomLevel: number) {
-    const boundedZoomLevel = clampReservoirZoom(nextZoomLevel);
-    zoomLevelRef.current = boundedZoomLevel;
-    setZoomLevel(boundedZoomLevel);
-    setLabelsVisible((currentlyVisible) =>
-      getReservoirLabelsVisible(boundedZoomLevel, currentlyVisible),
-    );
-    if (interaction.current) {
-      interaction.current.dataset.zoomLevel = boundedZoomLevel.toFixed(6);
-    }
-  }
+  }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
 
   function getPinchDistance() {
     const touches = [...activeTouchPointersRef.current.values()];
@@ -2833,10 +2926,17 @@ export function ReservoirScene() {
       data-zoom-level={zoomLevel.toFixed(6)}
       data-zoom-min={RESERVOIR_ZOOM_MIN.toFixed(3)}
       data-zoom-max={RESERVOIR_ZOOM_MAX.toFixed(3)}
-      data-labels-visible={labelsVisible}
-      data-label-zoom-enter={RESERVOIR_LABEL_ZOOM.enter.toFixed(3)}
-      data-label-zoom-exit={RESERVOIR_LABEL_ZOOM.exit.toFixed(3)}
-      data-label-zoom-hysteresis="true"
+      data-zoom-ceiling={reservoirZoomMaximum.toFixed(3)}
+      data-label-model="adaptive-projective"
+      data-label-level-inspection-node-enter={RESERVOIR_LABEL_LEVEL.inspection.nodePixels.enter.toFixed(3)}
+      data-label-level-inspection-node-exit={RESERVOIR_LABEL_LEVEL.inspection.nodePixels.exit.toFixed(3)}
+      data-label-level-persistent-node-enter={RESERVOIR_LABEL_LEVEL.persistent.nodePixels.enter.toFixed(3)}
+      data-label-level-persistent-node-exit={RESERVOIR_LABEL_LEVEL.persistent.nodePixels.exit.toFixed(3)}
+      data-label-level-inspection-zoom-enter={RESERVOIR_LABEL_LEVEL.inspection.zoom.enter.toFixed(3)}
+      data-label-level-inspection-zoom-exit={RESERVOIR_LABEL_LEVEL.inspection.zoom.exit.toFixed(3)}
+      data-label-level-persistent-zoom-enter={RESERVOIR_LABEL_LEVEL.persistent.zoom.enter.toFixed(3)}
+      data-label-level-persistent-zoom-exit={RESERVOIR_LABEL_LEVEL.persistent.zoom.exit.toFixed(3)}
+      data-label-level-hysteresis="true"
       data-label-far-hover-reveal="false"
       data-reservoir-base-scale={baseScale.toFixed(6)}
       data-reservoir-safe-zones={[
@@ -3182,7 +3282,8 @@ export function ReservoirScene() {
               hoveredArtifactId={hoveredArtifactId}
               interactionEnabled={!inputLocked}
               isDragging={isDragging}
-              labelsVisible={labelsVisible}
+              reservoirFrame={reservoirFrame}
+              zoomLevel={zoomLevel}
               selectedPressActive={selectedPressActive}
               surfacedNodeIds={surfacedNodeIds}
               filterVisibleNodeIds={queryVisibleNodeIds}
