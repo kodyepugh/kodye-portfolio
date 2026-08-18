@@ -17,14 +17,16 @@ import type {
 } from "react";
 import * as THREE from "three";
 import { ROOT_COLLECTION_ID } from "@/content/digital-reservoir/collections";
-import { getReservoirContentNodes, type ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import {
+  getReservoirContentNodes,
+  getReservoirContentNodesBySemanticIds,
+  type ReservoirContentNode,
+} from "@/lib/content/reservoir-adapter";
 import {
   getArtifactById,
   getCollectionById,
-  getPublishedArtifactCollections,
 } from "@/lib/content/selectors";
 import {
-  RESERVOIR_BASE_ROTATION,
   RESERVOIR_RADIUS,
 } from "@/lib/reservoir/geometry";
 import {
@@ -46,10 +48,6 @@ import {
   RESERVOIR_NODE_SIZING_REFERENCE_POPULATION,
 } from "@/lib/reservoir/node-sizing";
 import { RESERVOIR_LABEL_LEVEL } from "@/lib/reservoir/label";
-import {
-  getReservoirNodePlacement,
-} from "@/lib/reservoir/node";
-import { RESERVOIR_NODE_SELECTED_RADIAL_RATIO } from "@/lib/reservoir/selection";
 import {
   getCollectionReconstitutionDuration,
   getCollectionReconstitutionFrame,
@@ -81,6 +79,7 @@ import type {
   ActiveExploreFilter,
   DirectArtifactId,
 } from "@/types/reservoir";
+import type { ReservoirContext } from "@/types/reservoir";
 import type { Collection } from "@/types/content";
 import { AtmosphereContent } from "./AtmosphereContent";
 import { ArtifactWindow } from "./ArtifactWindow";
@@ -105,8 +104,6 @@ const RESERVOIR_PINCH_ZOOM_RATE = 0.0045;
 const MAX_WHEEL_DELTA = 120;
 const DRAG_SENSITIVITY = 0.0042;
 const NODE_CLICK_MAX_TRAVEL = 6;
-const DIRECT_LOCATE_DURATION = 0.86;
-const DIRECT_LOCATE_REDUCED_MOTION_DURATION = 0.2;
 const FOOTER_TRIGGER_OVERSCAN = 28;
 const LAYOUT_MODE_SWITCH_DURATION = 0.62;
 
@@ -149,13 +146,6 @@ type QueryReconciliation = {
 
 type QueryActivityMode = "success" | "empty";
 
-type DirectLocateSafeZone = {
-  bottom: number;
-  left: number;
-  right: number;
-  top: number;
-};
-
 const SEMANTIC_EXPLORE_LENSES = new Map<string, readonly ActiveExploreFilter[]>([
   [ROOT_COLLECTION_ID, ["collections", "inquiry"]],
   ["collection-work", ["work", "inquiry"]],
@@ -174,6 +164,41 @@ const DIRECT_ARTIFACT_TARGETS = new Map<Exclude<DirectArtifactId, "contact">, st
   ["about", "artifact-about"],
   ["resume", "artifact-resume"],
 ]);
+
+type QueryReservoirSelectionSnapshot = {
+  activeExploreFilter: ActiveExploreFilter;
+  hoveredArtifactId: string | null;
+  selectedArtifactId: string | null;
+  selectedCollectionId: string | null;
+  selectedPressActive: boolean;
+};
+
+function getReservoirContextCollectionId(context: ReservoirContext) {
+  if (context.kind === "collection") return context.collectionId;
+  return getReservoirContextCollectionId(context.returnContext);
+}
+
+function getReservoirContextSeed(context: ReservoirContext) {
+  return context.kind === "collection"
+    ? context.collectionId
+    : `query:${context.resultIds.join(",")}`;
+}
+
+function getReservoirContextNodes(context: ReservoirContext) {
+  return context.kind === "collection"
+    ? getReservoirContentNodes(context.collectionId)
+    : getReservoirContentNodesBySemanticIds(context.resultIds);
+}
+
+function mergeReservoirNodeSets(
+  sourceNodes: readonly ReservoirContentNode[],
+  destinationNodes: readonly ReservoirContentNode[],
+) {
+  const merged = new Map<string, ReservoirContentNode>();
+  for (const node of sourceNodes) merged.set(node.id, node);
+  for (const node of destinationNodes) merged.set(node.id, node);
+  return [...merged.values()];
+}
 
 function getExploreNodeIds(
   nodes: readonly ReservoirContentNode[],
@@ -630,7 +655,7 @@ export function ReservoirScene() {
     height: 1000,
     controlPlaneHeight: 120,
   });
-  const [cameraRevision, setCameraRevision] = useState(0);
+  const [, setCameraRevision] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [activeExploreFilter, setActiveExploreFilter] =
     useState<ActiveExploreFilter>("all");
@@ -663,6 +688,10 @@ export function ReservoirScene() {
   );
   const [queryReconciliation, setQueryReconciliation] =
     useState<QueryReconciliation | null>(null);
+  const [queryReservoirContext, setQueryReservoirContext] =
+    useState<ReservoirContext | null>(null);
+  const [queryReservoirTransitionContext, setQueryReservoirTransitionContext] =
+    useState<ReservoirContext | null>(null);
   const [locatingArtifactId, setLocatingArtifactId] = useState<string | null>(
     null,
   );
@@ -715,8 +744,6 @@ export function ReservoirScene() {
   );
   const layoutModeDestinationSnapshotRef =
     useRef<RenderedLayoutSnapshot | null>(null);
-  const directLocateStartQuaternionRef = useRef(new THREE.Quaternion());
-  const directLocateTargetQuaternionRef = useRef(new THREE.Quaternion());
   const layoutModeResetStartZoomRef = useRef(RESERVOIR_ZOOM_DEFAULT);
   const layoutModeResetTargetZoomRef = useRef(RESERVOIR_ZOOM_DEFAULT);
   const reservoirTransformRef = useRef<THREE.Group | null>(null);
@@ -736,6 +763,8 @@ export function ReservoirScene() {
   const collectionReconstitutionProgressRef = useRef(0);
   const collectionReconstitutionElapsedRef = useRef(0);
   const collectionEmergenceProgressRef = useRef(1);
+  const queryReservoirSnapshotRef =
+    useRef<QueryReservoirSelectionSnapshot | null>(null);
   const pendingCollectionResolutionRef =
     useRef<PendingCollectionResolution | null>(null);
   const collectionTransitionPoseSnapshotRef =
@@ -744,8 +773,6 @@ export function ReservoirScene() {
     useRef<RenderedLayoutSnapshot | null>(null);
   const collectionTransitionDestinationSnapshotRef =
     useRef<RenderedLayoutSnapshot | null>(null);
-  const pendingDirectArtifactIdRef = useRef<string | null>(null);
-  const pendingDirectCollectionIdRef = useRef<string | null>(null);
   const collectionOrientationRef = useRef(
     new Map<string, QuaternionTuple>(),
   );
@@ -916,7 +943,23 @@ export function ReservoirScene() {
     () => new THREE.Vector3(0, centerWorldY, 0),
     [centerWorldY],
   );
-  const renderedActiveCollectionId = collectionNavigation.activeCollectionId;
+  const collectionReservoirContext = useMemo<ReservoirContext>(
+    () => ({
+      kind: "collection",
+      collectionId: collectionNavigation.activeCollectionId,
+    }),
+    [collectionNavigation.activeCollectionId],
+  );
+  const settledReservoirContext =
+    queryReservoirContext ?? collectionReservoirContext;
+  const renderedReservoirContext =
+    queryReservoirTransitionContext ?? settledReservoirContext;
+  const renderedActiveCollectionId = getReservoirContextCollectionId(
+    renderedReservoirContext,
+  );
+  const renderedReservoirSeed = getReservoirContextSeed(
+    renderedReservoirContext,
+  );
   const activeCollection = (
     getCollectionById(renderedActiveCollectionId) ??
     getCollectionById(ROOT_COLLECTION_ID)
@@ -932,8 +975,14 @@ export function ReservoirScene() {
     [collectionHistory],
   );
   const activeReservoirNodes = useMemo(
-    () => getReservoirContentNodes(renderedActiveCollectionId),
-    [renderedActiveCollectionId],
+    () =>
+      queryReservoirTransitionContext
+        ? mergeReservoirNodeSets(
+            getReservoirContextNodes(settledReservoirContext),
+            getReservoirContextNodes(queryReservoirTransitionContext),
+          )
+        : getReservoirContextNodes(settledReservoirContext),
+    [queryReservoirTransitionContext, settledReservoirContext],
   );
   const activeReservoirArtifacts = useMemo(
     () =>
@@ -1014,7 +1063,7 @@ export function ReservoirScene() {
       }
 
       const directions = generateReservoirLayout(activeReservoirNodes, {
-        seed: renderedActiveCollectionId,
+        seed: renderedReservoirSeed,
         mode: renderedLayoutMode,
         focusedDirection:
           renderedLayoutMode === "focused"
@@ -1056,6 +1105,7 @@ export function ReservoirScene() {
       layoutModeDestinationSnapshot,
       layoutModeSourceSnapshot,
       layoutModeTransitionState,
+      renderedReservoirSeed,
       renderedActiveCollectionId,
       renderedLayoutMode,
     ],
@@ -1065,9 +1115,9 @@ export function ReservoirScene() {
   const activeInitialComposition = useMemo(
     () =>
       generateReservoirInitialComposition(activeReservoirLayout, {
-        seed: renderedActiveCollectionId,
+        seed: renderedReservoirSeed,
       }),
-    [activeReservoirLayout, renderedActiveCollectionId],
+    [activeReservoirLayout, renderedReservoirSeed],
   );
   const activeReservoirLayoutDiagnostics = useMemo(
     () => getReservoirLayoutDiagnostics(activeReservoirLayout),
@@ -1086,7 +1136,7 @@ export function ReservoirScene() {
     fallbackCamera.updateProjectionMatrix();
     fallbackCamera.updateMatrixWorld();
     return fallbackCamera;
-  }, [cameraRevision, viewportFrame.height, viewportFrame.width]);
+  }, [viewportFrame.height, viewportFrame.width]);
   const focusedLayoutCapRadius = useMemo(
     () => getReservoirFocusedCapRadius(activeReservoirNodes.length),
     [activeReservoirNodes.length],
@@ -1094,7 +1144,7 @@ export function ReservoirScene() {
   const focusedLayoutFocalDirection = focusedLayoutDirection;
   const activeAdaptiveZoom = useMemo<ReservoirAdaptiveZoom>(() => {
     const camera = adaptiveZoomCamera;
-    if (!camera || cameraRevision < 0) {
+    if (!camera) {
       return {
         baselineMaximum: RESERVOIR_ZOOM_BASELINE_MAX,
         requiredZoom: RESERVOIR_ZOOM_BASELINE_MAX,
@@ -1125,7 +1175,6 @@ export function ReservoirScene() {
     activeReservoirNodes,
     baseScale,
     adaptiveZoomCamera,
-    cameraRevision,
     reservoirCenter,
     viewportFrame.height,
   ]);
@@ -1167,10 +1216,17 @@ export function ReservoirScene() {
     }
   }, [reservoirZoomMaximum, setReservoirZoom]);
 
-  const surfacedNodeIds = useMemo(
-    () => getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
-    [activeExploreFilter, activeReservoirNodes],
-  );
+  const surfacedNodeIds = useMemo(() => {
+    if (queryReservoirContext || queryReservoirTransitionContext) {
+      return new Set(activeReservoirNodes.map((node) => node.id));
+    }
+    return getExploreNodeIds(activeReservoirNodes, activeExploreFilter);
+  }, [
+    activeExploreFilter,
+    activeReservoirNodes,
+    queryReservoirContext,
+    queryReservoirTransitionContext,
+  ]);
   const reservoirNodeDiagnostics = useMemo(
     () => getReservoirNodeDiagnostics(activeReservoirNodes),
     [activeReservoirNodes],
@@ -1238,75 +1294,6 @@ export function ReservoirScene() {
     inputLocked || collectionNavigation.transitionPhase !== "idle";
   const secondaryControlsDimmed =
     collectionContextTransition || layoutModeTransitionActive;
-
-  useEffect(() => {
-    if (
-      transitionState !== "locatingArtifact" ||
-      !locatingArtifactId
-    ) {
-      return;
-    }
-
-    let duration = reducedMotion
-      ? DIRECT_LOCATE_REDUCED_MOTION_DURATION
-      : DIRECT_LOCATE_DURATION;
-    const artifactId = locatingArtifactId;
-    let startTime = performance.now();
-    let correctionCount = 0;
-    let animationFrameId = 0;
-
-    function updateDirectLocate(now: number) {
-      const sphere = sphereRotationRef.current;
-      if (!sphere) return;
-      const progress = clamp((now - startTime) / (duration * 1000), 0, 1);
-      const easedProgress = smoothstep(progress);
-      sphere.quaternion
-        .copy(directLocateStartQuaternionRef.current)
-        .slerp(directLocateTargetQuaternionRef.current, easedProgress)
-        .normalize();
-      const diagnostics = getRotationDiagnostics(sphere.quaternion);
-      setRotationDiagnostics(diagnostics);
-
-      if (interaction.current) {
-        interaction.current.dataset.directLocateArtifact = artifactId;
-        interaction.current.dataset.directLocateProgress = progress.toFixed(6);
-        interaction.current.dataset.renderedRotation =
-          `${diagnostics.euler[0].toFixed(3)},${diagnostics.euler[1].toFixed(3)}`;
-        interaction.current.dataset.renderedQuaternion = diagnostics.quaternion
-          .map((value) => value.toFixed(6))
-          .join(",");
-      }
-
-      if (progress < 1) {
-        animationFrameId = requestAnimationFrame(updateDirectLocate);
-        return;
-      }
-
-      if (!isDirectArtifactSafelyFramed(artifactId)) {
-        if (prepareDirectLocateTarget(artifactId)) {
-          correctionCount += 1;
-          startTime = now;
-          duration = reducedMotion ? 0.12 : 0.32;
-          if (interaction.current) {
-            interaction.current.dataset.directLocateCorrections =
-              String(correctionCount);
-          }
-          animationFrameId = requestAnimationFrame(updateDirectLocate);
-        }
-        return;
-      }
-
-      setLocatingArtifactId(null);
-      beginArtifactOpening(artifactId, true);
-    }
-
-    animationFrameId = requestAnimationFrame(updateDirectLocate);
-    return () => cancelAnimationFrame(animationFrameId);
-    // The opening command must use the exact render that established this
-    // locate phase; adding the render-local command as a dependency would
-    // restart the quaternion timeline on every state update.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locatingArtifactId, reducedMotion, transitionState]);
 
   useEffect(() => {
     if (
@@ -2089,7 +2076,7 @@ export function ReservoirScene() {
     }
 
     const destinationLayout = generateReservoirLayout(activeReservoirNodes, {
-      seed: renderedActiveCollectionId,
+      seed: renderedReservoirSeed,
       mode: nextLayoutMode,
       focusedDirection:
         nextLayoutMode === "focused"
@@ -2290,6 +2277,7 @@ export function ReservoirScene() {
   }
 
   function requestAncestorCollection(targetCollectionId: string) {
+    exitQueryReservoirToCollectionContext();
     if (inputLocked || collectionHistory.length <= 1) return;
     const targetHistoryIndex = collectionHistory.findIndex(
       (frame) => frame.collectionId === targetCollectionId,
@@ -2320,6 +2308,7 @@ export function ReservoirScene() {
       return;
     }
 
+    exitQueryReservoirToCollectionContext();
     pendingCollectionResolutionRef.current = {
       history: [...collectionHistory, { collectionId }],
       spatialSelectionId: collectionId,
@@ -2533,6 +2522,8 @@ export function ReservoirScene() {
     if (
       menuState !== "open" ||
       queryActivityRevision !== null ||
+      queryReservoirContext !== null ||
+      queryReservoirTransitionContext !== null ||
       filter === activeExploreFilter
     ) {
       return;
@@ -2586,7 +2577,9 @@ export function ReservoirScene() {
   }
 
   function completeQueryTransition() {
-    if (queryActivityMode === "success") {
+    if (queryReservoirTransitionContext) {
+      settleQueryReservoirContext(queryReservoirTransitionContext);
+    } else if (queryActivityMode === "success") {
       setQueryVisibleNodeIds(
         new Set(queryReconciliation?.target ?? surfacedNodeIds),
       );
@@ -2595,183 +2588,51 @@ export function ReservoirScene() {
     setQueryActivityRevision(null);
     setQueryActivityMode(null);
     setRejectedExploreFilter(null);
+    setLocatingArtifactId(null);
   }
 
-  const getDirectLocateSafeZone = useCallback(
-    (): DirectLocateSafeZone | null => {
-    const element = interaction.current;
-    if (!element) return null;
-    const bounds = element.getBoundingClientRect();
-    const horizontalInset = Math.max(
-      reservoirFrame.safeZones.left,
-      clamp(bounds.width * 0.08, 32, 112),
-    );
+  function restoreQueryReservoirSnapshot() {
+    const snapshot = queryReservoirSnapshotRef.current;
+    if (!snapshot) return;
 
-    return {
-      top: bounds.top + reservoirFrame.safeZones.top,
-      right: bounds.right - horizontalInset,
-      bottom: bounds.bottom - reservoirFrame.safeZones.bottom,
-      left: bounds.left + horizontalInset,
-    };
-    },
-    [reservoirFrame],
-  );
-
-  const projectDirectArtifact = useCallback(
-    (artifactId: string, sphereQuaternion: THREE.Quaternion) => {
-    const camera = cameraRef.current;
-    const element = interaction.current;
-    const artifact = getArtifactById(artifactId);
-    const direction =
-      artifact?.published === true
-        ? activeReservoirLayout.get(artifact.id)
-        : null;
-    const placement = direction
-      ? getReservoirNodePlacement(direction, activeNodeSizing.artifactRadius)
-      : null;
-    if (!camera || !element || !placement) return null;
-
-    camera.updateMatrixWorld();
-    const baseQuaternion = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(...RESERVOIR_BASE_ROTATION),
-    );
-    const selectedOffset =
-      activeNodeSizing.artifactRadius * RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
-    const worldPosition = placement.normal
-      .clone()
-      .multiplyScalar(
-        RESERVOIR_RADIUS +
-          activeNodeSizing.artifactRadius * 0.04 +
-          selectedOffset,
-      )
-      .applyQuaternion(baseQuaternion)
-      .applyQuaternion(sphereQuaternion)
-      .multiplyScalar(renderedScaleRef.current)
-      .add(reservoirCenter);
-    const projected = worldPosition.clone().project(camera);
-    const bounds = element.getBoundingClientRect();
-
-    return {
-      x: bounds.left + ((projected.x + 1) / 2) * bounds.width,
-      y: bounds.top + ((1 - projected.y) / 2) * bounds.height,
-    };
-    },
-    [activeNodeSizing.artifactRadius, activeReservoirLayout, reservoirCenter],
-  );
-
-  function isDirectArtifactSafelyFramed(artifactId: string) {
-    const sphere = sphereRotationRef.current;
-    const safeZone = getDirectLocateSafeZone();
-    if (!sphere || !safeZone) return false;
-    const projected = projectDirectArtifact(artifactId, sphere.quaternion);
-    if (!projected) return false;
-    const framed =
-      projected.x >= safeZone.left &&
-      projected.x <= safeZone.right &&
-      projected.y >= safeZone.top &&
-      projected.y <= safeZone.bottom;
-
-    if (interaction.current) {
-      interaction.current.dataset.directLocateProjectedScreen =
-        `${projected.x.toFixed(3)},${projected.y.toFixed(3)}`;
-      interaction.current.dataset.directLocateSafeZone = [
-        safeZone.left,
-        safeZone.top,
-        safeZone.right,
-        safeZone.bottom,
-      ]
-        .map((value) => value.toFixed(3))
-        .join(",");
-      interaction.current.dataset.directLocateFramed = String(framed);
-    }
-    return framed;
+    setActiveExploreFilter(snapshot.activeExploreFilter);
+    setHoveredArtifactId(snapshot.hoveredArtifactId);
+    setSelectedArtifactId(snapshot.selectedArtifactId);
+    setSelectedCollectionId(snapshot.selectedCollectionId);
+    setSelectedPressActive(snapshot.selectedPressActive);
   }
 
-  const prepareDirectLocateTarget = useCallback((artifactId: string) => {
-    const sphere = sphereRotationRef.current;
-    const camera = cameraRef.current;
-    const element = interaction.current;
-    const safeZone = getDirectLocateSafeZone();
-    const artifact = getArtifactById(artifactId);
-    const direction =
-      artifact?.published === true
-        ? activeReservoirLayout.get(artifact.id)
-        : null;
-    const placement = direction
-      ? getReservoirNodePlacement(direction, activeNodeSizing.artifactRadius)
-      : null;
-    if (!sphere || !camera || !element || !safeZone || !placement) {
-      return false;
+  function settleQueryReservoirContext(context: ReservoirContext) {
+    if (context.kind === "collection") {
+      queryReservoirSnapshotRef.current = null;
     }
-
-    camera.updateMatrixWorld();
-    const bounds = element.getBoundingClientRect();
-    const targetScreen = {
-      x: THREE.MathUtils.lerp(safeZone.left, safeZone.right, 0.68),
-      y: THREE.MathUtils.lerp(safeZone.top, safeZone.bottom, 0.54),
-    };
-    const targetNdc = new THREE.Vector3(
-      ((targetScreen.x - bounds.left) / bounds.width) * 2 - 1,
-      -((targetScreen.y - bounds.top) / bounds.height) * 2 + 1,
-      0.5,
+    setQueryReservoirContext(
+      context.kind === "query" ? context : null,
     );
-    const cameraOrigin = camera.getWorldPosition(new THREE.Vector3());
-    const targetRay = new THREE.Ray(
-      cameraOrigin,
-      targetNdc.unproject(camera).sub(cameraOrigin).normalize(),
-    );
-    const targetIntersection = targetRay.intersectSphere(
-      new THREE.Sphere(
-        reservoirCenter,
-        RESERVOIR_RADIUS * renderedScaleRef.current,
+    setQueryReservoirTransitionContext(null);
+    setQueryVisibleNodeIds(
+      new Set(
+        getReservoirContextNodes(context).map((node) => node.id),
       ),
-      new THREE.Vector3(),
     );
-    if (!targetIntersection) return false;
+    setQueryReconciliation(null);
+    setQueryActivityRevision(null);
+    setQueryActivityMode(null);
+    setRejectedExploreFilter(null);
+  }
 
-    const startQuaternion = sphere.quaternion.clone().normalize();
-    const baseQuaternion = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(...RESERVOIR_BASE_ROTATION),
-    );
-    const currentNodeDirection = placement.normal
-      .clone()
-      .applyQuaternion(baseQuaternion)
-      .applyQuaternion(startQuaternion)
-      .normalize();
-    const inspectionDirection = targetIntersection
-      .sub(reservoirCenter)
-      .normalize();
-    const locateDelta = new THREE.Quaternion().setFromUnitVectors(
-      currentNodeDirection,
-      inspectionDirection,
-    );
-    directLocateStartQuaternionRef.current.copy(startQuaternion);
-    directLocateTargetQuaternionRef.current
-      .copy(locateDelta)
-      .multiply(startQuaternion)
-      .normalize();
+  function exitQueryReservoirToCollectionContext() {
+    if (!queryReservoirContext) return;
 
-    const projectedTarget = projectDirectArtifact(
-      artifactId,
-      directLocateTargetQuaternionRef.current,
-    );
-    if (interaction.current && projectedTarget) {
-      interaction.current.dataset.directLocatePlannedScreen =
-        `${projectedTarget.x.toFixed(3)},${projectedTarget.y.toFixed(3)}`;
-    }
-    return Boolean(projectedTarget);
-  }, [
-    activeNodeSizing.artifactRadius,
-    activeReservoirLayout,
-    getDirectLocateSafeZone,
-    projectDirectArtifact,
-    reservoirCenter,
-  ]);
+    restoreQueryReservoirSnapshot();
+    settleQueryReservoirContext({
+      kind: "collection",
+      collectionId: collectionNavigation.activeCollectionId,
+    });
+  }
 
   function selectDirectArtifact(directArtifactId: DirectArtifactId) {
     if (menuState !== "open" || queryActivityRevision !== null) return;
-    pendingDirectArtifactIdRef.current = null;
-    pendingDirectCollectionIdRef.current = null;
     if (directArtifactId === "contact") {
       if (interaction.current) {
         interaction.current.dataset.directContactAction = "ui-only";
@@ -2789,79 +2650,52 @@ export function ReservoirScene() {
     const artifact = artifactId ? getArtifactById(artifactId) : null;
     if (!artifact || artifact.published !== true) return;
 
-    const containingCollections = getPublishedArtifactCollections(artifact.id);
-    const targetCollection =
-      containingCollections.find(
-        (collection) => collection.id === collectionNavigation.activeCollectionId,
-      ) ?? containingCollections[0];
-    if (!targetCollection) return;
-
-    if (targetCollection.id === collectionNavigation.activeCollectionId) {
-      if (!prepareDirectLocateTarget(artifact.id)) return;
-
-      setSelectedCollectionId(null);
-      setSelectedArtifactId(artifact.id);
-      setHoveredArtifactId(null);
-      setSelectedPressActive(false);
-      setLocatingArtifactId(artifact.id);
-      setTransitionState("locatingArtifact");
-      setMenuState("closing");
-      return;
-    }
-
-    pendingDirectArtifactIdRef.current = artifact.id;
-    pendingDirectCollectionIdRef.current = targetCollection.id;
-    setSelectedArtifactId(null);
-    setSelectedCollectionId(null);
-    setHoveredArtifactId(null);
-    setSelectedPressActive(false);
-    pendingCollectionResolutionRef.current = {
-      history: [...collectionHistory, { collectionId: targetCollection.id }],
-      spatialSelectionId: artifact.id,
+    const returnContext = queryReservoirContext ?? collectionReservoirContext;
+    const targetContext: ReservoirContext = {
+      kind: "query",
+      resultIds: [artifact.id],
+      returnContext,
     };
-    requestCollection(targetCollection.id, true);
-    setMenuState("closing");
-  }
+    const targetVisibleIds = new Set(
+      getReservoirContextNodes(targetContext).map((node) => node.id),
+    );
+    const currentVisibleIds = new Set(queryVisibleNodeIds);
+    const reconciliationTarget = new Set(targetVisibleIds);
 
-  useEffect(() => {
-    const artifactId = pendingDirectArtifactIdRef.current;
-    const collectionId = pendingDirectCollectionIdRef.current;
-    if (
-      !artifactId ||
-      !collectionId ||
-      transitionState !== "idle" ||
-      collectionNavigation.activeCollectionId !== collectionId
-    ) {
-      return;
-    }
-
-    const artifact = getArtifactById(artifactId);
-    if (!artifact || artifact.published !== true) {
-      pendingDirectArtifactIdRef.current = null;
-      pendingDirectCollectionIdRef.current = null;
-      return;
-    }
-
-    if (!prepareDirectLocateTarget(artifactId)) {
-      pendingDirectArtifactIdRef.current = null;
-      pendingDirectCollectionIdRef.current = null;
-      return;
-    }
-
-    pendingDirectArtifactIdRef.current = null;
-    pendingDirectCollectionIdRef.current = null;
+    queryRevisionRef.current += 1;
+    queryReservoirSnapshotRef.current = {
+      activeExploreFilter,
+      hoveredArtifactId,
+      selectedArtifactId,
+      selectedCollectionId,
+      selectedPressActive,
+    };
+    setQueryReservoirTransitionContext(targetContext);
+    setQueryVisibleNodeIds(new Set([...currentVisibleIds, ...targetVisibleIds]));
+    setQueryReconciliation({
+      entering: new Set(
+        [...targetVisibleIds].filter((id) => !currentVisibleIds.has(id)),
+      ),
+      leaving: new Set(
+        [...currentVisibleIds].filter((id) => !reconciliationTarget.has(id)),
+      ),
+      staying: new Set(
+        [...currentVisibleIds].filter((id) => reconciliationTarget.has(id)),
+      ),
+      target: reconciliationTarget,
+    });
+    setQueryActivityMode("success");
+    setRejectedExploreFilter(null);
+    setQueryActivityRevision(queryRevisionRef.current);
     setSelectedCollectionId(null);
     setSelectedArtifactId(artifact.id);
     setHoveredArtifactId(null);
     setSelectedPressActive(false);
     setLocatingArtifactId(artifact.id);
-    setTransitionState("locatingArtifact");
+    setTransitionState("idle");
+    pendingCollectionResolutionRef.current = null;
     setMenuState("closing");
-  }, [
-    collectionNavigation.activeCollectionId,
-    prepareDirectLocateTarget,
-    transitionState,
-  ]);
+  }
 
   return (
     <>
@@ -2901,8 +2735,17 @@ export function ReservoirScene() {
         ancestors={visibleCollectionAncestors}
         depth={collectionHistory.length - 1}
         disabled={inputLocked}
+        queryActive={
+          queryReservoirContext !== null ||
+          queryReservoirTransitionContext !== null
+        }
         onAncestorSelect={requestAncestorCollection}
         onBack={() => {
+          if (queryReservoirContext?.kind === "query") {
+            restoreQueryReservoirSnapshot();
+            settleQueryReservoirContext(queryReservoirContext.returnContext);
+            return;
+          }
           const previousCollectionId = collectionHistory.at(-2)?.collectionId;
           if (previousCollectionId) {
             requestAncestorCollection(previousCollectionId);
@@ -2990,7 +2833,7 @@ export function ReservoirScene() {
           ? "continuous-sphere-cap"
           : "continuous-sphere-fibonacci"
       }
-      data-node-layout-seed={renderedActiveCollectionId}
+      data-node-layout-seed={renderedReservoirSeed}
       data-node-layout-count={activeReservoirLayout.size}
       data-node-layout-directions={activeReservoirLayoutDiagnostics.entries
         .map(([nodeId, direction]) =>

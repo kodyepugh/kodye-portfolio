@@ -28,6 +28,10 @@ import {
   createReservoirNodeSelectionState,
   RESERVOIR_NODE_CONTINUATION_RING_INNER_RADIUS_RATIO,
   RESERVOIR_NODE_CONTINUATION_RING_OUTER_RADIUS_RATIO,
+  RESERVOIR_NODE_CONTINUATION_RING_END_SCALE,
+  RESERVOIR_NODE_CONTINUATION_RING_MAX_OPACITY,
+  RESERVOIR_NODE_CONTINUATION_RING_START_SCALE,
+  RESERVOIR_NODE_CONTINUATION_RING_TRAVEL_RATIO,
   RESERVOIR_NODE_MESH_ENGAGEMENT_DELAY_MS,
   RESERVOIR_NODE_SELECTED_HOVER_EMISSIVE_INTENSITY,
   RESERVOIR_NODE_SELECTED_HOVER_WHITE_MIX,
@@ -241,16 +245,42 @@ export function ArtifactNode({
       previousInteractionRevision.current = interactionRevisionRef.current;
     }
 
+    let openingReactionProgress = 0;
     if (continuationRing && continuationRingMaterial) {
+      const shockwaveActive = opening && (openingSelected || selected);
+      const shockwaveProgress = shockwaveActive
+        ? openingReactionProgress
+        : 0;
       const ringVisible =
-        selectionFrame.ringVisible && !opening && !restoring;
+        (selectionFrame.ringVisible && !opening && !restoring) ||
+        shockwaveActive;
       continuationRing.visible = ringVisible;
       continuationRing.position
         .copy(placement.normal)
-        .multiplyScalar(selectionFrame.ringRadialOffset);
-      continuationRing.scale.setScalar(selectionFrame.ringScale);
+        .multiplyScalar(
+          shockwaveActive
+            ? THREE.MathUtils.lerp(
+                selectionFrame.ringRadialOffset,
+                selectionFrame.ringRadialOffset +
+                  nodeRadius * RESERVOIR_NODE_CONTINUATION_RING_TRAVEL_RATIO,
+                shockwaveProgress,
+              )
+            : selectionFrame.ringRadialOffset,
+        );
+      continuationRing.scale.setScalar(
+        shockwaveActive
+          ? THREE.MathUtils.lerp(
+              RESERVOIR_NODE_CONTINUATION_RING_START_SCALE,
+              RESERVOIR_NODE_CONTINUATION_RING_END_SCALE * 1.18,
+              shockwaveProgress,
+            )
+          : selectionFrame.ringScale,
+      );
       continuationRingMaterial.opacity = ringVisible
-        ? selectionFrame.ringOpacity
+        ? shockwaveActive
+          ? Math.sin(Math.PI * shockwaveProgress) *
+            RESERVOIR_NODE_CONTINUATION_RING_MAX_OPACITY
+          : selectionFrame.ringOpacity
         : 0;
     }
 
@@ -258,7 +288,6 @@ export function ArtifactNode({
       selectionFrame.radialOffset +
       selectionFrame.continuationOffset +
       filterRadialOffset.current;
-    let openingReactionProgress = 0;
 
     if (emerging && emergenceProgressRef) {
       const emergenceProgress = getCollectionChildEmergenceProgress(

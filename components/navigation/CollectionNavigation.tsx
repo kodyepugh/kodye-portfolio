@@ -11,6 +11,7 @@ type CollectionNavigationProps = {
   ancestors: readonly CollectionAncestor[];
   depth: number;
   disabled: boolean;
+  queryActive: boolean;
   onAncestorSelect: (collectionId: string) => void;
   onBack: () => void;
   onHome: () => void;
@@ -20,6 +21,7 @@ export function CollectionNavigation({
   ancestors,
   depth,
   disabled,
+  queryActive,
   onAncestorSelect,
   onBack,
   onHome,
@@ -33,7 +35,7 @@ export function CollectionNavigation({
     viewport.scrollLeft = viewport.scrollWidth - viewport.clientWidth;
   }, [ancestors]);
 
-  if (depth === 0) return null;
+  if (depth === 0 && !queryActive) return null;
 
   return (
     <>
@@ -88,7 +90,7 @@ export function CollectionNavigation({
         >
           Home
         </button>
-        {depth >= 2 ? (
+        {depth >= 2 || queryActive ? (
           <button
             type="button"
             className="collection-navigation__control"
