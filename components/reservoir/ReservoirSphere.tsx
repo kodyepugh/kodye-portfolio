@@ -154,6 +154,7 @@ export function ReservoirSphere({
     selectedNodeColor: {
       value: new THREE.Color(RESERVOIR_THEME.inspection),
     },
+    selectedNodeAngularRadius: { value: 0 },
     selectedGlowRadiusProgress: { value: 0 },
     selectedGlowVisibility: { value: 0 },
     selectedShockwaveProgress: { value: 0 },
@@ -161,6 +162,7 @@ export function ReservoirSphere({
   });
   const surfaceSelectionPresentationRef = useRef({
     selectedNodeId: null as string | null,
+    selectedNodeAngularRadius: 0,
     selectedGlowRadiusProgress: 0,
     selectedGlowVisibility: 0,
     selectedNodeDirection: new THREE.Vector3(0, 1, 0),
@@ -210,6 +212,16 @@ export function ReservoirSphere({
         : new THREE.Color(RESERVOIR_THEME.inspection),
     [selectedNode],
   );
+  const selectedNodeRadius = useMemo(() => {
+    if (!selectedNode) return 0;
+    return selectedNode.kind === "artifact"
+      ? nodeSizing.artifactRadius
+      : nodeSizing.collectionRadius;
+  }, [nodeSizing.artifactRadius, nodeSizing.collectionRadius, selectedNode]);
+  const selectedNodeAngularRadius = useMemo(() => {
+    if (selectedNodeRadius <= 0) return 0;
+    return Math.asin(Math.min(selectedNodeRadius / RESERVOIR_RADIUS, 0.999999));
+  }, [selectedNodeRadius]);
   const presentedSelectedNodeId =
     selectedMeshRetractionStarted
     ? null
@@ -291,8 +303,15 @@ export function ReservoirSphere({
     presentation.selectedNodeId = selectedNodeId;
     presentation.selectedNodeDirection.copy(selectedNodeDirection);
     presentation.selectedNodeColor.copy(selectedNodeColor);
+    presentation.selectedNodeAngularRadius = selectedNodeAngularRadius;
     presentation.selectedGlowVisibility = 1;
-  }, [selectedNode, selectedNodeColor, selectedNodeDirection, selectedNodeId]);
+  }, [
+    selectedNode,
+    selectedNodeAngularRadius,
+    selectedNodeColor,
+    selectedNodeDirection,
+    selectedNodeId,
+  ]);
 
   useFrame((_, delta) => {
     const openingProgress = restoring
@@ -319,20 +338,21 @@ export function ReservoirSphere({
       selectionPresentation.selectedNodeId = selectedNodeId;
       selectionPresentation.selectedNodeDirection.copy(selectedNodeDirection);
       selectionPresentation.selectedNodeColor.copy(selectedNodeColor);
+      selectionPresentation.selectedNodeAngularRadius =
+        selectedNodeAngularRadius;
     }
     const selectedGlowRadiusTarget =
       selectionRetreatActive || !selectedNode ? 0 : 1;
     selectionPresentation.selectedGlowRadiusProgress = THREE.MathUtils.damp(
       selectionPresentation.selectedGlowRadiusProgress,
       selectedGlowRadiusTarget,
-      selectedGlowRadiusTarget < selectionPresentation.selectedGlowRadiusProgress
-        ? 18
-        : 12,
+      14,
       delta,
     );
-    selectionPresentation.selectedGlowVisibility =
-      selectedGlowRadiusTarget > 0 ||
-      selectionPresentation.selectedGlowRadiusProgress > 0.015
+    selectionPresentation.selectedGlowVisibility = selectedNodeId
+      ? 1
+      : selectionRetreatActive ||
+          selectionPresentation.selectedGlowRadiusProgress > 0.0001
         ? 1
         : 0;
     if (
@@ -341,6 +361,7 @@ export function ReservoirSphere({
       !selectedNodeId
     ) {
       selectionPresentation.selectedNodeId = null;
+      selectionPresentation.selectedNodeAngularRadius = 0;
       selectionPresentation.selectedNodeDirection.set(0, 1, 0);
       selectionPresentation.selectedNodeColor.set(RESERVOIR_THEME.inspection);
       selectionPresentation.selectedGlowVisibility = 0;
@@ -355,6 +376,8 @@ export function ReservoirSphere({
     surfaceSelectionUniforms.current.selectedNodeColor.value.copy(
       selectionPresentation.selectedNodeColor,
     );
+    surfaceSelectionUniforms.current.selectedNodeAngularRadius.value =
+      selectionPresentation.selectedNodeAngularRadius;
     surfaceSelectionUniforms.current.selectedGlowRadiusProgress.value =
       selectionPresentation.selectedGlowRadiusProgress;
     surfaceSelectionUniforms.current.selectedGlowVisibility.value =
@@ -376,9 +399,7 @@ export function ReservoirSphere({
     const patternMaterial = surfacePatternMaterialRef.current;
     if (patternMaterial) {
       patternMaterial.uniforms.lineOpacity.value =
-        RESERVOIR_SURFACE_PATTERN.lineOpacity *
-        (1 - openingProgress) *
-        (1 - neutrality);
+        RESERVOIR_SURFACE_PATTERN.lineOpacity;
     }
     surfacePulseUniforms.current.layoutTransitionPulse.value =
       layoutTransitionPulse;
@@ -401,6 +422,8 @@ export function ReservoirSphere({
         surfaceSelectionUniforms.current.selectedGlowRadiusProgress.value.toFixed(6);
       diagnosticsRef.current.dataset.surfaceSelectedGlowVisibility =
         surfaceSelectionUniforms.current.selectedGlowVisibility.value.toFixed(6);
+      diagnosticsRef.current.dataset.surfaceSelectedNodeAngularRadius =
+        surfaceSelectionUniforms.current.selectedNodeAngularRadius.value.toFixed(6);
       diagnosticsRef.current.dataset.surfaceSelectedShockwaveProgress =
         surfaceSelectionUniforms.current.selectedShockwaveProgress.value.toFixed(6);
     }
