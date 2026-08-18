@@ -13,7 +13,16 @@ import {
   getReservoirLabelLevel,
   type ReservoirLabelLevel,
 } from "@/lib/reservoir/label";
+import {
+  clampLabelCenterToSafeBounds,
+  getLabelRectangleSupportDistance,
+  getLabelScreenRect,
+  RESERVOIR_LABEL_CANDIDATE_ANGLES,
+  RESERVOIR_LABEL_MIN_OUTWARD_DOT,
+  rotateScreenDirection,
+} from "@/lib/reservoir/label-geometry";
 import type { ReservoirFrame } from "@/lib/reservoir/frame";
+import { RESERVOIR_RADIUS } from "@/lib/reservoir/geometry";
 import { RESERVOIR_RENDER_ORDER, RESERVOIR_THEME } from "@/lib/reservoir/theme";
 
 export const RESERVOIR_NODE_HOVER_TRANSITION_DURATION = 0.16;
@@ -29,21 +38,23 @@ const MAX_LABEL_CONTENT_WIDTH =
 const LABEL_ACCENT_WIDTH = 34;
 const LABEL_TYPE_Y = 58;
 const LABEL_TITLE_Y = 126;
-const LABEL_FRONT_FACING_THRESHOLD = 0.06;
 const LABEL_TARGET_HEIGHT_PIXELS = 52;
 const LABEL_CENTER_DEAD_ZONE_PIXELS = 14;
 const LABEL_MIN_GAP_PIXELS = 12;
 const LABEL_MAX_GAP_PIXELS = 34;
 const LABEL_GAP_RADIUS_FACTOR = 0.22;
 const LABEL_PLACEMENT_SWITCH_MARGIN = 10;
+const LABEL_SURFACE_DIRECTION_WEIGHT = 0.7;
+const LABEL_VIEWPORT_DIRECTION_WEIGHT = 0.3;
+const LABEL_SURFACE_REFERENCE_RADIUS_FACTOR = 0.15;
+const LABEL_SURFACE_CLEARANCE_PIXELS = 8;
+const LABEL_OUTWARD_EPSILON = 1e-6;
 const LABEL_FADE_DAMPING = 10;
 const LABEL_ANCHOR_DAMPING = 16;
 const LABEL_BRIDGE_WIDTH_PIXELS = 10;
 const CAROUSEL_HOVER_DWELL_SECONDS = 0.7;
 const MARQUEE_SPEED = 105;
 const MARQUEE_COPY_GAP = 48;
-
-type LabelPlacementSide = "outward" | "inward";
 
 type ReservoirNodeLabelContent = {
   accentColor: string;
@@ -60,6 +71,7 @@ type LabelCanvas = {
 };
 
 type LabelCandidate = {
+  angle: number;
   directionX: number;
   directionY: number;
   centerX: number;
@@ -70,8 +82,12 @@ type LabelCandidate = {
   top: number;
   bottom: number;
   overflow: number;
+  outwardDot: number;
+  valid: boolean;
   score: number;
 };
+
+type LabelAnchorSource = "visible-surface" | "surface-safe-plane";
 
 type ReservoirNodeLabelProps = {
   content: ReservoirNodeLabelContent;
@@ -153,7 +169,72 @@ function drawLabel(
   texture.needsUpdate = true;
 }
 
+function createLabelCandidate(angle: number): LabelCandidate {
+  return {
+    angle,
+    directionX: 0,
+    directionY: 0,
+    centerX: 0,
+    centerY: 0,
+    supportRadius: 0,
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    overflow: 0,
+    outwardDot: 0,
+    valid: false,
+    score: Number.POSITIVE_INFINITY,
+  };
+}
+
+function copyLabelCandidate(target: LabelCandidate, source: LabelCandidate) {
+  target.angle = source.angle;
+  target.directionX = source.directionX;
+  target.directionY = source.directionY;
+  target.centerX = source.centerX;
+  target.centerY = source.centerY;
+  target.supportRadius = source.supportRadius;
+  target.left = source.left;
+  target.right = source.right;
+  target.top = source.top;
+  target.bottom = source.bottom;
+  target.overflow = source.overflow;
+  target.outwardDot = source.outwardDot;
+  target.valid = source.valid;
+  target.score = source.score;
+}
+
+function getUniformWorldScale(scale: THREE.Vector3) {
+  const scaleX = Math.abs(scale.x);
+  const scaleY = Math.abs(scale.y);
+  const scaleZ = Math.abs(scale.z);
+  if (
+    !Number.isFinite(scaleX) ||
+    !Number.isFinite(scaleY) ||
+    !Number.isFinite(scaleZ) ||
+    scaleX <= LABEL_OUTWARD_EPSILON ||
+    scaleY <= LABEL_OUTWARD_EPSILON ||
+    scaleZ <= LABEL_OUTWARD_EPSILON
+  ) {
+    return null;
+  }
+  return Math.max(scaleX, scaleY, scaleZ);
+}
+
+function getPositiveRaySphereHitDistance(
+  ray: THREE.Ray,
+  sphere: THREE.Sphere,
+  target: THREE.Vector3,
+) {
+  const hit = ray.intersectSphere(sphere, target);
+  if (!hit) return null;
+  const distance = hit.distanceTo(ray.origin);
+  return Number.isFinite(distance) && distance >= 0 ? distance : null;
+}
+
 function evaluateCandidate(
+  angle: number,
   directionX: number,
   directionY: number,
   nodeX: number,
@@ -166,36 +247,123 @@ function evaluateCandidate(
   safeRight: number,
   safeTop: number,
   safeBottom: number,
+  surfaceOutwardDirection: THREE.Vector2,
   candidate: LabelCandidate,
 ) {
-  const supportRadius =
-    Math.abs(directionX) * labelWidthPixels * 0.5 +
-    Math.abs(directionY) * labelHeightPixels * 0.5;
+  const supportRadius = getLabelRectangleSupportDistance(
+    directionX,
+    directionY,
+    labelWidthPixels * 0.5,
+    labelHeightPixels * 0.5,
+  );
   const centerX =
     nodeX + directionX * (nodeRadiusPixels + gapPixels + supportRadius);
   const centerY =
     nodeY + directionY * (nodeRadiusPixels + gapPixels + supportRadius);
-  const left = centerX - labelWidthPixels * 0.5;
-  const right = centerX + labelWidthPixels * 0.5;
-  const top = centerY - labelHeightPixels * 0.5;
-  const bottom = centerY + labelHeightPixels * 0.5;
+  const rect = getLabelScreenRect(
+    centerX,
+    centerY,
+    labelWidthPixels,
+    labelHeightPixels,
+    candidate,
+  );
   const overflow =
-    Math.max(0, safeLeft - left) +
-    Math.max(0, right - safeRight) +
-    Math.max(0, safeTop - top) +
-    Math.max(0, bottom - safeBottom);
+    Math.max(0, safeLeft - rect.left) +
+    Math.max(0, rect.right - safeRight) +
+    Math.max(0, safeTop - rect.top) +
+    Math.max(0, rect.bottom - safeBottom);
+  const outwardDot =
+    directionX * surfaceOutwardDirection.x +
+    directionY * surfaceOutwardDirection.y;
+  const valid = outwardDot > RESERVOIR_LABEL_MIN_OUTWARD_DOT;
 
+  candidate.angle = angle;
   candidate.directionX = directionX;
   candidate.directionY = directionY;
   candidate.centerX = centerX;
   candidate.centerY = centerY;
   candidate.supportRadius = supportRadius;
-  candidate.left = left;
-  candidate.right = right;
-  candidate.top = top;
-  candidate.bottom = bottom;
+  candidate.left = rect.left;
+  candidate.right = rect.right;
+  candidate.top = rect.top;
+  candidate.bottom = rect.bottom;
   candidate.overflow = overflow;
-  candidate.score = overflow;
+  candidate.outwardDot = outwardDot;
+  candidate.valid = valid;
+  candidate.score = valid
+    ? (overflow > 0 ? 100000 + overflow * 10 : 0) +
+      Math.abs(angle) +
+      (1 - outwardDot) * 12
+    : Number.POSITIVE_INFINITY;
+}
+
+function projectScreenPointToSurfaceSafeAnchor(
+  screenNdc: THREE.Vector2,
+  camera: THREE.Camera,
+  viewportHeight: number,
+  screenRaycaster: THREE.Raycaster,
+  screenRay: THREE.Ray,
+  reservoirSphere: THREE.Sphere,
+  childSphere: THREE.Sphere,
+  reservoirHit: THREE.Vector3,
+  childHit: THREE.Vector3,
+  cameraForward: THREE.Vector3,
+  cameraSpacePosition: THREE.Vector3,
+  surfaceSafeOrigin: THREE.Vector3,
+  anchorPlane: THREE.Plane,
+  target: THREE.Vector3,
+): LabelAnchorSource {
+  screenRaycaster.setFromCamera(screenNdc, camera);
+  screenRay.copy(screenRaycaster.ray);
+
+  const reservoirDistance = getPositiveRaySphereHitDistance(
+    screenRay,
+    reservoirSphere,
+    reservoirHit,
+  );
+  const childDistance = getPositiveRaySphereHitDistance(
+    screenRay,
+    childSphere,
+    childHit,
+  );
+  const nearestDistance =
+    reservoirDistance === null
+      ? childDistance
+      : childDistance === null
+        ? reservoirDistance
+        : Math.min(reservoirDistance, childDistance);
+
+  if (nearestDistance !== null) {
+    const nearestHit =
+      childDistance !== null && childDistance <= nearestDistance
+        ? childHit
+        : reservoirHit;
+    target.copy(nearestHit);
+    const cameraDepth = getCameraSpaceDepth(
+      camera,
+      target,
+      cameraSpacePosition,
+    );
+    const clearance = getWorldDiameterForProjectedPixelsAtDepth({
+      camera,
+      viewportHeight,
+      projectedPixels: LABEL_SURFACE_CLEARANCE_PIXELS,
+      cameraDepth,
+    });
+    if (Number.isFinite(clearance) && clearance > 0) {
+      target.addScaledVector(screenRay.direction, -clearance);
+    }
+    return "visible-surface";
+  }
+
+  anchorPlane.setFromNormalAndCoplanarPoint(
+    cameraForward,
+    surfaceSafeOrigin,
+  );
+  if (!screenRay.intersectPlane(anchorPlane, target)) {
+    target.copy(surfaceSafeOrigin);
+  }
+  return "surface-safe-plane";
 }
 
 export function ReservoirNodeLabel({
@@ -221,26 +389,46 @@ export function ReservoirNodeLabel({
   const elapsedRef = useRef(0);
   const lastOffsetRef = useRef(Number.NaN);
   const currentLevelRef = useRef<ReservoirLabelLevel>("hidden");
-  const placementSideRef = useRef<LabelPlacementSide>("outward");
-  const outwardDirectionRef = useRef(new THREE.Vector2(0, -1));
-  const outwardCandidateRef = useRef({} as LabelCandidate);
-  const inwardCandidateRef = useRef({} as LabelCandidate);
+  const placementCandidateIndexRef = useRef(0);
+  const candidateRefs = useRef(
+    RESERVOIR_LABEL_CANDIDATE_ANGLES.map(createLabelCandidate),
+  );
+  const selectedCandidateRef = useRef(createLabelCandidate(0));
   const worldNode = useRef(new THREE.Vector3());
   const worldCenter = useRef(new THREE.Vector3());
   const worldAnchor = useRef(new THREE.Vector3());
   const worldLabelEdge = useRef(new THREE.Vector3());
   const worldBridgeStart = useRef(new THREE.Vector3());
-  const worldScale = useRef(new THREE.Vector3(1, 1, 1));
+  const worldCameraPosition = useRef(new THREE.Vector3());
+  const worldSurfaceProbe = useRef(new THREE.Vector3());
+  const surfaceSafeOrigin = useRef(new THREE.Vector3());
+  const nodeWorldScale = useRef(new THREE.Vector3());
+  const reservoirWorldScale = useRef(new THREE.Vector3());
   const cameraSpacePosition = useRef(new THREE.Vector3());
   const projectedNodePosition = useRef(new THREE.Vector3());
+  const projectedSurfaceProbe = useRef(new THREE.Vector3());
+  const visibilityDirection = useRef(new THREE.Vector3());
   const screenNode = useRef(new THREE.Vector2());
+  const screenSurfaceProbe = useRef(new THREE.Vector2());
   const viewportCenter = useRef(new THREE.Vector2());
+  const surfaceOutwardDirection = useRef(new THREE.Vector2(0, -1));
+  const viewportOutwardDirection = useRef(new THREE.Vector2(0, -1));
+  const preferredDirection = useRef(new THREE.Vector2(0, -1));
+  const candidateDirection = useRef(new THREE.Vector2());
+  const finalCenter = useRef(new THREE.Vector2());
+  const finalDirection = useRef(new THREE.Vector2());
+  const correctedCenter = useRef(new THREE.Vector2());
   const screenNdc = useRef(new THREE.Vector2());
+  const screenNodeEdgeNdc = useRef(new THREE.Vector2());
   const screenEdgeNdc = useRef(new THREE.Vector2());
-  const anchorDirection = useRef(new THREE.Vector2());
   const surfaceNormal = useRef(new THREE.Vector3());
   const cameraForward = useRef(new THREE.Vector3());
   const screenRaycaster = useRef(new THREE.Raycaster());
+  const screenRay = useRef(new THREE.Ray());
+  const reservoirSphere = useRef(new THREE.Sphere());
+  const childSphere = useRef(new THREE.Sphere());
+  const reservoirHit = useRef(new THREE.Vector3());
+  const childHit = useRef(new THREE.Vector3());
   const anchorPlane = useRef(new THREE.Plane());
   const localAnchor = useRef(new THREE.Vector3());
   const localBridgeStart = useRef(new THREE.Vector3());
@@ -324,12 +512,69 @@ export function ReservoirNodeLabel({
 
     node.getWorldPosition(worldNode.current);
     sphere.getWorldPosition(worldCenter.current);
-    node.getWorldScale(worldScale.current);
+    node.getWorldScale(nodeWorldScale.current);
+    sphere.getWorldScale(reservoirWorldScale.current);
+    const childScale = getUniformWorldScale(nodeWorldScale.current);
+    const reservoirScale = getUniformWorldScale(reservoirWorldScale.current);
+    if (childScale === null || reservoirScale === null) {
+      currentLevelRef.current = "hidden";
+      material.opacity = THREE.MathUtils.damp(
+        material.opacity,
+        0,
+        LABEL_FADE_DAMPING,
+        delta,
+      );
+      sprite.visible = material.opacity > 0.01;
+      bridge.visible = sprite.visible;
+      bridgeMaterial.opacity = material.opacity;
+      return;
+    }
+
+    const childWorldRadius = nodeRadius * childScale;
+    const reservoirWorldRadius = RESERVOIR_RADIUS * reservoirScale;
+    if (
+      !Number.isFinite(childWorldRadius) ||
+      childWorldRadius <= LABEL_OUTWARD_EPSILON ||
+      !Number.isFinite(reservoirWorldRadius) ||
+      reservoirWorldRadius <= LABEL_OUTWARD_EPSILON
+    ) {
+      return;
+    }
+
     surfaceNormal.current
       .copy(worldNode.current)
-      .sub(worldCenter.current)
-      .normalize();
+      .sub(worldCenter.current);
+    if (surfaceNormal.current.lengthSq() <= LABEL_OUTWARD_EPSILON) return;
+    surfaceNormal.current.normalize();
     camera.getWorldDirection(cameraForward.current);
+    camera.getWorldPosition(worldCameraPosition.current);
+
+    reservoirSphere.current.set(worldCenter.current, reservoirWorldRadius);
+    childSphere.current.set(worldNode.current, childWorldRadius);
+
+    visibilityDirection.current
+      .copy(worldNode.current)
+      .sub(worldCameraPosition.current);
+    if (visibilityDirection.current.lengthSq() <= LABEL_OUTWARD_EPSILON) return;
+    visibilityDirection.current.normalize();
+    screenRay.current.set(
+      worldCameraPosition.current,
+      visibilityDirection.current,
+    );
+    const childHitDistance = getPositiveRaySphereHitDistance(
+      screenRay.current,
+      childSphere.current,
+      childHit.current,
+    );
+    const reservoirHitDistance = getPositiveRaySphereHitDistance(
+      screenRay.current,
+      reservoirSphere.current,
+      reservoirHit.current,
+    );
+    const childVisible =
+      childHitDistance !== null &&
+      (reservoirHitDistance === null ||
+        childHitDistance <= reservoirHitDistance + 0.001);
 
     const facing = getReservoirFrontFacingScore(
       surfaceNormal.current,
@@ -338,17 +583,16 @@ export function ReservoirNodeLabel({
     const projectedNodePixels = getProjectedWorldDiameterPixels({
       camera,
       viewportHeight: size.height,
-      worldDiameter: nodeRadius * 2 * worldScale.current.x,
+      worldDiameter: childWorldRadius * 2,
       worldPosition: worldNode.current,
       scratchCameraSpacePosition: cameraSpacePosition.current,
     });
     const renderedZoom = renderedZoomRef.current;
-    const frontFacing = facing > LABEL_FRONT_FACING_THRESHOLD;
     const labelLevel = getReservoirLabelLevel({
       currentLevel: currentLevelRef.current,
       projectedNodePixels,
       inspectionActive: hovered,
-      frontFacing,
+      frontFacing: childVisible,
       suppressed,
     });
     currentLevelRef.current = labelLevel;
@@ -371,19 +615,62 @@ export function ReservoirNodeLabel({
       ((projectedNode.x + 1) / 2) * size.width,
       ((1 - projectedNode.y) / 2) * size.height,
     );
-    viewportCenter.current.set(size.width / 2, size.height / 2);
-    anchorDirection.current
-      .copy(screenNode.current)
-      .sub(viewportCenter.current);
+
+    worldSurfaceProbe.current
+      .copy(worldNode.current)
+      .addScaledVector(
+        surfaceNormal.current,
+        Math.max(
+          childWorldRadius,
+          reservoirWorldRadius * LABEL_SURFACE_REFERENCE_RADIUS_FACTOR,
+        ),
+      );
+    const projectedSurfaceProbePosition = projectedSurfaceProbe.current
+      .copy(worldSurfaceProbe.current)
+      .project(camera);
+    screenSurfaceProbe.current.set(
+      ((projectedSurfaceProbePosition.x + 1) / 2) * size.width,
+      ((1 - projectedSurfaceProbePosition.y) / 2) * size.height,
+    );
+    const surfaceDirectionX =
+      screenSurfaceProbe.current.x - screenNode.current.x;
+    const surfaceDirectionY =
+      screenSurfaceProbe.current.y - screenNode.current.y;
     if (
-      anchorDirection.current.lengthSq() <
+      surfaceDirectionX * surfaceDirectionX +
+        surfaceDirectionY * surfaceDirectionY >
+      LABEL_OUTWARD_EPSILON
+    ) {
+      surfaceOutwardDirection.current.set(
+        surfaceDirectionX,
+        surfaceDirectionY,
+      ).normalize();
+    }
+
+    viewportCenter.current.set(size.width / 2, size.height / 2);
+    const viewportDirectionX = screenNode.current.x - viewportCenter.current.x;
+    const viewportDirectionY = screenNode.current.y - viewportCenter.current.y;
+    if (
+      viewportDirectionX * viewportDirectionX +
+        viewportDirectionY * viewportDirectionY >=
       LABEL_CENTER_DEAD_ZONE_PIXELS * LABEL_CENTER_DEAD_ZONE_PIXELS
     ) {
-      anchorDirection.current.copy(outwardDirectionRef.current);
-    } else {
-      anchorDirection.current.normalize();
-      outwardDirectionRef.current.copy(anchorDirection.current);
+      viewportOutwardDirection.current.set(
+        viewportDirectionX,
+        viewportDirectionY,
+      ).normalize();
     }
+    preferredDirection.current
+      .copy(surfaceOutwardDirection.current)
+      .multiplyScalar(LABEL_SURFACE_DIRECTION_WEIGHT)
+      .addScaledVector(
+        viewportOutwardDirection.current,
+        LABEL_VIEWPORT_DIRECTION_WEIGHT,
+      );
+    if (preferredDirection.current.lengthSq() <= LABEL_OUTWARD_EPSILON) {
+      preferredDirection.current.copy(surfaceOutwardDirection.current);
+    }
+    preferredDirection.current.normalize();
 
     const labelHeightPixels = LABEL_TARGET_HEIGHT_PIXELS;
     const labelWidthPixels =
@@ -398,118 +685,211 @@ export function ReservoirNodeLabel({
     const safeRight = size.width - reservoirFrame.safeZones.right - 12;
     const safeTop = reservoirFrame.safeZones.top + 12;
     const safeBottom = size.height - reservoirFrame.safeZones.bottom - 12;
-    const direction = outwardDirectionRef.current;
-    evaluateCandidate(
-      direction.x,
-      direction.y,
-      screenNode.current.x,
-      screenNode.current.y,
-      nodeRadiusPixels,
-      gapPixels,
-      labelWidthPixels,
-      labelHeightPixels,
-      safeLeft,
-      safeRight,
-      safeTop,
-      safeBottom,
-      outwardCandidateRef.current,
-    );
-    evaluateCandidate(
-      -direction.x,
-      -direction.y,
-      screenNode.current.x,
-      screenNode.current.y,
-      nodeRadiusPixels,
-      gapPixels,
-      labelWidthPixels,
-      labelHeightPixels,
-      safeLeft,
-      safeRight,
-      safeTop,
-      safeBottom,
-      inwardCandidateRef.current,
-    );
 
-    const currentCandidate =
-      placementSideRef.current === "outward"
-        ? outwardCandidateRef.current
-        : inwardCandidateRef.current;
-    const alternativeCandidate =
-      placementSideRef.current === "outward"
-        ? inwardCandidateRef.current
-        : outwardCandidateRef.current;
-    if (
-      alternativeCandidate.score + LABEL_PLACEMENT_SWITCH_MARGIN <
-      currentCandidate.score
-    ) {
-      placementSideRef.current =
-        placementSideRef.current === "outward" ? "inward" : "outward";
+    let bestIndex = -1;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < candidateRefs.current.length; index += 1) {
+      const candidate = candidateRefs.current[index];
+      rotateScreenDirection(
+        preferredDirection.current,
+        candidate.angle,
+        candidateDirection.current,
+      );
+      evaluateCandidate(
+        candidate.angle,
+        candidateDirection.current.x,
+        candidateDirection.current.y,
+        screenNode.current.x,
+        screenNode.current.y,
+        nodeRadiusPixels,
+        gapPixels,
+        labelWidthPixels,
+        labelHeightPixels,
+        safeLeft,
+        safeRight,
+        safeTop,
+        safeBottom,
+        surfaceOutwardDirection.current,
+        candidate,
+      );
+      if (candidate.valid && candidate.score < bestScore) {
+        bestIndex = index;
+        bestScore = candidate.score;
+      }
     }
-    const selectedCandidate =
-      placementSideRef.current === "outward"
-        ? outwardCandidateRef.current
-        : inwardCandidateRef.current;
+    if (bestIndex < 0) return;
+
+    const currentCandidate = candidateRefs.current[placementCandidateIndexRef.current];
+    const selectedIndex =
+      currentCandidate.valid &&
+      currentCandidate.score <= bestScore + LABEL_PLACEMENT_SWITCH_MARGIN
+        ? placementCandidateIndexRef.current
+        : bestIndex;
+    placementCandidateIndexRef.current = selectedIndex;
+    const selectedCandidate = selectedCandidateRef.current;
+    copyLabelCandidate(selectedCandidate, candidateRefs.current[selectedIndex]);
+
+    finalCenter.current.set(selectedCandidate.centerX, selectedCandidate.centerY);
+    clampLabelCenterToSafeBounds(
+      finalCenter.current,
+      labelWidthPixels,
+      labelHeightPixels,
+      safeLeft,
+      safeRight,
+      safeTop,
+      safeBottom,
+      correctedCenter.current,
+    );
+    const safeBoundCorrected =
+      correctedCenter.current.distanceToSquared(finalCenter.current) >
+      LABEL_OUTWARD_EPSILON;
+    if (safeBoundCorrected) {
+      finalDirection.current
+        .copy(correctedCenter.current)
+        .sub(screenNode.current);
+      const correctedDistance = finalDirection.current.length();
+      const correctedOutwardDot =
+        correctedDistance > LABEL_OUTWARD_EPSILON
+          ? finalDirection.current
+              .multiplyScalar(1 / correctedDistance)
+              .dot(surfaceOutwardDirection.current)
+          : -1;
+      if (correctedOutwardDot > RESERVOIR_LABEL_MIN_OUTWARD_DOT) {
+        finalCenter.current.copy(correctedCenter.current);
+      } else {
+        finalDirection.current.set(
+          selectedCandidate.directionX,
+          selectedCandidate.directionY,
+        );
+      }
+    } else {
+      finalDirection.current.set(
+        selectedCandidate.directionX,
+        selectedCandidate.directionY,
+      );
+    }
+    if (finalDirection.current.lengthSq() <= LABEL_OUTWARD_EPSILON) return;
+    finalDirection.current.normalize();
+    const finalOutwardDot = finalDirection.current.dot(
+      surfaceOutwardDirection.current,
+    );
+    if (finalOutwardDot <= RESERVOIR_LABEL_MIN_OUTWARD_DOT) return;
+
+    const finalSupportRadius = getLabelRectangleSupportDistance(
+      finalDirection.current.x,
+      finalDirection.current.y,
+      labelWidthPixels * 0.5,
+      labelHeightPixels * 0.5,
+    );
+    getLabelScreenRect(
+      finalCenter.current.x,
+      finalCenter.current.y,
+      labelWidthPixels,
+      labelHeightPixels,
+      selectedCandidate,
+    );
+    selectedCandidate.centerX = finalCenter.current.x;
+    selectedCandidate.centerY = finalCenter.current.y;
+    selectedCandidate.directionX = finalDirection.current.x;
+    selectedCandidate.directionY = finalDirection.current.y;
+    selectedCandidate.supportRadius = finalSupportRadius;
+    selectedCandidate.outwardDot = finalOutwardDot;
 
     const cameraDepth = getCameraSpaceDepth(
       camera,
       worldNode.current,
       cameraSpacePosition.current,
     );
-    const labelWorldHeight = getWorldDiameterForProjectedPixelsAtDepth({
+    const safeWorldClearance = getWorldDiameterForProjectedPixelsAtDepth({
       camera,
       viewportHeight: size.height,
-      projectedPixels: labelHeightPixels,
+      projectedPixels: LABEL_SURFACE_CLEARANCE_PIXELS,
       cameraDepth,
     });
-    const labelWorldWidth = getWorldDiameterForProjectedPixelsAtDepth({
-      camera,
-      viewportHeight: size.height,
-      projectedPixels: labelWidthPixels,
-      cameraDepth,
-    });
-    const parentScale = Math.max(worldScale.current.x, 0.0001);
-    sprite.scale.set(
-      labelWorldWidth / parentScale,
-      labelWorldHeight / parentScale,
-      1,
-    );
-    sprite.center.set(0.5, 0.5);
+    const resolvedSafeWorldClearance =
+      Number.isFinite(safeWorldClearance) && safeWorldClearance > 0
+        ? safeWorldClearance
+        : childWorldRadius * 0.05;
+    surfaceSafeOrigin.current
+      .copy(worldNode.current)
+      .addScaledVector(
+        surfaceNormal.current,
+        childWorldRadius + resolvedSafeWorldClearance,
+      );
 
-    const ndcX = (selectedCandidate.centerX / size.width) * 2 - 1;
-    const ndcY = -(selectedCandidate.centerY / size.height) * 2 + 1;
-    const edgeX =
-      selectedCandidate.centerX -
-      selectedCandidate.directionX * selectedCandidate.supportRadius;
-    const edgeY =
-      selectedCandidate.centerY -
-      selectedCandidate.directionY * selectedCandidate.supportRadius;
-    screenNdc.current.set(ndcX, ndcY);
+    screenNdc.current.set(
+      (finalCenter.current.x / size.width) * 2 - 1,
+      -(finalCenter.current.y / size.height) * 2 + 1,
+    );
+    const nodeEdgeX =
+      screenNode.current.x +
+      finalDirection.current.x * nodeRadiusPixels;
+    const nodeEdgeY =
+      screenNode.current.y +
+      finalDirection.current.y * nodeRadiusPixels;
+    screenNodeEdgeNdc.current.set(
+      (nodeEdgeX / size.width) * 2 - 1,
+      -(nodeEdgeY / size.height) * 2 + 1,
+    );
+    const labelEdgeX =
+      finalCenter.current.x -
+      finalDirection.current.x * finalSupportRadius;
+    const labelEdgeY =
+      finalCenter.current.y -
+      finalDirection.current.y * finalSupportRadius;
     screenEdgeNdc.current.set(
-      (edgeX / size.width) * 2 - 1,
-      -(edgeY / size.height) * 2 + 1,
+      (labelEdgeX / size.width) * 2 - 1,
+      -(labelEdgeY / size.height) * 2 + 1,
     );
-    anchorPlane.current.setFromNormalAndCoplanarPoint(
+
+    const anchorSource = projectScreenPointToSurfaceSafeAnchor(
+      screenNdc.current,
+      camera,
+      size.height,
+      screenRaycaster.current,
+      screenRay.current,
+      reservoirSphere.current,
+      childSphere.current,
+      reservoirHit.current,
+      childHit.current,
       cameraForward.current,
-      worldNode.current,
+      cameraSpacePosition.current,
+      surfaceSafeOrigin.current,
+      anchorPlane.current,
+      worldAnchor.current,
     );
-    screenRaycaster.current.setFromCamera(screenNdc.current, camera);
-    if (
-      !screenRaycaster.current.ray.intersectPlane(
-        anchorPlane.current,
-        worldAnchor.current,
-      )
-    ) {
-      worldAnchor.current.copy(worldNode.current);
-    }
-    screenRaycaster.current.setFromCamera(screenEdgeNdc.current, camera);
-    if (
-      !screenRaycaster.current.ray.intersectPlane(
-        anchorPlane.current,
-        worldLabelEdge.current,
-      )
-    ) {
-      worldLabelEdge.current.copy(worldAnchor.current);
-    }
+    projectScreenPointToSurfaceSafeAnchor(
+      screenNodeEdgeNdc.current,
+      camera,
+      size.height,
+      screenRaycaster.current,
+      screenRay.current,
+      reservoirSphere.current,
+      childSphere.current,
+      reservoirHit.current,
+      childHit.current,
+      cameraForward.current,
+      cameraSpacePosition.current,
+      surfaceSafeOrigin.current,
+      anchorPlane.current,
+      worldBridgeStart.current,
+    );
+    projectScreenPointToSurfaceSafeAnchor(
+      screenEdgeNdc.current,
+      camera,
+      size.height,
+      screenRaycaster.current,
+      screenRay.current,
+      reservoirSphere.current,
+      childSphere.current,
+      reservoirHit.current,
+      childHit.current,
+      cameraForward.current,
+      cameraSpacePosition.current,
+      surfaceSafeOrigin.current,
+      anchorPlane.current,
+      worldLabelEdge.current,
+    );
 
     localAnchor.current.copy(worldAnchor.current);
     node.worldToLocal(localAnchor.current);
@@ -518,9 +898,30 @@ export function ReservoirNodeLabel({
       1 - Math.exp(-LABEL_ANCHOR_DAMPING * delta),
     );
 
-    worldBridgeStart.current
-      .copy(worldNode.current)
-      .addScaledVector(surfaceNormal.current, nodeRadius * parentScale);
+    const labelCameraDepth = getCameraSpaceDepth(
+      camera,
+      worldAnchor.current,
+      cameraSpacePosition.current,
+    );
+    const labelWorldHeight = getWorldDiameterForProjectedPixelsAtDepth({
+      camera,
+      viewportHeight: size.height,
+      projectedPixels: labelHeightPixels,
+      cameraDepth: labelCameraDepth,
+    });
+    const labelWorldWidth = getWorldDiameterForProjectedPixelsAtDepth({
+      camera,
+      viewportHeight: size.height,
+      projectedPixels: labelWidthPixels,
+      cameraDepth: labelCameraDepth,
+    });
+    sprite.scale.set(
+      labelWorldWidth / childScale,
+      labelWorldHeight / childScale,
+      1,
+    );
+    sprite.center.set(0.5, 0.5);
+
     localBridgeStart.current.copy(worldBridgeStart.current);
     localLabelEdge.current.copy(worldLabelEdge.current);
     node.worldToLocal(localBridgeStart.current);
@@ -544,12 +945,12 @@ export function ReservoirNodeLabel({
         camera,
         viewportHeight: size.height,
         projectedPixels: LABEL_BRIDGE_WIDTH_PIXELS,
-        cameraDepth,
+        cameraDepth: labelCameraDepth,
       });
       bridge.scale.set(
-        bridgeWorldWidth / parentScale,
+        bridgeWorldWidth / childScale,
         bridgeLength,
-        bridgeWorldWidth / parentScale,
+        bridgeWorldWidth / childScale,
       );
     }
 
@@ -565,15 +966,28 @@ export function ReservoirNodeLabel({
       diagnosticsRef.current.dataset.labelFrontFacingScore = facing.toFixed(6);
       diagnosticsRef.current.dataset.labelProjectedNodePx = projectedNodePixels.toFixed(3);
       diagnosticsRef.current.dataset.labelRenderedZoom = renderedZoom.toFixed(6);
-      diagnosticsRef.current.dataset.labelPlacementSide = placementSideRef.current;
-      diagnosticsRef.current.dataset.labelEdgeCorrected = "true";
+      diagnosticsRef.current.dataset.labelChildVisible = String(childVisible);
+      diagnosticsRef.current.dataset.labelChildHitDistance =
+        childHitDistance?.toFixed(6) ?? "none";
+      diagnosticsRef.current.dataset.labelReservoirHitDistance =
+        reservoirHitDistance?.toFixed(6) ?? "none";
+      diagnosticsRef.current.dataset.labelSurfaceOutwardScreenDirection = `${surfaceOutwardDirection.current.x.toFixed(4)},${surfaceOutwardDirection.current.y.toFixed(4)}`;
+      diagnosticsRef.current.dataset.labelViewportOutwardDirection = `${viewportOutwardDirection.current.x.toFixed(4)},${viewportOutwardDirection.current.y.toFixed(4)}`;
+      diagnosticsRef.current.dataset.labelFinalDirection = `${finalDirection.current.x.toFixed(4)},${finalDirection.current.y.toFixed(4)}`;
+      diagnosticsRef.current.dataset.labelFinalOutwardDot = finalOutwardDot.toFixed(6);
+      diagnosticsRef.current.dataset.labelCandidateAngle = selectedCandidate.angle.toFixed(1);
+      diagnosticsRef.current.dataset.labelSafeBoundCorrected = String(safeBoundCorrected);
       diagnosticsRef.current.dataset.labelRectangle = [
         selectedCandidate.left,
         selectedCandidate.top,
         selectedCandidate.right,
         selectedCandidate.bottom,
       ].map((value) => value.toFixed(2)).join(",");
-      diagnosticsRef.current.dataset.labelBridgeActive = String(bridge.visible);
+      diagnosticsRef.current.dataset.labelAnchorSource = anchorSource;
+      diagnosticsRef.current.dataset.labelBridgeActive = String(
+        bridge.visible,
+      );
+      diagnosticsRef.current.dataset.labelBridgeLength = bridgeLength.toFixed(6);
     }
 
     const titleOverflows = labelCanvas.titleWidth > labelCanvas.titleClipWidth;
@@ -597,7 +1011,8 @@ export function ReservoirNodeLabel({
   });
 
   return (
-    <group ref={labelGroupRef}>
+    <>
+      <group ref={labelGroupRef}>
       <sprite
         ref={spriteRef}
         position={[0, 0, 0]}
@@ -610,12 +1025,13 @@ export function ReservoirNodeLabel({
           ref={materialRef}
           transparent
           opacity={0}
-          depthTest
+          depthTest={false}
           depthWrite={false}
           alphaTest={0.02}
           toneMapped={false}
         />
       </sprite>
+      </group>
       <mesh
         ref={bridgeRef}
         position={[0, 0, 0]}
@@ -632,7 +1048,7 @@ export function ReservoirNodeLabel({
           colorWrite={false}
         />
       </mesh>
-    </group>
+    </>
   );
 }
 
