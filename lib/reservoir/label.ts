@@ -6,19 +6,11 @@ export const RESERVOIR_LABEL_LEVEL = {
       enter: 12,
       exit: 9,
     },
-    zoom: {
-      enter: 1.15,
-      exit: 1.08,
-    },
   },
   persistent: {
     nodePixels: {
       enter: 36,
       exit: 30,
-    },
-    zoom: {
-      enter: 1.4,
-      exit: 1.26,
     },
   },
 } as const;
@@ -26,60 +18,34 @@ export const RESERVOIR_LABEL_LEVEL = {
 type ReservoirLabelLevelInput = {
   currentLevel: ReservoirLabelLevel;
   projectedNodePixels: number;
-  renderedZoom: number;
   inspectionActive: boolean;
   frontFacing: boolean;
   suppressed: boolean;
 };
 
-function meetsInspectionThreshold(
-  projectedNodePixels: number,
-  zoomLevel: number,
-) {
-  return (
-    projectedNodePixels >= RESERVOIR_LABEL_LEVEL.inspection.nodePixels.enter &&
-    zoomLevel >= RESERVOIR_LABEL_LEVEL.inspection.zoom.enter
-  );
+function meetsInspectionThreshold(projectedNodePixels: number) {
+  return projectedNodePixels >= RESERVOIR_LABEL_LEVEL.inspection.nodePixels.enter;
 }
 
-function remainsInspectionThreshold(
-  projectedNodePixels: number,
-  zoomLevel: number,
-) {
-  return (
-    projectedNodePixels >= RESERVOIR_LABEL_LEVEL.inspection.nodePixels.exit &&
-    zoomLevel >= RESERVOIR_LABEL_LEVEL.inspection.zoom.exit
-  );
+function remainsInspectionThreshold(projectedNodePixels: number) {
+  return projectedNodePixels >= RESERVOIR_LABEL_LEVEL.inspection.nodePixels.exit;
 }
 
-function meetsPersistentThreshold(
-  projectedNodePixels: number,
-  zoomLevel: number,
-) {
-  return (
-    projectedNodePixels >= RESERVOIR_LABEL_LEVEL.persistent.nodePixels.enter &&
-    zoomLevel >= RESERVOIR_LABEL_LEVEL.persistent.zoom.enter
-  );
+function meetsPersistentThreshold(projectedNodePixels: number) {
+  return projectedNodePixels >= RESERVOIR_LABEL_LEVEL.persistent.nodePixels.enter;
 }
 
-function remainsPersistentThreshold(
-  projectedNodePixels: number,
-  zoomLevel: number,
-) {
-  return (
-    projectedNodePixels >= RESERVOIR_LABEL_LEVEL.persistent.nodePixels.exit &&
-    zoomLevel >= RESERVOIR_LABEL_LEVEL.persistent.zoom.exit
-  );
+function remainsPersistentThreshold(projectedNodePixels: number) {
+  return projectedNodePixels >= RESERVOIR_LABEL_LEVEL.persistent.nodePixels.exit;
 }
 
 /**
- * Resolves the label's visibility level using projected node size and zoom
- * hysteresis so labels remain stable during wheel and pinch gestures.
+ * Resolves the label's visibility level using projected node size hysteresis
+ * so labels remain stable during wheel and pinch gestures.
  */
 export function getReservoirLabelLevel({
   currentLevel,
   projectedNodePixels,
-  renderedZoom,
   inspectionActive,
   frontFacing,
   suppressed,
@@ -88,35 +54,28 @@ export function getReservoirLabelLevel({
     suppressed ||
     !frontFacing ||
     !Number.isFinite(projectedNodePixels) ||
-    projectedNodePixels <= 0 ||
-    !Number.isFinite(renderedZoom)
+    projectedNodePixels <= 0
   ) {
     return "hidden";
   }
 
-  if (
-    currentLevel === "persistent" &&
-    remainsPersistentThreshold(projectedNodePixels, renderedZoom)
-  ) {
+  if (currentLevel === "persistent" && remainsPersistentThreshold(projectedNodePixels)) {
     return "persistent";
   }
 
-  if (meetsPersistentThreshold(projectedNodePixels, renderedZoom)) {
+  if (meetsPersistentThreshold(projectedNodePixels)) {
     return "persistent";
   }
 
   if (
     inspectionActive &&
     (currentLevel === "inspection" || currentLevel === "persistent") &&
-    remainsInspectionThreshold(projectedNodePixels, renderedZoom)
+    remainsInspectionThreshold(projectedNodePixels)
   ) {
     return "inspection";
   }
 
-  if (
-    inspectionActive &&
-    meetsInspectionThreshold(projectedNodePixels, renderedZoom)
-  ) {
+  if (inspectionActive && meetsInspectionThreshold(projectedNodePixels)) {
     return "inspection";
   }
 

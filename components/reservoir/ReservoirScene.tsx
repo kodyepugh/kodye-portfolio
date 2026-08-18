@@ -2967,10 +2967,6 @@ export function ReservoirScene() {
       data-label-level-inspection-node-exit={RESERVOIR_LABEL_LEVEL.inspection.nodePixels.exit.toFixed(3)}
       data-label-level-persistent-node-enter={RESERVOIR_LABEL_LEVEL.persistent.nodePixels.enter.toFixed(3)}
       data-label-level-persistent-node-exit={RESERVOIR_LABEL_LEVEL.persistent.nodePixels.exit.toFixed(3)}
-      data-label-level-inspection-zoom-enter={RESERVOIR_LABEL_LEVEL.inspection.zoom.enter.toFixed(3)}
-      data-label-level-inspection-zoom-exit={RESERVOIR_LABEL_LEVEL.inspection.zoom.exit.toFixed(3)}
-      data-label-level-persistent-zoom-enter={RESERVOIR_LABEL_LEVEL.persistent.zoom.enter.toFixed(3)}
-      data-label-level-persistent-zoom-exit={RESERVOIR_LABEL_LEVEL.persistent.zoom.exit.toFixed(3)}
       data-label-level-hysteresis="true"
       data-label-far-hover-reveal="false"
       data-reservoir-base-scale={baseScale.toFixed(6)}

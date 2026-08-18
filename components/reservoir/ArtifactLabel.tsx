@@ -347,7 +347,6 @@ export function ReservoirNodeLabel({
     const labelLevel = getReservoirLabelLevel({
       currentLevel: currentLevelRef.current,
       projectedNodePixels,
-      renderedZoom,
       inspectionActive: hovered,
       frontFacing,
       suppressed,
