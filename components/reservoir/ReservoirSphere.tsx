@@ -25,6 +25,7 @@ import {
 } from "@/lib/reservoir/surface-material";
 import {
   getCollectionReconstitutionFrame,
+  getCollectionNodeTransitionProgress,
 } from "@/lib/reservoir/collection-entry";
 import type { CollectionReconstitutionPhase } from "@/lib/reservoir/collection-entry";
 import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
@@ -56,7 +57,6 @@ type ReservoirSphereProps = {
   layoutModeTransitionState: "idle" | "sinking" | "orienting" | "emerging";
   collectionReconstitutionPhase: CollectionReconstitutionPhase;
   collectionReconstitutionProgressRef: MutableRefObject<number>;
-  collectionReconstitutionElapsedRef: MutableRefObject<number>;
   layoutModeTransitionElapsedRef: MutableRefObject<number>;
   layoutModeTransitionProgressRef: MutableRefObject<number>;
   layoutModeTransitionPulseRef: MutableRefObject<number>;
@@ -101,7 +101,6 @@ export function ReservoirSphere({
   layoutModeTransitionState,
   collectionReconstitutionPhase,
   collectionReconstitutionProgressRef,
-  collectionReconstitutionElapsedRef,
   layoutModeTransitionElapsedRef,
   layoutModeTransitionProgressRef,
   layoutModeTransitionPulseRef,
@@ -334,6 +333,14 @@ export function ReservoirSphere({
     const selectionRetreatActive =
       selectedMeshRetractionStarted ||
       (openingActive && openingArtifact?.id === selectedArtifactId);
+    const selectedCollectionIndex = selectedCollectionId
+      ? activeNodes.findIndex((node) => node.id === selectedCollectionId)
+      : -1;
+    const collectionHighlightRetreat =
+      selectedMeshRetractionStarted &&
+      collectionDeactivating &&
+      selectedNode?.kind === "collection" &&
+      selectedCollectionIndex >= 0;
     if (selectedNodeId && selectedNode) {
       selectionPresentation.selectedNodeId = selectedNodeId;
       selectionPresentation.selectedNodeDirection.copy(selectedNodeDirection);
@@ -341,20 +348,36 @@ export function ReservoirSphere({
       selectionPresentation.selectedNodeAngularRadius =
         selectedNodeAngularRadius;
     }
+    const collectionHighlightProgress = collectionHighlightRetreat
+      ? getCollectionNodeTransitionProgress(
+          collectionReconstitutionProgressRef.current,
+          "departure",
+          selectedCollectionIndex,
+          activeNodes.length,
+        )
+      : 0;
     const selectedGlowRadiusTarget =
       selectionRetreatActive || !selectedNode ? 0 : 1;
-    selectionPresentation.selectedGlowRadiusProgress = THREE.MathUtils.damp(
-      selectionPresentation.selectedGlowRadiusProgress,
-      selectedGlowRadiusTarget,
-      14,
-      delta,
-    );
-    selectionPresentation.selectedGlowVisibility = selectedNodeId
-      ? 1
-      : selectionRetreatActive ||
-          selectionPresentation.selectedGlowRadiusProgress > 0.0001
+    if (collectionHighlightRetreat) {
+      // Share the selected node's finite sink progress; never let semantics revive it.
+      selectionPresentation.selectedGlowRadiusProgress =
+        1 - collectionHighlightProgress;
+      selectionPresentation.selectedGlowVisibility =
+        collectionHighlightProgress < 1 ? 1 : 0;
+    } else {
+      selectionPresentation.selectedGlowRadiusProgress = THREE.MathUtils.damp(
+        selectionPresentation.selectedGlowRadiusProgress,
+        selectedGlowRadiusTarget,
+        14,
+        delta,
+      );
+      selectionPresentation.selectedGlowVisibility = selectedNodeId
         ? 1
-        : 0;
+        : selectionRetreatActive ||
+            selectionPresentation.selectedGlowRadiusProgress > 0.0001
+          ? 1
+          : 0;
+    }
     if (
       selectionPresentation.selectedGlowRadiusProgress <= 0.0001 &&
       selectedGlowRadiusTarget === 0 &&
@@ -426,6 +449,8 @@ export function ReservoirSphere({
         surfaceSelectionUniforms.current.selectedNodeAngularRadius.value.toFixed(6);
       diagnosticsRef.current.dataset.surfaceSelectedShockwaveProgress =
         surfaceSelectionUniforms.current.selectedShockwaveProgress.value.toFixed(6);
+      diagnosticsRef.current.dataset.surfaceSelectedCollectionSinkProgress =
+        collectionHighlightProgress.toFixed(6);
     }
   });
 
@@ -472,19 +497,18 @@ export function ReservoirSphere({
           (node.kind === "artifact" && node.id === locatingArtifactId) ||
           (node.kind === "artifact" && node.id === openingArtifact?.id);
         const reconstitutionSinking = collectionDeactivating;
+        const collectionNodeTransitionPhase = collectionDeactivating
+          ? "departure"
+          : emergingChildren
+            ? "arrival"
+            : null;
         const layoutTransitionSink = layoutModeSwitchSinking;
         const layoutTransitionEmerging = layoutModeSwitchEmerging;
-        const reconstitutionReactionDelay = openingReducedMotion
-          ? 0
-          : nodeIndex * 0.018;
-        const nodeOpening =
-          openingActive || reconstitutionSinking || layoutTransitionSink;
+        const nodeOpening = openingActive || layoutTransitionSink;
         const nodeRestoring = restoring || layoutTransitionEmerging;
         const nodeOpeningElapsedRef = layoutTransitionSink
           ? layoutModeTransitionElapsedRef
-          : reconstitutionSinking
-            ? collectionReconstitutionElapsedRef
-            : openingElapsedRef;
+          : openingElapsedRef;
         const nodeRestorationProgressRef = layoutTransitionEmerging
           ? layoutModeTransitionProgressRef
           : restorationProgressRef;
@@ -492,9 +516,7 @@ export function ReservoirSphere({
           ? 0
           : openingActive && openingArtifact?.id === node.id
             ? 0
-            : reconstitutionSinking
-              ? reconstitutionReactionDelay
-              : getNodeReactionArrival(
+            : getNodeReactionArrival(
                   openingReactionDistances.get(node.id) ?? 0,
                   maximumOpeningReactionDistance,
                   openingReducedMotion,
@@ -545,6 +567,10 @@ export function ReservoirSphere({
             emergenceProgressRef={emergenceProgressRef}
             emergenceOrder={nodeIndex}
             emergenceChildCount={activeNodes.length}
+            collectionTransitionPhase={collectionNodeTransitionPhase}
+            collectionTransitionProgressRef={collectionReconstitutionProgressRef}
+            collectionTransitionOrder={nodeIndex}
+            collectionTransitionChildCount={activeNodes.length}
             onHoverChange={onArtifactHoverChange}
           />
         ) : (
@@ -586,6 +612,10 @@ export function ReservoirSphere({
             emergenceProgressRef={emergenceProgressRef}
             emergenceOrder={nodeIndex}
             emergenceChildCount={activeNodes.length}
+            collectionTransitionPhase={collectionNodeTransitionPhase}
+            collectionTransitionProgressRef={collectionReconstitutionProgressRef}
+            collectionTransitionOrder={nodeIndex}
+            collectionTransitionChildCount={activeNodes.length}
             sphereRef={sphereRef}
             reservoirFrame={reservoirFrame}
             renderedZoomRef={renderedZoomRef}

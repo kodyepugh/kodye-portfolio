@@ -26,8 +26,11 @@ const EMPTY_QUERY_BASE_EMISSIVE = new THREE.Color(
   RESERVOIR_THEME.dormantCollection,
 );
 const QUERY_TWINKLE_QUANTIZATION = 10000;
-const QUERY_TWINKLE_SAMPLE_THRESHOLD = 0.22;
-const QUERY_TWINKLE_MIN_COUNT = 240;
+const QUERY_TWINKLE_LATITUDE_BINS = 6;
+const QUERY_TWINKLE_LONGITUDE_BINS = 12;
+const QUERY_TWINKLE_SAMPLE_RATIO = 0.3;
+const QUERY_TWINKLE_MIN_PER_SECTOR = 2;
+const QUERY_TWINKLE_MIN_COUNT = 360;
 
 const QUERY_TWINKLE_VERTEX_SHADER = /* glsl */ `
   attribute float twinkleStart;
@@ -52,9 +55,9 @@ const QUERY_TWINKLE_VERTEX_SHADER = /* glsl */ `
     vTwinkleFacing = max(dot(localNormal, viewDirection), 0.0);
     float distanceScale = 3.2 / max(-mvPosition.z, 1.0);
     gl_PointSize = clamp(
-      (1.15 + twinkleIntensity * 2.15) * distanceScale * 2.0,
-      1.1,
-      4.4
+      (1.8 + twinkleIntensity * 3.4) * distanceScale * 2.3,
+      2.2,
+      7.8
     );
     gl_Position = projectionMatrix * mvPosition;
   }
@@ -75,12 +78,14 @@ const QUERY_TWINKLE_FRAGMENT_SHADER = /* glsl */ `
 
   void main() {
     vec2 pointOffset = gl_PointCoord - vec2(0.5);
-    float pointHalo = 1.0 - smoothstep(0.0, 0.5, length(pointOffset));
+    float pointDistance = length(pointOffset);
+    float pointHalo = 1.0 - smoothstep(0.12, 0.5, pointDistance);
+    float pointCore = 1.0 - smoothstep(0.0, 0.18, pointDistance);
     float seededStart = fract(vTwinkleStart + querySeed * 0.173) * 0.70;
     float seededCandidate = fract(
       vTwinkleCandidate + querySeed * 0.317
     );
-    float candidate = step(0.58, seededCandidate);
+    float candidate = step(0.24, seededCandidate);
     float elapsed = queryProgress - seededStart;
     float rise = smoothstep(0.0, vTwinkleDuration * 0.26, elapsed);
     float fall = 1.0 - smoothstep(
@@ -96,7 +101,7 @@ const QUERY_TWINKLE_FRAGMENT_SHADER = /* glsl */ `
       reducedEmphasis,
       step(0.5, reducedMotion)
     );
-    float sustainedCandidate = step(0.48, seededCandidate);
+    float sustainedCandidate = step(0.14, seededCandidate);
     float sustainedPhase = fract(
       queryProgress * (1.9 + vTwinkleDuration * 3.6) + seededStart
     );
@@ -129,7 +134,8 @@ const QUERY_TWINKLE_FRAGMENT_SHADER = /* glsl */ `
       facingEnvelope *
       vTwinkleIntensity *
       pointHalo *
-      0.36;
+      mix(0.72, 1.0, pointCore) *
+      0.9;
     if (alpha < 0.002) discard;
     gl_FragColor = vec4(vec3(1.0), alpha);
   }
@@ -167,6 +173,32 @@ function hashQuantizedTwinklePosition(
   return hash >>> 0;
 }
 
+function getSphericalSector(position: THREE.Vector3) {
+  const direction = position.clone().normalize();
+  const latitude = Math.min(
+    Math.floor(((direction.y + 1) * 0.5) * QUERY_TWINKLE_LATITUDE_BINS),
+    QUERY_TWINKLE_LATITUDE_BINS - 1,
+  );
+  const longitude = Math.min(
+    Math.floor(
+      ((Math.atan2(direction.z, direction.x) + Math.PI) / (Math.PI * 2)) *
+        QUERY_TWINKLE_LONGITUDE_BINS,
+    ),
+    QUERY_TWINKLE_LONGITUDE_BINS - 1,
+  );
+  return `${latitude}:${longitude}`;
+}
+
+function getOctant(position: THREE.Vector3) {
+  return `${position.x >= 0 ? "+X" : "-X"}/${position.y >= 0 ? "+Y" : "-Y"}/${position.z >= 0 ? "+Z" : "-Z"}`;
+}
+
+type TwinkleVertex = {
+  key: string;
+  position: THREE.Vector3;
+  seed: number;
+};
+
 function createQueryTwinkleGeometry() {
   const source = createReservoirGridLineGeometry(
     RESERVOIR_RADIUS * 1.0018,
@@ -174,14 +206,7 @@ function createQueryTwinkleGeometry() {
     RESERVOIR_SURFACE_PATTERN.surfaceScale,
   );
   const positions = source.getAttribute("position");
-  const deduped = new Map<
-    string,
-    {
-      key: string;
-      position: THREE.Vector3;
-      seed: number;
-    }
-  >();
+  const deduped = new Map<string, TwinkleVertex>();
 
   for (let index = 0; index < positions.count; index += 1) {
     const x = positions.getX(index);
@@ -204,9 +229,25 @@ function createQueryTwinkleGeometry() {
     });
   }
 
-  const sampled = [...deduped.values()]
-    .filter((entry) => seededUnit(entry.seed) < QUERY_TWINKLE_SAMPLE_THRESHOLD)
-    .sort((first, second) => first.seed - second.seed);
+  const sectors = new Map<string, TwinkleVertex[]>();
+  for (const entry of deduped.values()) {
+    const sector = getSphericalSector(entry.position);
+    const entries = sectors.get(sector) ?? [];
+    entries.push(entry);
+    sectors.set(sector, entries);
+  }
+  const sampled = [...sectors.values()].flatMap((entries) => {
+    const targetCount = Math.min(
+      entries.length,
+      Math.max(
+        QUERY_TWINKLE_MIN_PER_SECTOR,
+        Math.ceil(entries.length * QUERY_TWINKLE_SAMPLE_RATIO),
+      ),
+    );
+    return entries
+      .sort((first, second) => first.seed - second.seed)
+      .slice(0, targetCount);
+  });
   const sampledKeys = new Set(sampled.map((entry) => entry.key));
 
   if (sampled.length < QUERY_TWINKLE_MIN_COUNT) {
@@ -256,7 +297,16 @@ function createQueryTwinkleGeometry() {
 
   source.dispose();
 
-  return { geometry, twinkleCount: pointCount };
+  const octantCounts = Object.fromEntries(
+    ["+X/+Y/+Z", "+X/+Y/-Z", "+X/-Y/+Z", "+X/-Y/-Z", "-X/+Y/+Z", "-X/+Y/-Z", "-X/-Y/+Z", "-X/-Y/-Z"].map(
+      (octant) => [octant, 0],
+    ),
+  ) as Record<string, number>;
+  for (const point of sampled) {
+    octantCounts[getOctant(point.position)] += 1;
+  }
+
+  return { geometry, twinkleCount: pointCount, octantCounts };
 }
 
 export function ReservoirQueryActivity({
@@ -395,6 +445,9 @@ export function ReservoirQueryActivity({
       diagnosticsRef.current.dataset.queryFaceCount = String(
         preparedGeometry.twinkleCount,
       );
+      diagnosticsRef.current.dataset.queryTwinkleOctants = JSON.stringify(
+        preparedGeometry.octantCounts,
+      );
       diagnosticsRef.current.dataset.queryWhiteTwinkleActive = String(
         activeMode === "success" && progress < 1,
       );
@@ -465,6 +518,7 @@ export function ReservoirQueryActivity({
         depthTest
         depthWrite={false}
         toneMapped={false}
+        blending={THREE.AdditiveBlending}
       />
     </points>
   );

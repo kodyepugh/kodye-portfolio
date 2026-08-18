@@ -762,7 +762,6 @@ export function ReservoirScene() {
   const interactionRevisionRef = useRef(0);
   const openingElapsedRef = useRef(0);
   const collectionReconstitutionProgressRef = useRef(0);
-  const collectionReconstitutionElapsedRef = useRef(0);
   const collectionEmergenceProgressRef = useRef(1);
   const queryReservoirSnapshotRef =
     useRef<QueryReservoirSelectionSnapshot | null>(null);
@@ -1343,10 +1342,8 @@ export function ReservoirScene() {
     const destinationCollectionId = requestedDestinationCollectionId;
 
     const duration = getCollectionReconstitutionDuration(reducedMotion);
-    const openingDuration = getOpeningDuration(reducedMotion);
     const startTime = performance.now();
     let handoffCommitted = false;
-    let reactivationReported = false;
     let animationFrameId = 0;
 
     function updateCollectionReconstitution(now: number) {
@@ -1357,8 +1354,6 @@ export function ReservoirScene() {
       );
       const frame = getCollectionReconstitutionFrame(progress);
       collectionReconstitutionProgressRef.current = progress;
-      collectionReconstitutionElapsedRef.current =
-        openingDuration * frame.deactivationProgress;
       collectionEmergenceProgressRef.current = frame.emergenceProgress;
 
       if (!handoffCommitted && progress >= 0.5) {
@@ -1379,17 +1374,6 @@ export function ReservoirScene() {
         if (resolution) setCollectionHistory(resolution.history);
         setSelectedArtifactId(null);
         setSelectedCollectionId(null);
-        setCollectionNavigation({
-          activeCollectionId: destinationCollectionId,
-          destinationCollectionId,
-          transitionPhase: "handoff",
-        });
-      } else if (
-        handoffCommitted &&
-        !reactivationReported &&
-        progress > 0.5
-      ) {
-        reactivationReported = true;
         setCollectionNavigation({
           activeCollectionId: destinationCollectionId,
           destinationCollectionId,
@@ -1442,7 +1426,6 @@ export function ReservoirScene() {
       }
 
       collectionReconstitutionProgressRef.current = 1;
-      collectionReconstitutionElapsedRef.current = 0;
       collectionEmergenceProgressRef.current = 1;
       pendingCollectionResolutionRef.current = null;
       collectionTransitionPoseSnapshotRef.current = null;
@@ -2246,7 +2229,6 @@ export function ReservoirScene() {
       zoomLevel: destinationZoom,
     };
     collectionReconstitutionProgressRef.current = 0;
-    collectionReconstitutionElapsedRef.current = 0;
     collectionEmergenceProgressRef.current = 0;
     queryRevisionRef.current += 1;
     setCollectionActivityRevision(queryRevisionRef.current);
@@ -3137,9 +3119,6 @@ export function ReservoirScene() {
               collectionReconstitutionProgressRef={
                 collectionReconstitutionProgressRef
               }
-              collectionReconstitutionElapsedRef={
-                collectionReconstitutionElapsedRef
-              }
               layoutModeTransitionElapsedRef={
                 layoutModeTransitionElapsedRef
               }
@@ -3178,7 +3157,6 @@ export function ReservoirScene() {
               restoring={restoring}
               restorationProgressRef={restorationProgressRef}
               emergingChildren={
-                collectionNavigation.transitionPhase === "handoff" ||
                 collectionNavigation.transitionPhase === "reactivating"
               }
               emergenceProgressRef={collectionEmergenceProgressRef}

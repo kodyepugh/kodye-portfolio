@@ -7,7 +7,11 @@ import {
   RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
 } from "@/lib/reservoir/opening";
 import type { ReservoirDirection } from "@/lib/reservoir/layout";
-import { getCollectionChildEmergenceProgress } from "@/lib/reservoir/collection-entry";
+import {
+  getCollectionNodeTransitionOffset,
+  getCollectionNodeTransitionProgress,
+} from "@/lib/reservoir/collection-entry";
+import type { CollectionNodeTransitionPhase } from "@/lib/reservoir/collection-entry";
 import {
   RESERVOIR_RENDER_ORDER,
   RESERVOIR_THEME,
@@ -62,6 +66,10 @@ type ArtifactNodeProps = {
   emergenceProgressRef?: MutableRefObject<number>;
   emergenceOrder?: number;
   emergenceChildCount?: number;
+  collectionTransitionPhase?: CollectionNodeTransitionPhase | null;
+  collectionTransitionProgressRef?: MutableRefObject<number>;
+  collectionTransitionOrder?: number;
+  collectionTransitionChildCount?: number;
   sphereRef: RefObject<THREE.Group | null>;
   reservoirFrame: ReservoirFrame;
   renderedZoomRef: MutableRefObject<number>;
@@ -97,6 +105,10 @@ export function ArtifactNode({
   emergenceProgressRef,
   emergenceOrder = 0,
   emergenceChildCount = 1,
+  collectionTransitionPhase = null,
+  collectionTransitionProgressRef,
+  collectionTransitionOrder = 0,
+  collectionTransitionChildCount = 1,
   sphereRef,
   reservoirFrame,
   renderedZoomRef,
@@ -139,6 +151,11 @@ export function ArtifactNode({
       : nodeRadius *
           RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
   );
+  const lastRenderedRadialOffset = useRef(filterRadialOffset.current);
+  const collectionDepartureStartOffset = useRef(filterRadialOffset.current);
+  const previousCollectionTransitionPhase = useRef<
+    CollectionNodeTransitionPhase | null
+  >(null);
   const orbSelectedRadialOffset =
     nodeRadius * RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
 
@@ -230,9 +247,32 @@ export function ArtifactNode({
       selectionFrame.continuationOffset +
       filterRadialOffset.current;
 
-    if (emerging && emergenceProgressRef) {
-      const emergenceProgress = getCollectionChildEmergenceProgress(
+    if (collectionTransitionPhase && collectionTransitionProgressRef) {
+      if (
+        collectionTransitionPhase === "departure" &&
+        previousCollectionTransitionPhase.current !== "departure"
+      ) {
+        collectionDepartureStartOffset.current = lastRenderedRadialOffset.current;
+      }
+      const transitionProgress = getCollectionNodeTransitionProgress(
+        collectionTransitionProgressRef.current,
+        collectionTransitionPhase,
+        collectionTransitionOrder,
+        collectionTransitionChildCount,
+      );
+      renderedRadialOffset = getCollectionNodeTransitionOffset({
+        nodeRadius,
+        progress: transitionProgress,
+        phase: collectionTransitionPhase,
+        startOffset: collectionDepartureStartOffset.current,
+        settledOffset: ORB_RESTING_RADIAL_OFFSET,
+        reducedMotion: openingReducedMotion,
+      });
+      openingReactionProgress = transitionProgress;
+    } else if (emerging && emergenceProgressRef) {
+      const emergenceProgress = getCollectionNodeTransitionProgress(
         emergenceProgressRef.current,
+        "arrival",
         emergenceOrder,
         emergenceChildCount,
       );
@@ -245,7 +285,7 @@ export function ArtifactNode({
       openingReactionProgress = 1 - emergenceProgress;
     }
 
-    if (opening) {
+    if (opening && !collectionTransitionPhase) {
       const startOffset = openingSelected
         ? orbSelectedRadialOffset
         : filterRadialOffset.current;
@@ -261,7 +301,7 @@ export function ArtifactNode({
       openingReactionProgress = reaction.progress;
     }
 
-    if (restoring) {
+    if (restoring && !collectionTransitionPhase) {
       const restorationProgress = restorationProgressRef.current;
       const restoredOffset = openingSelected
         ? orbSelectedRadialOffset
@@ -282,6 +322,8 @@ export function ArtifactNode({
     visualOrb.userData.currentRadialOffset = renderedRadialOffset;
     visualOrb.userData.openingReactionProgress = openingReactionProgress;
     visualOrb.userData.filterSurfaced = surfaced;
+    lastRenderedRadialOffset.current = renderedRadialOffset;
+    previousCollectionTransitionPhase.current = collectionTransitionPhase;
     const hoverWhiteMix = selected
       ? RESERVOIR_NODE_SELECTED_HOVER_WHITE_MIX
       : RESERVOIR_NODE_HOVER_WHITE_MIX;
@@ -369,6 +411,24 @@ export function ArtifactNode({
         ref={visualOrbRef}
         userData={{ artifactId: artifact.id }}
         renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
+        position={
+          collectionTransitionPhase === "arrival" && collectionTransitionProgressRef
+            ? placement.normal.clone().multiplyScalar(
+                getCollectionNodeTransitionOffset({
+                  nodeRadius,
+                  progress: getCollectionNodeTransitionProgress(
+                    collectionTransitionProgressRef.current,
+                    "arrival",
+                    collectionTransitionOrder,
+                    collectionTransitionChildCount,
+                  ),
+                  phase: "arrival",
+                  settledOffset: ORB_RESTING_RADIAL_OFFSET,
+                  reducedMotion: openingReducedMotion,
+                }),
+              )
+            : undefined
+        }
       >
         <mesh
           renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}

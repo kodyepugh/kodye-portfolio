@@ -11,8 +11,10 @@ import {
 } from "@/lib/reservoir/geometry";
 import type { ReservoirDirection } from "@/lib/reservoir/layout";
 import {
-  getCollectionChildEmergenceProgress,
+  getCollectionNodeTransitionOffset,
+  getCollectionNodeTransitionProgress,
 } from "@/lib/reservoir/collection-entry";
+import type { CollectionNodeTransitionPhase } from "@/lib/reservoir/collection-entry";
 import {
   getReservoirNodeOpeningReaction,
   getEmbeddedCollectionNodeQuaternion,
@@ -72,6 +74,10 @@ type CollectionNodeProps = {
   emergenceProgressRef?: MutableRefObject<number>;
   emergenceOrder?: number;
   emergenceChildCount?: number;
+  collectionTransitionPhase?: CollectionNodeTransitionPhase | null;
+  collectionTransitionProgressRef?: MutableRefObject<number>;
+  collectionTransitionOrder?: number;
+  collectionTransitionChildCount?: number;
   sphereRef: RefObject<THREE.Group | null>;
   reservoirFrame: ReservoirFrame;
   renderedZoomRef: MutableRefObject<number>;
@@ -104,6 +110,10 @@ export function CollectionNode({
   emergenceProgressRef,
   emergenceOrder = 0,
   emergenceChildCount = 1,
+  collectionTransitionPhase = null,
+  collectionTransitionProgressRef,
+  collectionTransitionOrder = 0,
+  collectionTransitionChildCount = 1,
   sphereRef,
   reservoirFrame,
   renderedZoomRef,
@@ -174,6 +184,11 @@ export function CollectionNode({
       : nodeRadius *
           RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
   );
+  const lastRenderedRadialOffset = useRef(filterRadialOffset.current);
+  const collectionDepartureStartOffset = useRef(filterRadialOffset.current);
+  const previousCollectionTransitionPhase = useRef<
+    CollectionNodeTransitionPhase | null
+  >(null);
   const selectionState = useRef(
     createReservoirNodeSelectionState({
       meshEngaged,
@@ -352,9 +367,33 @@ export function CollectionNode({
       selectionFrame.radialOffset +
       selectionFrame.continuationOffset +
       filterRadialOffset.current;
-    if (emerging && emergenceProgressRef) {
-      const emergenceProgress = getCollectionChildEmergenceProgress(
+    if (collectionTransitionPhase && collectionTransitionProgressRef) {
+      if (
+        collectionTransitionPhase === "departure" &&
+        previousCollectionTransitionPhase.current !== "departure"
+      ) {
+        // Preserve the selected node's exact presented offset on the first exit frame.
+        collectionDepartureStartOffset.current = lastRenderedRadialOffset.current;
+      }
+      const transitionProgress = getCollectionNodeTransitionProgress(
+        collectionTransitionProgressRef.current,
+        collectionTransitionPhase,
+        collectionTransitionOrder,
+        collectionTransitionChildCount,
+      );
+      renderedRadialOffset = getCollectionNodeTransitionOffset({
+        nodeRadius,
+        progress: transitionProgress,
+        phase: collectionTransitionPhase,
+        startOffset: collectionDepartureStartOffset.current,
+        settledOffset: 0,
+        reducedMotion: openingReducedMotion,
+      });
+      openingReactionProgress = transitionProgress;
+    } else if (emerging && emergenceProgressRef) {
+      const emergenceProgress = getCollectionNodeTransitionProgress(
         emergenceProgressRef.current,
+        "arrival",
         emergenceOrder,
         emergenceChildCount,
       );
@@ -366,7 +405,7 @@ export function CollectionNode({
       });
       openingReactionProgress = 1 - emergenceProgress;
     }
-    if (opening) {
+    if (opening && !collectionTransitionPhase) {
       const reaction = getReservoirNodeOpeningReaction({
         elapsed: openingElapsedRef.current,
         openingReactionDelay,
@@ -378,7 +417,7 @@ export function CollectionNode({
       renderedRadialOffset = reaction.radialOffset;
       openingReactionProgress = reaction.progress;
     }
-    if (restoring) {
+    if (restoring && !collectionTransitionPhase) {
       renderedRadialOffset = getReservoirNodeRestorationOffset({
         nodeRadius,
         progress: restorationProgressRef.current,
@@ -394,6 +433,8 @@ export function CollectionNode({
     visualNode.userData.currentRadialOffset = renderedRadialOffset;
     visualNode.userData.openingReactionProgress = openingReactionProgress;
     visualNode.userData.filterSurfaced = surfaced;
+    lastRenderedRadialOffset.current = renderedRadialOffset;
+    previousCollectionTransitionPhase.current = collectionTransitionPhase;
 
     if (diagnosticsRef.current) {
       diagnosticsRef.current.dataset.collectionHovered = String(
@@ -492,6 +533,24 @@ export function CollectionNode({
       <group
         ref={visualNodeRef}
         quaternion={embeddedQuaternion ?? undefined}
+        position={
+          collectionTransitionPhase === "arrival" && collectionTransitionProgressRef
+            ? placement.normal.clone().multiplyScalar(
+                getCollectionNodeTransitionOffset({
+                  nodeRadius,
+                  progress: getCollectionNodeTransitionProgress(
+                    collectionTransitionProgressRef.current,
+                    "arrival",
+                    collectionTransitionOrder,
+                    collectionTransitionChildCount,
+                  ),
+                  phase: "arrival",
+                  settledOffset: 0,
+                  reducedMotion: openingReducedMotion,
+                }),
+              )
+            : undefined
+        }
       >
         <CollectionSphere
           collection={collection}
