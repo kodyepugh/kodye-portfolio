@@ -745,9 +745,9 @@ The sphere may become larger than the viewport at close zoom levels. This is exp
 
 ## 10.3 Clean Reservoir Surface
 
-V2 removes the explicit visible triangular/geodesic surface topology from the reservoir.
+V2 allows a dense triangular surface pattern, but only as presentation.
 
-The reservoir should read as a continuous spherical field rather than as a structural grid. The underlying sphere mesh remains an implementation detail used to render the surface, but its vertices, edges, and faces must not be presented as meaningful interface structure.
+The reservoir should still read as a continuous spherical field rather than as semantic topology. The underlying sphere mesh remains an implementation detail used to render the surface, and the visible triangular pattern must not be presented as node identity, node placement, or layout structure.
 
 The surface should retain enough visual information to communicate:
 
@@ -759,11 +759,11 @@ The surface should retain enough visual information to communicate:
 
 Preferred cues include restrained lighting, material gradients, shading, node motion across the surface, and other low-noise depth treatments.
 
-Do not reintroduce a visible structural mesh merely to make rotation easier to perceive. If orientation becomes ambiguous, solve that with surface/material treatment rather than a topology overlay unless a future explicit design decision reauthorizes one.
+Do not reintroduce a visible structural mesh merely to make rotation easier to perceive. If orientation becomes ambiguous, solve that with surface/material treatment rather than changing the approved presentation-only pattern unless a future explicit design decision reauthorizes one.
 
 ### Foundational rule
 
-> **The reservoir is a continuous surface. Render topology is an implementation detail, not a visible information layer.**
+> **The reservoir may use a dense triangular presentation pattern, but it is presentation-only. Render topology is an implementation detail, not a semantic layout layer.**
 
 ## 10.4 Layout vs Render Mesh
 
@@ -2231,18 +2231,19 @@ Avoid excessive:
 
 # 52. Reservoir Surface Rendering
 
-V2 removes the visible structural grid from the reservoir.
+V2 allows a dense triangular surface pattern as a presentation-only layer.
 
-The sphere should present as a continuous dark/muted surface whose form remains legible through restrained material and lighting cues rather than exposed triangulation.
+The sphere should present as a continuous dark/muted surface whose form remains legible through restrained material and lighting cues. The pattern itself must not imply semantic topology.
 
 Requirements:
 
-- no visible geodesic/triangular wireframe as a default interface layer;
+- visible geodesic/triangular wireframe may be present as a presentation-only layer, but it must not carry semantic node identity;
 - no grid subdivision reveal tied to zoom;
 - no visual implication that mesh vertices or faces carry semantic meaning;
 - enough shading/depth information to make rotation and curvature perceptible;
 - surface treatment remains subordinate to nodes and atmospheric information;
-- render-mesh complexity may be tuned for quality/performance without affecting node identity or layout.
+- render-mesh complexity may be tuned for quality/performance without affecting node identity or layout;
+- the presentation pattern may change later without artifact migration.
 
 Potential treatments:
 
@@ -2252,7 +2253,7 @@ Potential treatments:
 - low-noise darkening toward the limb;
 - node movement itself as an orientation cue.
 
-Avoid replacing the removed grid with another decorative pattern that implies structure without meaning.
+Avoid treating the approved presentation pattern as semantic structure or replacing it with a different structural metaphor without explicit design authorization.
 
 # 53. Relationship Visualization
 
@@ -2398,7 +2399,7 @@ Build / revise only what is required to establish:
 3. drag/swipe rotation of the centered reservoir;
 4. wheel/pinch zoom expressed as reservoir scale rather than camera dive;
 5. bounded continuous zoom state;
-6. a clean continuous reservoir surface with no visible structural grid/topology;
+6. a dense, presentation-only reservoir surface pattern with no semantic grid/topology;
 7. continuous spherical node positions independent from render-mesh vertices;
 8. deterministic node-layout generation based on current collection population;
 9. population-aware node layout and spacing independent from sphere tessellation;
@@ -2928,7 +2929,7 @@ V2 establishes the active reservoir as a persistent spherical reference frame ce
 
 Zoom no longer means camera travel toward or through the sphere. Wheel or pinch modifies a bounded continuous zoom level that controls reservoir scale and may also influence label presentation, interaction sensitivity, visible working sets, and future semantic resolution.
 
-The V2 prototype removes the visible structural surface topology. The reservoir presents as a continuous sphere whose curvature and orientation are communicated through restrained material, lighting, and node movement rather than an exposed grid. The underlying render mesh is purely an implementation detail.
+The V2 prototype allows a dense triangular surface pattern as a presentation-only layer. The reservoir presents as a continuous sphere whose curvature and orientation are communicated through restrained material, lighting, and node movement rather than semantic mesh structure. The underlying render mesh is purely an implementation detail.
 
 Artifacts and collections occupy stable continuous spherical positions generated from the current collection's membership. Permanent mesh-vertex IDs are therefore no longer the foundational placement model, and future changes to sphere tessellation must not require artifact migration or repositioning.
 
@@ -2975,7 +2976,7 @@ The following supersede earlier navigation assumptions:
 - the reservoir sphere is centered in the usable visual frame;
 - zoom changes reservoir scale rather than camera depth/path progress;
 - camera dive / retreat is retired from ordinary zoom;
-- the visible structural surface topology/grid is removed;
+- the visible structural surface topology/grid is no longer treated as semantic structure;
 - node layout is generated from current collection population and spacing requirements;
 - node layout is generated in continuous spherical space rather than permanently authored to render-mesh vertex IDs;
 - node layout is independent from the reservoir render mesh;

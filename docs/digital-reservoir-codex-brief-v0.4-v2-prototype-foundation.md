@@ -491,11 +491,11 @@ The layout engine should derive stable positions from:
 
 ### Surface rendering
 
-Do not render a visible structural grid/topology in V2. The sphere should read as a continuous surface.
+V2 allows a dense triangular surface pattern as a presentation-only layer. The sphere should still read as a continuous surface.
 
 The underlying mesh may use whatever tessellation is appropriate for appearance and performance, but mesh vertices/faces have no semantic role and must not own node identity or placement.
 
-Use restrained shading/material cues to preserve curvature and orientation during rotation. If the sphere becomes perceptually ambiguous at sparse densities, improve those cues rather than reintroducing a grid without explicit design authorization.
+Use restrained shading/material cues to preserve curvature and orientation during rotation. If the sphere becomes perceptually ambiguous at sparse densities, improve those cues rather than treating the pattern as semantic topology.
 
 ### Centering
 
@@ -1153,7 +1153,7 @@ The following remain unresolved until implementation evidence exists:
 - exact spherical distribution algorithm;
 - deterministic layout seeding strategy;
 - spacing metric and population-to-layout heuristic;
-- fixed reservoir surface presentation family / detail level;
+- approved reservoir surface presentation family / detail level;
 - exact zoom curve / scale bounds;
 - node apparent-size behavior across zoom;
 - initial-orientation scoring heuristic;
@@ -1169,7 +1169,7 @@ The following are no longer open V2 questions:
 - reservoir is centered;
 - ordinary zoom is scale-based rather than dive-based;
 - node layout is render-mesh-independent;
-- reservoir surface presentation is fixed for V2 but replaceable by architecture;
+- reservoir surface presentation is approved for V2 as a presentation-only layer and remains replaceable by architecture;
 - collection traversal uses semantic Active + Destination state rather than physical parent/child sphere slots.
 
 # 44. Architecture Test
@@ -1287,7 +1287,7 @@ with:
 
 ```text
 R = f(viewport, safeZones, Z)
-S = continuous sphere surface/material presentation; no visible structural grid
+S = dense sphere surface/material presentation; presentation-only, no semantic topology
 L = f(collection membership, population, spacing, seed)
 Q = user rotation
 C = semantic navigation state
@@ -1336,7 +1336,7 @@ V2.5
 Refactor collection traversal to Active + Destination semantic transitions in the persistent centered frame.
 
 V2.6
-Run regression / density / responsive / performance QA across artifacts, queries, menu, footer, content-window interactions, and grid-free surface legibility.
+Run regression / density / responsive / performance QA across artifacts, queries, menu, footer, content-window interactions, and presentation-pattern surface legibility.
 ```
 
 ### Definition of V2 spatial-foundation completion
