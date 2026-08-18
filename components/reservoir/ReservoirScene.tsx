@@ -1073,9 +1073,8 @@ export function ReservoirScene() {
     () => getReservoirLayoutDiagnostics(activeReservoirLayout),
     [activeReservoirLayout],
   );
-  const cameraReady = cameraRevision > 0;
   const adaptiveZoomCamera = useMemo(() => {
-    if (cameraReady && cameraRef.current) return cameraRef.current;
+    if (cameraRef.current) return cameraRef.current;
     const fallbackCamera = new THREE.PerspectiveCamera(
       CAMERA_FOV,
       viewportFrame.width / Math.max(viewportFrame.height, 1),
@@ -1087,7 +1086,7 @@ export function ReservoirScene() {
     fallbackCamera.updateProjectionMatrix();
     fallbackCamera.updateMatrixWorld();
     return fallbackCamera;
-  }, [cameraReady, viewportFrame.height, viewportFrame.width]);
+  }, [cameraRevision, viewportFrame.height, viewportFrame.width]);
   const focusedLayoutCapRadius = useMemo(
     () => getReservoirFocusedCapRadius(activeReservoirNodes.length),
     [activeReservoirNodes.length],
@@ -1095,7 +1094,7 @@ export function ReservoirScene() {
   const focusedLayoutFocalDirection = focusedLayoutDirection;
   const activeAdaptiveZoom = useMemo<ReservoirAdaptiveZoom>(() => {
     const camera = adaptiveZoomCamera;
-    if (!camera) {
+    if (!camera || cameraRevision < 0) {
       return {
         baselineMaximum: RESERVOIR_ZOOM_BASELINE_MAX,
         requiredZoom: RESERVOIR_ZOOM_BASELINE_MAX,
@@ -1126,6 +1125,7 @@ export function ReservoirScene() {
     activeReservoirNodes,
     baseScale,
     adaptiveZoomCamera,
+    cameraRevision,
     reservoirCenter,
     viewportFrame.height,
   ]);

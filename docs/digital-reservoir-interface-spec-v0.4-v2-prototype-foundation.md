@@ -759,7 +759,7 @@ The surface should retain enough visual information to communicate:
 
 Preferred cues include restrained lighting, material gradients, shading, node motion across the surface, and other low-noise depth treatments.
 
-Do not reintroduce a visible structural mesh merely to make rotation easier to perceive. If orientation becomes ambiguous, solve that with surface/material treatment rather than changing the approved presentation-only pattern unless a future explicit design decision reauthorizes one.
+Do not promote the presentation-only pattern into semantic structure merely to make rotation easier to perceive. If orientation becomes ambiguous, solve that with surface/material treatment rather than changing the approved presentation-only pattern unless a future explicit design decision reauthorizes one.
 
 ### Foundational rule
 
@@ -2389,6 +2389,8 @@ The MVP should not attempt to prove every future feature.
 # 61. MVP Prototype Scope
 
 The completed V1 prototype validated the primary artifact interaction and earlier spatial experiments. V2 now authorizes a focused spatial-foundation overhaul.
+
+V2.5 is complete: the audited implementation already uses the semantic Active + Destination collection transition model in the persistent centered frame. Collection-node entry, Home, Back, ancestor/path selection, and direct collection requests resolve semantic destinations through the shared transition coordinator. Semantic navigation history is independent from geometry; the current rendered quaternion is preserved through collection transitions; current zoom is preserved when valid for the destination; and destination zoom is clamped before emergence when required. Per-collection orientation snapshots remain an implementation detail of the existing distributed-mode restoration behavior and are not a separate physical-slot history model.
 
 ### V2 foundation implementation scope
 
