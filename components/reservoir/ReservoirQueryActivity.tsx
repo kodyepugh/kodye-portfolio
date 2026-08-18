@@ -50,9 +50,9 @@ const QUERY_TWINKLE_VERTEX_SHADER = /* glsl */ `
     vTwinkleIntensity = twinkleIntensity;
     vTwinkleCandidate = twinkleCandidate;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    vec3 localNormal = normalize(position);
+    vec3 viewNormal = normalize(normalMatrix * normalize(position));
     vec3 viewDirection = normalize(-mvPosition.xyz);
-    vTwinkleFacing = max(dot(localNormal, viewDirection), 0.0);
+    vTwinkleFacing = max(dot(viewNormal, viewDirection), 0.0);
     float distanceScale = 3.2 / max(-mvPosition.z, 1.0);
     gl_PointSize = clamp(
       (1.8 + twinkleIntensity * 3.4) * distanceScale * 2.3,
@@ -127,7 +127,7 @@ const QUERY_TWINKLE_FRAGMENT_SHADER = /* glsl */ `
       twinkleEnvelope,
       step(0.5, sustainedActivity)
     );
-    float facingEnvelope = smoothstep(0.0, 0.36, vTwinkleFacing);
+    float facingEnvelope = smoothstep(0.0, 0.12, vTwinkleFacing);
     float alpha =
       activity *
       activityEnvelope *
