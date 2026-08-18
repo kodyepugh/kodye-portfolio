@@ -119,27 +119,12 @@ function moveToward(current: number, target: number, step: number) {
   return current;
 }
 
-function getColorLuminance(color: THREE.Color) {
-  return color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
-}
-
-function isEffectivelyDarkColor(color: THREE.Color) {
-  return getColorLuminance(color) < 0.12;
-}
-
 export function getNodeSelectionHighlightColor(node: ReservoirContentNode) {
-  const resolvedColor = new THREE.Color(
-    node.categoryColor ??
-      (node.kind === "collection"
-        ? RESERVOIR_THEME.dormantCollection
-        : RESERVOIR_THEME.inspection),
-  );
-
-  if (node.kind === "collection" && isEffectivelyDarkColor(resolvedColor)) {
+  if (node.kind === "collection") {
     return new THREE.Color(RESERVOIR_THEME.inspection);
   }
 
-  return resolvedColor;
+  return new THREE.Color(node.categoryColor ?? RESERVOIR_THEME.inspection);
 }
 
 function getContinuationEnvelope(progress: number) {

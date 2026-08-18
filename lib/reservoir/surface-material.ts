@@ -42,8 +42,8 @@ export type ReservoirSurfaceSelectionUniforms = {
 
 const RESERVOIR_SURFACE_SELECTION = {
   glowAngularFalloff: 0.58,
-  glowEmissiveBoost: 0.11,
-  glowDiffuseMix: 0.075,
+  glowEmissiveBoost: 0.121,
+  glowDiffuseMix: 0.0825,
   shockwaveAngularWidth: 0.14,
   shockwaveDiffuseMix: 0.12,
   shockwaveEmissiveBoost: 0.18,
@@ -155,10 +155,21 @@ export function addReservoirSurfaceSelectionEffect(
         normalize(selectedNodeDirection)
       );
       float selectedAngularDistance = acos(clamp(selectedNodeAlignment, -1.0, 1.0));
+      float selectedGlowRevealClamped = clamp(selectedGlowReveal, 0.0, 1.0);
+      float selectedGlowRadiusScale = mix(
+        0.18,
+        1.0,
+        selectedGlowRevealClamped
+      );
       float selectedGlowMask = pow(
-        1.0 - smoothstep(0.0, ${RESERVOIR_SURFACE_SELECTION.glowAngularFalloff.toFixed(2)}, selectedAngularDistance),
+        1.0 - smoothstep(
+          0.0,
+          ${RESERVOIR_SURFACE_SELECTION.glowAngularFalloff.toFixed(2)} *
+            selectedGlowRadiusScale,
+          selectedAngularDistance
+        ),
         1.4
-      ) * smoothstep(0.0, 0.08, selectedGlowReveal);
+      ) * smoothstep(0.0, 0.08, selectedGlowRevealClamped);
       float selectedShockwaveRadius =
         clamp(selectedShockwaveProgress, 0.0, 1.0) *
         ${RESERVOIR_SURFACE_SELECTION.shockwaveTravelRadians.toFixed(2)};
@@ -173,7 +184,7 @@ export function addReservoirSurfaceSelectionEffect(
         diffuseColor.rgb,
         selectedNodeColor,
         min(
-          selectedGlowMask * ${RESERVOIR_SURFACE_SELECTION.glowDiffuseMix.toFixed(3)} +
+          selectedGlowMask * ${RESERVOIR_SURFACE_SELECTION.glowDiffuseMix.toFixed(4)} +
           selectedShockwaveMask * ${RESERVOIR_SURFACE_SELECTION.shockwaveDiffuseMix.toFixed(3)},
           0.35
         )
@@ -183,7 +194,7 @@ export function addReservoirSurfaceSelectionEffect(
         (
           selectedGlowMask * ${RESERVOIR_SURFACE_SELECTION.glowEmissiveBoost.toFixed(3)} +
           selectedShockwaveMask * ${RESERVOIR_SURFACE_SELECTION.shockwaveEmissiveBoost.toFixed(3)}
-      );`,
+        );`,
     );
 }
 
@@ -253,10 +264,21 @@ export function addReservoirSurfacePulseAndSelectionEffect(
         normalize(selectedNodeDirection)
       );
       float selectedAngularDistance = acos(clamp(selectedNodeAlignment, -1.0, 1.0));
+      float selectedGlowRevealClamped = clamp(selectedGlowReveal, 0.0, 1.0);
+      float selectedGlowRadiusScale = mix(
+        0.18,
+        1.0,
+        selectedGlowRevealClamped
+      );
       float selectedGlowMask = pow(
-        1.0 - smoothstep(0.0, ${RESERVOIR_SURFACE_SELECTION.glowAngularFalloff.toFixed(2)}, selectedAngularDistance),
+        1.0 - smoothstep(
+          0.0,
+          ${RESERVOIR_SURFACE_SELECTION.glowAngularFalloff.toFixed(2)} *
+            selectedGlowRadiusScale,
+          selectedAngularDistance
+        ),
         1.4
-      ) * smoothstep(0.0, 0.08, selectedGlowReveal);
+      ) * smoothstep(0.0, 0.08, selectedGlowRevealClamped);
       float selectedShockwaveRadius =
         clamp(selectedShockwaveProgress, 0.0, 1.0) *
         ${RESERVOIR_SURFACE_SELECTION.shockwaveTravelRadians.toFixed(2)};
@@ -276,7 +298,7 @@ export function addReservoirSurfacePulseAndSelectionEffect(
         diffuseColor.rgb,
         selectedNodeColor,
         min(
-          selectedGlowMask * ${RESERVOIR_SURFACE_SELECTION.glowDiffuseMix.toFixed(3)} +
+          selectedGlowMask * ${RESERVOIR_SURFACE_SELECTION.glowDiffuseMix.toFixed(4)} +
           selectedShockwaveMask * ${RESERVOIR_SURFACE_SELECTION.shockwaveDiffuseMix.toFixed(3)},
           0.35
         )

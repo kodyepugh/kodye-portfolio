@@ -27,10 +27,6 @@ import {
   createReservoirNodeSelectionState,
   RESERVOIR_NODE_CONTINUATION_RING_INNER_RADIUS_RATIO,
   RESERVOIR_NODE_CONTINUATION_RING_OUTER_RADIUS_RATIO,
-  RESERVOIR_NODE_CONTINUATION_RING_END_SCALE,
-  RESERVOIR_NODE_CONTINUATION_RING_MAX_OPACITY,
-  RESERVOIR_NODE_CONTINUATION_RING_START_SCALE,
-  RESERVOIR_NODE_CONTINUATION_RING_TRAVEL_RATIO,
   RESERVOIR_NODE_MESH_ENGAGEMENT_DELAY_MS,
   RESERVOIR_NODE_SELECTED_HOVER_EMISSIVE_INTENSITY,
   RESERVOIR_NODE_SELECTED_HOVER_WHITE_MIX,
@@ -107,12 +103,12 @@ export function ArtifactNode({
   onHoverChange,
 }: ArtifactNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
-  const visualOrbRef = useRef<THREE.Mesh | null>(null);
+  const visualOrbRef = useRef<THREE.Group | null>(null);
   const orbMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
   const continuationRingRef = useRef<THREE.Mesh | null>(null);
   const continuationRingMaterialRef =
     useRef<THREE.MeshBasicMaterial | null>(null);
-  const { beginHover, endHover } = useReservoirNodeHover(
+  const { beginHover, clearHover, endHover } = useReservoirNodeHover(
     artifact.id,
     onHoverChange,
   );
@@ -159,6 +155,12 @@ export function ArtifactNode({
       ? 0
       : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
   }, [nodeRadius, surfaced]);
+
+  useEffect(() => {
+    if (!surfaced) {
+      clearHover();
+    }
+  }, [clearHover, surfaced]);
 
   useFrame((_, delta) => {
     const visualOrb = visualOrbRef.current;
@@ -212,40 +214,14 @@ export function ArtifactNode({
 
     let openingReactionProgress = 0;
     if (continuationRing && continuationRingMaterial) {
-      const shockwaveActive = opening && (openingSelected || selected);
-      const shockwaveProgress = shockwaveActive
-        ? openingReactionProgress
-        : 0;
-      const ringVisible =
-        (selectionFrame.ringVisible && !opening && !restoring) ||
-        shockwaveActive;
+      const ringVisible = selectionFrame.ringVisible && !opening && !restoring;
       continuationRing.visible = ringVisible;
       continuationRing.position
         .copy(placement.normal)
-        .multiplyScalar(
-          shockwaveActive
-            ? THREE.MathUtils.lerp(
-                selectionFrame.ringRadialOffset,
-                selectionFrame.ringRadialOffset +
-                  nodeRadius * RESERVOIR_NODE_CONTINUATION_RING_TRAVEL_RATIO,
-                shockwaveProgress,
-              )
-            : selectionFrame.ringRadialOffset,
-        );
-      continuationRing.scale.setScalar(
-        shockwaveActive
-          ? THREE.MathUtils.lerp(
-              RESERVOIR_NODE_CONTINUATION_RING_START_SCALE,
-              RESERVOIR_NODE_CONTINUATION_RING_END_SCALE * 1.18,
-              shockwaveProgress,
-            )
-          : selectionFrame.ringScale,
-      );
+        .multiplyScalar(selectionFrame.ringRadialOffset);
+      continuationRing.scale.setScalar(selectionFrame.ringScale);
       continuationRingMaterial.opacity = ringVisible
-        ? shockwaveActive
-          ? Math.sin(Math.PI * shockwaveProgress) *
-            RESERVOIR_NODE_CONTINUATION_RING_MAX_OPACITY
-          : selectionFrame.ringOpacity
+        ? selectionFrame.ringOpacity
         : 0;
     }
 
@@ -389,35 +365,39 @@ export function ArtifactNode({
           side={THREE.DoubleSide}
         />
       </mesh>
-      <mesh
+      <group
         ref={visualOrbRef}
         userData={{ artifactId: artifact.id }}
         renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
-        onPointerEnter={() => surfaced && beginHover("orb")}
-        onPointerLeave={() => endHover("orb")}
       >
-        <sphereGeometry args={[nodeRadius, 18, 14]} />
-        <meshStandardMaterial
-          ref={orbMaterialRef}
-          color={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
-          emissive={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
-          emissiveIntensity={RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY}
-          roughness={0.82}
-        />
-      </mesh>
-      <mesh
-        userData={{ artifactId: artifact.id }}
-        onPointerEnter={() => surfaced && beginHover("orb-hit-area")}
-        onPointerLeave={() => endHover("orb-hit-area")}
-      >
-        <sphereGeometry args={[nodeRadius * 2.15, 12, 10]} />
-        <meshBasicMaterial
-          transparent
-          opacity={0}
-          depthWrite={false}
-          colorWrite={false}
-        />
-      </mesh>
+        <mesh
+          renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
+          onPointerEnter={() => surfaced && beginHover("orb")}
+          onPointerLeave={() => endHover("orb")}
+        >
+          <sphereGeometry args={[nodeRadius, 18, 14]} />
+          <meshStandardMaterial
+            ref={orbMaterialRef}
+            color={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
+            emissive={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
+            emissiveIntensity={RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY}
+            roughness={0.82}
+          />
+        </mesh>
+        <mesh
+          userData={{ artifactId: artifact.id }}
+          onPointerEnter={() => surfaced && beginHover("orb-hit-area")}
+          onPointerLeave={() => endHover("orb-hit-area")}
+        >
+          <sphereGeometry args={[nodeRadius * 1.28, 12, 10]} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthWrite={false}
+            colorWrite={false}
+          />
+        </mesh>
+      </group>
       <ArtifactLabel
         artifact={artifact}
         nodeRef={nodeRef}

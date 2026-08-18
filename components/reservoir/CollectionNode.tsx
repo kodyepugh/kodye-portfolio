@@ -30,10 +30,6 @@ import {
   createReservoirNodeSelectionState,
   RESERVOIR_NODE_CONTINUATION_RING_INNER_RADIUS_RATIO,
   RESERVOIR_NODE_CONTINUATION_RING_OUTER_RADIUS_RATIO,
-  RESERVOIR_NODE_CONTINUATION_RING_END_SCALE,
-  RESERVOIR_NODE_CONTINUATION_RING_MAX_OPACITY,
-  RESERVOIR_NODE_CONTINUATION_RING_START_SCALE,
-  RESERVOIR_NODE_CONTINUATION_RING_TRAVEL_RATIO,
   RESERVOIR_NODE_REDUCED_MOTION_WHITE_MIX,
   RESERVOIR_NODE_SELECTED_HOVER_EMISSIVE_INTENSITY,
   RESERVOIR_NODE_SELECTED_HOVER_WHITE_MIX,
@@ -126,7 +122,7 @@ export function CollectionNode({
   const updateHover = useCallback((_: string, nextHovered: boolean) => {
     setHovered(nextHovered);
   }, []);
-  const { beginHover, endHover } = useReservoirNodeHover(
+  const { beginHover, clearHover, endHover } = useReservoirNodeHover(
     collection.id,
     updateHover,
   );
@@ -241,6 +237,12 @@ export function CollectionNode({
       : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
   }, [nodeRadius, surfaced]);
 
+  useEffect(() => {
+    if (!surfaced || !interactionEnabled) {
+      clearHover();
+    }
+  }, [clearHover, interactionEnabled, surfaced]);
+
   useFrame((_, delta) => {
     const visualNode = visualNodeRef.current;
     const material = orbMaterialRef.current;
@@ -335,40 +337,14 @@ export function CollectionNode({
     const continuationRing = continuationRingRef.current;
     const continuationRingMaterial = continuationRingMaterialRef.current;
     if (continuationRing && continuationRingMaterial) {
-      const shockwaveActive = opening && selected;
-      const shockwaveProgress = shockwaveActive
-        ? openingReactionProgress
-        : 0;
-      const ringVisible =
-        (selectionFrame.ringVisible && !opening && !restoring) ||
-        shockwaveActive;
+      const ringVisible = selectionFrame.ringVisible && !opening && !restoring;
       continuationRing.visible = ringVisible;
       continuationRing.position
         .copy(placement.normal)
-        .multiplyScalar(
-          shockwaveActive
-            ? THREE.MathUtils.lerp(
-                selectionFrame.ringRadialOffset,
-                selectionFrame.ringRadialOffset +
-                  nodeRadius * RESERVOIR_NODE_CONTINUATION_RING_TRAVEL_RATIO,
-                shockwaveProgress,
-              )
-            : selectionFrame.ringRadialOffset,
-        );
-      continuationRing.scale.setScalar(
-        shockwaveActive
-          ? THREE.MathUtils.lerp(
-              RESERVOIR_NODE_CONTINUATION_RING_START_SCALE,
-              RESERVOIR_NODE_CONTINUATION_RING_END_SCALE * 1.18,
-              shockwaveProgress,
-            )
-          : selectionFrame.ringScale,
-      );
+        .multiplyScalar(selectionFrame.ringRadialOffset);
+      continuationRing.scale.setScalar(selectionFrame.ringScale);
       continuationRingMaterial.opacity = ringVisible
-        ? shockwaveActive
-          ? Math.sin(Math.PI * shockwaveProgress) *
-            RESERVOIR_NODE_CONTINUATION_RING_MAX_OPACITY
-          : selectionFrame.ringOpacity
+        ? selectionFrame.ringOpacity
         : 0;
     }
 
@@ -536,22 +512,22 @@ export function CollectionNode({
           onPointerEnter={() => interactionEnabled && beginHover("orb")}
           onPointerLeave={() => endHover("orb")}
         />
+        {dormantInteractive ? (
+          <mesh
+            userData={{ collectionId: collection.id }}
+            onPointerEnter={() => beginHover("orb-hit-area")}
+            onPointerLeave={() => endHover("orb-hit-area")}
+          >
+            <sphereGeometry args={[nodeRadius * 1.22, 12, 10]} />
+            <meshBasicMaterial
+              transparent
+              opacity={0}
+              depthWrite={false}
+              colorWrite={false}
+            />
+          </mesh>
+        ) : null}
       </group>
-      {dormantInteractive ? <mesh
-        userData={{ collectionId: collection.id }}
-        onPointerEnter={() => beginHover("orb-hit-area")}
-        onPointerLeave={() => endHover("orb-hit-area")}
-      >
-        <sphereGeometry
-          args={[nodeRadius * 2.15, 12, 10]}
-        />
-        <meshBasicMaterial
-          transparent
-          opacity={0}
-          depthWrite={false}
-          colorWrite={false}
-        />
-      </mesh> : null}
       {filterVisible ? <ReservoirNodeLabel
         content={labelContent}
         nodeRef={nodeRef}

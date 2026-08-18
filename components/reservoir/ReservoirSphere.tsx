@@ -34,6 +34,7 @@ import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
 import {
   getNodeReactionArrival,
   getShockwaveStart,
+  getShockwaveDuration,
   getSphereRecessionProgress,
 } from "@/lib/reservoir/opening";
 import { getNodeSelectionHighlightColor } from "@/lib/reservoir/selection";
@@ -157,6 +158,12 @@ export function ReservoirSphere({
     selectedShockwaveProgress: { value: 0 },
     selectedShockwaveActive: { value: 0 },
   });
+  const surfaceSelectionPresentationRef = useRef({
+    selectedNodeId: null as string | null,
+    selectedGlowReveal: 0,
+    selectedNodeDirection: new THREE.Vector3(0, 1, 0),
+    selectedNodeColor: new THREE.Color(RESERVOIR_THEME.inspection),
+  });
   const sphereColor = useMemo(() => new THREE.Color(RESERVOIR_THEME.sphere), []);
   const recessedSphereColor = useMemo(
     () => new THREE.Color(RESERVOIR_THEME.sphereRecessed),
@@ -277,16 +284,12 @@ export function ReservoirSphere({
   );
 
   useEffect(() => {
-    surfaceSelectionUniforms.current.selectedNodeDirection.value.copy(
-      selectedNodeDirection,
-    );
-  }, [selectedNodeDirection]);
-
-  useEffect(() => {
-    surfaceSelectionUniforms.current.selectedNodeColor.value.copy(
-      selectedNodeColor,
-    );
-  }, [selectedNodeColor]);
+    if (!selectedNode || !selectedNodeId) return;
+    const presentation = surfaceSelectionPresentationRef.current;
+    presentation.selectedNodeId = selectedNodeId;
+    presentation.selectedNodeDirection.copy(selectedNodeDirection);
+    presentation.selectedNodeColor.copy(selectedNodeColor);
+  }, [selectedNode, selectedNodeColor, selectedNodeDirection, selectedNodeId]);
 
   useFrame((_, delta) => {
     const openingProgress = restoring
@@ -304,22 +307,57 @@ export function ReservoirSphere({
     const neutrality = collectionReconstituting
       ? reconstitutionFrame.neutrality
       : 0;
+    const selectionPresentation =
+      surfaceSelectionPresentationRef.current;
+    const selectionRetreatActive =
+      selectedMeshRetractionStarted ||
+      (openingActive && openingArtifact?.id === selectedArtifactId);
+    if (selectedNodeId && selectedNode) {
+      selectionPresentation.selectedNodeId = selectedNodeId;
+      selectionPresentation.selectedNodeDirection.copy(selectedNodeDirection);
+      selectionPresentation.selectedNodeColor.copy(selectedNodeColor);
+    }
+    const selectedGlowTarget =
+      selectionRetreatActive || !selectedNode ? 0 : 1;
+    selectionPresentation.selectedGlowReveal = THREE.MathUtils.damp(
+      selectionPresentation.selectedGlowReveal,
+      selectedGlowTarget,
+      selectedGlowTarget < selectionPresentation.selectedGlowReveal
+        ? 18
+        : 12,
+      delta,
+    );
+    if (
+      selectionPresentation.selectedGlowReveal <= 0.0001 &&
+      selectedGlowTarget === 0 &&
+      !selectedNodeId
+    ) {
+      selectionPresentation.selectedNodeId = null;
+      selectionPresentation.selectedNodeDirection.set(0, 1, 0);
+      selectionPresentation.selectedNodeColor.set(RESERVOIR_THEME.inspection);
+    }
     sphereMaterialRef.current?.color
       .copy(sphereColor)
       .lerp(recessedSphereColor, openingProgress)
       .lerp(neutralSphereColor, neutrality);
+    surfaceSelectionUniforms.current.selectedNodeDirection.value.copy(
+      selectionPresentation.selectedNodeDirection,
+    );
+    surfaceSelectionUniforms.current.selectedNodeColor.value.copy(
+      selectionPresentation.selectedNodeColor,
+    );
     surfaceSelectionUniforms.current.selectedGlowReveal.value =
-      THREE.MathUtils.damp(
-        surfaceSelectionUniforms.current.selectedGlowReveal.value,
-        selectedNode ? 1 : 0,
-        openingReducedMotion ? 24 : 12,
-        delta,
-      );
+      selectionPresentation.selectedGlowReveal;
     surfaceSelectionUniforms.current.selectedShockwaveProgress.value =
       openingActive && openingArtifact?.id === selectedArtifactId
-        ? getSphereRecessionProgress(
-            openingElapsedRef.current,
-            openingReducedMotion,
+        ? Math.min(
+            Math.max(
+              (openingElapsedRef.current -
+                getShockwaveStart(openingReducedMotion)) /
+                getShockwaveDuration(openingReducedMotion),
+              0,
+            ),
+            1,
           )
         : 0;
     surfaceSelectionUniforms.current.selectedShockwaveActive.value =
