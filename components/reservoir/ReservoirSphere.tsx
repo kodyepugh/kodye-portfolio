@@ -154,13 +154,15 @@ export function ReservoirSphere({
     selectedNodeColor: {
       value: new THREE.Color(RESERVOIR_THEME.inspection),
     },
-    selectedGlowReveal: { value: 0 },
+    selectedGlowRadiusProgress: { value: 0 },
+    selectedGlowVisibility: { value: 0 },
     selectedShockwaveProgress: { value: 0 },
     selectedShockwaveActive: { value: 0 },
   });
   const surfaceSelectionPresentationRef = useRef({
     selectedNodeId: null as string | null,
-    selectedGlowReveal: 0,
+    selectedGlowRadiusProgress: 0,
+    selectedGlowVisibility: 0,
     selectedNodeDirection: new THREE.Vector3(0, 1, 0),
     selectedNodeColor: new THREE.Color(RESERVOIR_THEME.inspection),
   });
@@ -289,6 +291,7 @@ export function ReservoirSphere({
     presentation.selectedNodeId = selectedNodeId;
     presentation.selectedNodeDirection.copy(selectedNodeDirection);
     presentation.selectedNodeColor.copy(selectedNodeColor);
+    presentation.selectedGlowVisibility = 1;
   }, [selectedNode, selectedNodeColor, selectedNodeDirection, selectedNodeId]);
 
   useFrame((_, delta) => {
@@ -317,24 +320,30 @@ export function ReservoirSphere({
       selectionPresentation.selectedNodeDirection.copy(selectedNodeDirection);
       selectionPresentation.selectedNodeColor.copy(selectedNodeColor);
     }
-    const selectedGlowTarget =
+    const selectedGlowRadiusTarget =
       selectionRetreatActive || !selectedNode ? 0 : 1;
-    selectionPresentation.selectedGlowReveal = THREE.MathUtils.damp(
-      selectionPresentation.selectedGlowReveal,
-      selectedGlowTarget,
-      selectedGlowTarget < selectionPresentation.selectedGlowReveal
+    selectionPresentation.selectedGlowRadiusProgress = THREE.MathUtils.damp(
+      selectionPresentation.selectedGlowRadiusProgress,
+      selectedGlowRadiusTarget,
+      selectedGlowRadiusTarget < selectionPresentation.selectedGlowRadiusProgress
         ? 18
         : 12,
       delta,
     );
+    selectionPresentation.selectedGlowVisibility =
+      selectedGlowRadiusTarget > 0 ||
+      selectionPresentation.selectedGlowRadiusProgress > 0.015
+        ? 1
+        : 0;
     if (
-      selectionPresentation.selectedGlowReveal <= 0.0001 &&
-      selectedGlowTarget === 0 &&
+      selectionPresentation.selectedGlowRadiusProgress <= 0.0001 &&
+      selectedGlowRadiusTarget === 0 &&
       !selectedNodeId
     ) {
       selectionPresentation.selectedNodeId = null;
       selectionPresentation.selectedNodeDirection.set(0, 1, 0);
       selectionPresentation.selectedNodeColor.set(RESERVOIR_THEME.inspection);
+      selectionPresentation.selectedGlowVisibility = 0;
     }
     sphereMaterialRef.current?.color
       .copy(sphereColor)
@@ -346,8 +355,10 @@ export function ReservoirSphere({
     surfaceSelectionUniforms.current.selectedNodeColor.value.copy(
       selectionPresentation.selectedNodeColor,
     );
-    surfaceSelectionUniforms.current.selectedGlowReveal.value =
-      selectionPresentation.selectedGlowReveal;
+    surfaceSelectionUniforms.current.selectedGlowRadiusProgress.value =
+      selectionPresentation.selectedGlowRadiusProgress;
+    surfaceSelectionUniforms.current.selectedGlowVisibility.value =
+      selectionPresentation.selectedGlowVisibility;
     surfaceSelectionUniforms.current.selectedShockwaveProgress.value =
       openingActive && openingArtifact?.id === selectedArtifactId
         ? Math.min(
@@ -385,7 +396,11 @@ export function ReservoirSphere({
       diagnosticsRef.current.dataset.layoutModeTransitionPulse =
         layoutTransitionPulse.toFixed(6);
       diagnosticsRef.current.dataset.surfaceSelectedGlowReveal =
-        surfaceSelectionUniforms.current.selectedGlowReveal.value.toFixed(6);
+        surfaceSelectionUniforms.current.selectedGlowRadiusProgress.value.toFixed(6);
+      diagnosticsRef.current.dataset.surfaceSelectedGlowRadiusProgress =
+        surfaceSelectionUniforms.current.selectedGlowRadiusProgress.value.toFixed(6);
+      diagnosticsRef.current.dataset.surfaceSelectedGlowVisibility =
+        surfaceSelectionUniforms.current.selectedGlowVisibility.value.toFixed(6);
       diagnosticsRef.current.dataset.surfaceSelectedShockwaveProgress =
         surfaceSelectionUniforms.current.selectedShockwaveProgress.value.toFixed(6);
     }

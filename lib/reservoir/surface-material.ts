@@ -35,7 +35,8 @@ export type ReservoirSurfacePulseUniforms = {
 export type ReservoirSurfaceSelectionUniforms = {
   selectedNodeDirection: { value: THREE.Vector3 };
   selectedNodeColor: { value: THREE.Color };
-  selectedGlowReveal: { value: number };
+  selectedGlowRadiusProgress: { value: number };
+  selectedGlowVisibility: { value: number };
   selectedShockwaveProgress: { value: number };
   selectedShockwaveActive: { value: number };
 };
@@ -118,7 +119,9 @@ export function addReservoirSurfaceSelectionEffect(
 ) {
   shader.uniforms.selectedNodeDirection = uniforms.selectedNodeDirection;
   shader.uniforms.selectedNodeColor = uniforms.selectedNodeColor;
-  shader.uniforms.selectedGlowReveal = uniforms.selectedGlowReveal;
+  shader.uniforms.selectedGlowRadiusProgress =
+    uniforms.selectedGlowRadiusProgress;
+  shader.uniforms.selectedGlowVisibility = uniforms.selectedGlowVisibility;
   shader.uniforms.selectedShockwaveProgress =
     uniforms.selectedShockwaveProgress;
   shader.uniforms.selectedShockwaveActive = uniforms.selectedShockwaveActive;
@@ -141,7 +144,8 @@ export function addReservoirSurfaceSelectionEffect(
       `#include <common>
       uniform vec3 selectedNodeDirection;
       uniform vec3 selectedNodeColor;
-      uniform float selectedGlowReveal;
+      uniform float selectedGlowRadiusProgress;
+      uniform float selectedGlowVisibility;
       uniform float selectedShockwaveProgress;
       uniform float selectedShockwaveActive;
       varying vec3 vReservoirSurfaceLocalPosition;`,
@@ -155,11 +159,15 @@ export function addReservoirSurfaceSelectionEffect(
         normalize(selectedNodeDirection)
       );
       float selectedAngularDistance = acos(clamp(selectedNodeAlignment, -1.0, 1.0));
-      float selectedGlowRevealClamped = clamp(selectedGlowReveal, 0.0, 1.0);
+      float selectedGlowRadiusProgressClamped = clamp(
+        selectedGlowRadiusProgress,
+        0.0,
+        1.0
+      );
       float selectedGlowRadiusScale = mix(
         0.18,
         1.0,
-        selectedGlowRevealClamped
+        selectedGlowRadiusProgressClamped
       );
       float selectedGlowMask = pow(
         1.0 - smoothstep(
@@ -169,7 +177,7 @@ export function addReservoirSurfaceSelectionEffect(
           selectedAngularDistance
         ),
         1.4
-      ) * smoothstep(0.0, 0.08, selectedGlowRevealClamped);
+      ) * clamp(selectedGlowVisibility, 0.0, 1.0);
       float selectedShockwaveRadius =
         clamp(selectedShockwaveProgress, 0.0, 1.0) *
         ${RESERVOIR_SURFACE_SELECTION.shockwaveTravelRadians.toFixed(2)};
@@ -209,7 +217,9 @@ export function addReservoirSurfacePulseAndSelectionEffect(
   shader.uniforms.selectedNodeDirection =
     selectionUniforms.selectedNodeDirection;
   shader.uniforms.selectedNodeColor = selectionUniforms.selectedNodeColor;
-  shader.uniforms.selectedGlowReveal = selectionUniforms.selectedGlowReveal;
+  shader.uniforms.selectedGlowRadiusProgress =
+    selectionUniforms.selectedGlowRadiusProgress;
+  shader.uniforms.selectedGlowVisibility = selectionUniforms.selectedGlowVisibility;
   shader.uniforms.selectedShockwaveProgress =
     selectionUniforms.selectedShockwaveProgress;
   shader.uniforms.selectedShockwaveActive =
@@ -235,7 +245,8 @@ export function addReservoirSurfacePulseAndSelectionEffect(
       uniform vec3 layoutTransitionPulseColor;
       uniform vec3 selectedNodeDirection;
       uniform vec3 selectedNodeColor;
-      uniform float selectedGlowReveal;
+      uniform float selectedGlowRadiusProgress;
+      uniform float selectedGlowVisibility;
       uniform float selectedShockwaveProgress;
       uniform float selectedShockwaveActive;
       varying vec3 vReservoirSurfaceLocalPosition;`,
@@ -264,11 +275,15 @@ export function addReservoirSurfacePulseAndSelectionEffect(
         normalize(selectedNodeDirection)
       );
       float selectedAngularDistance = acos(clamp(selectedNodeAlignment, -1.0, 1.0));
-      float selectedGlowRevealClamped = clamp(selectedGlowReveal, 0.0, 1.0);
+      float selectedGlowRadiusProgressClamped = clamp(
+        selectedGlowRadiusProgress,
+        0.0,
+        1.0
+      );
       float selectedGlowRadiusScale = mix(
         0.18,
         1.0,
-        selectedGlowRevealClamped
+        selectedGlowRadiusProgressClamped
       );
       float selectedGlowMask = pow(
         1.0 - smoothstep(
@@ -278,7 +293,7 @@ export function addReservoirSurfacePulseAndSelectionEffect(
           selectedAngularDistance
         ),
         1.4
-      ) * smoothstep(0.0, 0.08, selectedGlowRevealClamped);
+      ) * clamp(selectedGlowVisibility, 0.0, 1.0);
       float selectedShockwaveRadius =
         clamp(selectedShockwaveProgress, 0.0, 1.0) *
         ${RESERVOIR_SURFACE_SELECTION.shockwaveTravelRadians.toFixed(2)};

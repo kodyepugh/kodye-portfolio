@@ -4,7 +4,6 @@ import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import {
   RESERVOIR_RADIUS,
-  RESERVOIR_SURFACE_DETAIL,
 } from "@/lib/reservoir/geometry";
 import {
   RESERVOIR_RENDER_ORDER,
@@ -24,8 +23,9 @@ const EMPTY_QUERY_RED = new THREE.Color("#b33a40");
 const EMPTY_QUERY_BASE_EMISSIVE = new THREE.Color(
   RESERVOIR_THEME.dormantCollection,
 );
+const QUERY_TWINKLE_COUNT = 180;
 
-const QUERY_FACE_VERTEX_SHADER = /* glsl */ `
+const QUERY_TWINKLE_VERTEX_SHADER = /* glsl */ `
   attribute float twinkleStart;
   attribute float twinkleDuration;
   attribute float twinkleIntensity;
@@ -41,11 +41,18 @@ const QUERY_FACE_VERTEX_SHADER = /* glsl */ `
     vTwinkleDuration = twinkleDuration;
     vTwinkleIntensity = twinkleIntensity;
     vTwinkleCandidate = twinkleCandidate;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    float distanceScale = 3.2 / max(-mvPosition.z, 1.0);
+    gl_PointSize = clamp(
+      (1.05 + twinkleIntensity * 1.9) * distanceScale * 2.0,
+      1.0,
+      4.8
+    );
+    gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
-const QUERY_FACE_FRAGMENT_SHADER = /* glsl */ `
+const QUERY_TWINKLE_FRAGMENT_SHADER = /* glsl */ `
   uniform float queryProgress;
   uniform float querySeed;
   uniform float reducedMotion;
@@ -58,6 +65,8 @@ const QUERY_FACE_FRAGMENT_SHADER = /* glsl */ `
   varying float vTwinkleCandidate;
 
   void main() {
+    vec2 pointOffset = gl_PointCoord - vec2(0.5);
+    float pointHalo = 1.0 - smoothstep(0.0, 0.5, length(pointOffset));
     float seededStart = fract(vTwinkleStart + querySeed * 0.173) * 0.70;
     float seededCandidate = fract(
       vTwinkleCandidate + querySeed * 0.317
@@ -105,7 +114,7 @@ const QUERY_FACE_FRAGMENT_SHADER = /* glsl */ `
       step(0.5, sustainedActivity)
     );
     float alpha =
-      activity * activityEnvelope * vTwinkleIntensity * 0.22;
+      activity * activityEnvelope * vTwinkleIntensity * pointHalo * 0.24;
     if (alpha < 0.002) discard;
     gl_FragColor = vec4(vec3(1.0), alpha);
   }
@@ -131,35 +140,36 @@ function seededUnit(value: number) {
   return (hash >>> 0) / 4294967296;
 }
 
-function createQueryFaceGeometry() {
-  const source = new THREE.IcosahedronGeometry(
-    RESERVOIR_RADIUS * 1.0024,
-    RESERVOIR_SURFACE_DETAIL,
-  );
-  const geometry = source.index ? source.toNonIndexed() : source;
-  if (geometry !== source) source.dispose();
-  const positions = geometry.getAttribute("position");
-  const starts = new Float32Array(positions.count);
-  const durations = new Float32Array(positions.count);
-  const intensities = new Float32Array(positions.count);
-  const candidates = new Float32Array(positions.count);
-  const faceCount = Math.floor(positions.count / 3);
+function createQueryTwinkleGeometry() {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(QUERY_TWINKLE_COUNT * 3);
+  const starts = new Float32Array(QUERY_TWINKLE_COUNT);
+  const durations = new Float32Array(QUERY_TWINKLE_COUNT);
+  const intensities = new Float32Array(QUERY_TWINKLE_COUNT);
+  const candidates = new Float32Array(QUERY_TWINKLE_COUNT);
+  const radius = RESERVOIR_RADIUS * 1.0018;
 
-  for (let faceIndex = 0; faceIndex < faceCount; faceIndex += 1) {
-    const start = seededUnit(faceIndex * 4 + 1);
-    const duration = 0.09 + seededUnit(faceIndex * 4 + 2) * 0.15;
-    const intensity = 0.58 + seededUnit(faceIndex * 4 + 3) * 0.42;
-    const candidate = seededUnit(faceIndex * 4 + 4);
+  for (let twinkleIndex = 0; twinkleIndex < QUERY_TWINKLE_COUNT; twinkleIndex += 1) {
+    const u = seededUnit(twinkleIndex * 4 + 1);
+    const v = seededUnit(twinkleIndex * 4 + 2);
+    const theta = u * Math.PI * 2;
+    const z = v * 2 - 1;
+    const sinTheta = Math.sqrt(Math.max(0, 1 - z * z));
 
-    for (let corner = 0; corner < 3; corner += 1) {
-      const cornerAttributeIndex = faceIndex * 3 + corner;
-      starts[cornerAttributeIndex] = start;
-      durations[cornerAttributeIndex] = duration;
-      intensities[cornerAttributeIndex] = intensity;
-      candidates[cornerAttributeIndex] = candidate;
-    }
+    positions[twinkleIndex * 3] = Math.cos(theta) * sinTheta * radius;
+    positions[twinkleIndex * 3 + 1] = z * radius;
+    positions[twinkleIndex * 3 + 2] = Math.sin(theta) * sinTheta * radius;
+
+    starts[twinkleIndex] = seededUnit(twinkleIndex * 4 + 3);
+    durations[twinkleIndex] = 0.08 + seededUnit(twinkleIndex * 4 + 4) * 0.12;
+    intensities[twinkleIndex] = 0.34 + seededUnit(twinkleIndex * 4 + 5) * 0.66;
+    candidates[twinkleIndex] = seededUnit(twinkleIndex * 4 + 6);
   }
 
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(positions, 3),
+  );
   geometry.setAttribute(
     "twinkleStart",
     new THREE.BufferAttribute(starts, 1),
@@ -177,7 +187,7 @@ function createQueryFaceGeometry() {
     new THREE.BufferAttribute(candidates, 1),
   );
 
-  return { geometry, faceCount };
+  return { geometry, twinkleCount: QUERY_TWINKLE_COUNT };
 }
 
 export function ReservoirQueryActivity({
@@ -189,7 +199,7 @@ export function ReservoirQueryActivity({
   surfaceMaterialRef,
   externalProgressRef,
 }: ReservoirQueryActivityProps) {
-  const preparedGeometry = useMemo(() => createQueryFaceGeometry(), []);
+  const preparedGeometry = useMemo(() => createQueryTwinkleGeometry(), []);
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const elapsedRef = useRef(0);
   const completedRef = useRef(true);
@@ -197,11 +207,11 @@ export function ReservoirQueryActivity({
   const activeModeRef = useRef<ReservoirQueryActivityMode | null>(null);
   const uniforms = useMemo(
     () => ({
-        queryProgress: { value: 0 },
-        querySeed: { value: 0 },
-        reducedMotion: { value: 0 },
-        sustainedActivity: { value: 0 },
-        twinkleEnvelope: { value: 1 },
+      queryProgress: { value: 0 },
+      querySeed: { value: 0 },
+      reducedMotion: { value: 0 },
+      sustainedActivity: { value: 0 },
+      twinkleEnvelope: { value: 1 },
     }),
     [],
   );
@@ -226,10 +236,10 @@ export function ReservoirQueryActivity({
         materialRef.current.visible = false;
       }
       if (diagnosticsRef.current) {
-        diagnosticsRef.current.dataset.queryMeshActive = "false";
-        diagnosticsRef.current.dataset.queryWhiteTwinkleActive = "false";
-        diagnosticsRef.current.dataset.queryWhiteTwinkleEnvelope = "0.000000";
-        diagnosticsRef.current.dataset.queryWhiteTwinkleLifecycle = "inactive";
+      diagnosticsRef.current.dataset.queryMeshActive = "false";
+      diagnosticsRef.current.dataset.queryWhiteTwinkleActive = "false";
+      diagnosticsRef.current.dataset.queryWhiteTwinkleEnvelope = "0.000000";
+      diagnosticsRef.current.dataset.queryWhiteTwinkleLifecycle = "inactive";
       }
       resetEmptyQueryPresentation();
       return;
@@ -311,9 +321,9 @@ export function ReservoirQueryActivity({
       diagnosticsRef.current.dataset.queryMeshRevision = String(
         activeRevisionRef.current,
       );
-      diagnosticsRef.current.dataset.queryFacePool = "full-surface-mesh";
+      diagnosticsRef.current.dataset.queryFacePool = "surface-twinkle-points";
       diagnosticsRef.current.dataset.queryFaceCount = String(
-        preparedGeometry.faceCount,
+        preparedGeometry.twinkleCount,
       );
       diagnosticsRef.current.dataset.queryWhiteTwinkleActive = String(
         activeMode === "success" && progress < 1,
@@ -371,20 +381,19 @@ export function ReservoirQueryActivity({
   });
 
   return (
-    <mesh
+    <points
       geometry={preparedGeometry.geometry}
       renderOrder={RESERVOIR_RENDER_ORDER.cursorFaceGlow}
     >
       <shaderMaterial
         ref={materialRef}
         uniforms={uniforms}
-        vertexShader={QUERY_FACE_VERTEX_SHADER}
-        fragmentShader={QUERY_FACE_FRAGMENT_SHADER}
+        vertexShader={QUERY_TWINKLE_VERTEX_SHADER}
+        fragmentShader={QUERY_TWINKLE_FRAGMENT_SHADER}
         transparent
         depthWrite={false}
         toneMapped={false}
-        side={THREE.FrontSide}
       />
-    </mesh>
+    </points>
   );
 }

@@ -104,6 +104,7 @@ const RESERVOIR_PINCH_ZOOM_RATE = 0.0045;
 const MAX_WHEEL_DELTA = 120;
 const DRAG_SENSITIVITY = 0.0042;
 const NODE_CLICK_MAX_TRAVEL = 6;
+const NODE_VISIBLE_SURFACE_EPSILON = 0.003;
 const FOOTER_TRIGGER_OVERSCAN = 28;
 const LAYOUT_MODE_SWITCH_DURATION = 0.62;
 
@@ -1943,24 +1944,20 @@ export function ReservoirScene() {
     raycaster.setFromCamera(pointerNdc, camera);
 
     const surfaceDistance =
-      raycaster.intersectObject(surface, false)[0]?.distance ??
-      Number.POSITIVE_INFINITY;
+      raycaster.intersectObject(surface, false)[0]?.distance ?? null;
+    if (surfaceDistance === null) return null;
     const nodeHit = raycaster
       .intersectObjects(scene.children, true)
       .find((hit) => {
         const artifactId = hit.object.userData.artifactId;
         const collectionId = hit.object.userData.collectionId;
-        const hitRadius =
-          typeof collectionId === "string"
-            ? activeNodeSizing.collectionRadius
-            : activeNodeSizing.artifactRadius;
 
         const nodeId =
           typeof artifactId === "string" ? artifactId : collectionId;
         return (
           typeof nodeId === "string" &&
           surfacedNodeIds.has(nodeId) &&
-          hit.distance <= surfaceDistance + hitRadius
+          hit.distance < surfaceDistance - NODE_VISIBLE_SURFACE_EPSILON
         );
       });
     const artifactId = nodeHit?.object.userData.artifactId;
