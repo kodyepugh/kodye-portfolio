@@ -801,6 +801,19 @@ The starting orientation should expose a meaningful visible population while ret
 
 The exact visible-population target remains open and should be evaluated through usability testing.
 
+## 10.6 Population-Aware Node Sizing
+
+Node sizing is a separate world-space concern from layout placement.
+
+The approved sizing curve is continuous and population-aware:
+
+- 1-2 nodes render at `7.0×`;
+- 6 nodes taper to `5.5×`;
+- 24 nodes return to `1.0×`;
+- denser collections continue with the inverse-square-root tail rather than an artificial floor.
+
+Layout safety may proportionally reduce the resulting size when actual mixed-radius spacing requires it, but the curve itself does not impose a minimum size cap.
+
 # 11. Nodes
 
 ## 11.1 Artifact Node

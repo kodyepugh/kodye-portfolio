@@ -1316,7 +1316,7 @@ V2.3
 Introduce continuous render-mesh-independent spherical node positions and deterministic population layout.
 
 V2.4
-Tune deterministic population-aware node spacing and initial composition while validating the clean continuous reservoir surface without the V1 grid.
+Tune deterministic population-aware node spacing and initial composition while validating the clean continuous reservoir surface without the V1 grid, using the approved continuous sizing curve (`7.0×` for 1-2 nodes, `5.5×` at 6 nodes, `1.0×` at 24 nodes) without reintroducing a minimum-size floor.
 
 V2.5
 Refactor collection traversal to Active + Destination semantic transitions in the persistent centered frame.

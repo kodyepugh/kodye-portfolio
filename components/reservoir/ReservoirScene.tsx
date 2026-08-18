@@ -210,6 +210,21 @@ function getReservoirNodeDiagnostics(nodes: readonly ReservoirContentNode[]) {
   };
 }
 
+function getReservoirNodeDiameters(
+  nodes: readonly ReservoirContentNode[],
+  artifactDiameter: number,
+  collectionDiameter: number,
+) {
+  const diameters = new Map<string, number>();
+  for (const node of nodes) {
+    diameters.set(
+      node.id,
+      node.kind === "artifact" ? artifactDiameter : collectionDiameter,
+    );
+  }
+  return diameters;
+}
+
 type PreservedReservoirState = {
   artifactId: string;
   sphereQuaternion: QuaternionTuple;
@@ -913,9 +928,22 @@ export function ReservoirScene() {
   const activeReservoirNodeSizingTargets = getReservoirNodeSizingTargets(
     activeReservoirNodes.length,
   );
-  const activeReservoirFocusedMinimumNodeDiameter = Math.max(
-    activeReservoirNodeSizingTargets.desiredArtifactDiameter,
-    activeReservoirNodeSizingTargets.desiredCollectionDiameter,
+  const {
+    desiredArtifactDiameter: activeReservoirDesiredArtifactDiameter,
+    desiredCollectionDiameter: activeReservoirDesiredCollectionDiameter,
+  } = activeReservoirNodeSizingTargets;
+  const activeReservoirNodeDiameters = useMemo(
+    () =>
+      getReservoirNodeDiameters(
+        activeReservoirNodes,
+        activeReservoirDesiredArtifactDiameter,
+        activeReservoirDesiredCollectionDiameter,
+      ),
+    [
+      activeReservoirNodes,
+      activeReservoirDesiredArtifactDiameter,
+      activeReservoirDesiredCollectionDiameter,
+    ],
   );
   const focusedLayoutDirection =
     layoutModeTransitionFocusedDirectionRef.current;
@@ -968,7 +996,14 @@ export function ReservoirScene() {
             : undefined,
         minimumNodeDiameter:
           renderedLayoutMode === "focused"
-            ? activeReservoirFocusedMinimumNodeDiameter
+            ? Math.max(
+                activeReservoirDesiredArtifactDiameter,
+                activeReservoirDesiredCollectionDiameter,
+              )
+            : undefined,
+        nodeDiameters:
+          renderedLayoutMode === "focused"
+            ? activeReservoirNodeDiameters
             : undefined,
       });
       return {
@@ -979,16 +1014,19 @@ export function ReservoirScene() {
         nodeSizing: getReservoirNodeSizingSnapshot(
           directions,
           activeReservoirNodes.length,
+          activeReservoirNodeDiameters,
         ),
       };
     },
     [
       activeReservoirNodes,
+      activeReservoirDesiredArtifactDiameter,
+      activeReservoirDesiredCollectionDiameter,
+      activeReservoirNodeDiameters,
       collectionNavigation.transitionPhase,
       collectionTransitionDestinationSnapshot,
       collectionTransitionSourceSnapshot,
       focusedLayoutDirection,
-      activeReservoirFocusedMinimumNodeDiameter,
       layoutModeDestinationSnapshot,
       layoutModeSourceSnapshot,
       layoutModeTransitionState,
@@ -1957,7 +1995,14 @@ export function ReservoirScene() {
           : undefined,
       minimumNodeDiameter:
         nextLayoutMode === "focused"
-          ? activeReservoirFocusedMinimumNodeDiameter
+        ? Math.max(
+              activeReservoirDesiredArtifactDiameter,
+              activeReservoirDesiredCollectionDiameter,
+            )
+          : undefined,
+      nodeDiameters:
+        nextLayoutMode === "focused"
+          ? activeReservoirNodeDiameters
           : undefined,
     });
     layoutModeDestinationSnapshotRef.current = {
@@ -1968,6 +2013,7 @@ export function ReservoirScene() {
       nodeSizing: getReservoirNodeSizingSnapshot(
         destinationLayout,
         activeReservoirNodes.length,
+        activeReservoirNodeDiameters,
       ),
     };
     collectionOrientationRef.current.set(
@@ -2051,7 +2097,8 @@ export function ReservoirScene() {
     const destinationNodeSizingTargets = getReservoirNodeSizingTargets(
       destinationNodes.length,
     );
-    const destinationFocusedMinimumNodeDiameter = Math.max(
+    const destinationNodeDiameters = getReservoirNodeDiameters(
+      destinationNodes,
       destinationNodeSizingTargets.desiredArtifactDiameter,
       destinationNodeSizingTargets.desiredCollectionDiameter,
     );
@@ -2064,7 +2111,14 @@ export function ReservoirScene() {
           : undefined,
       minimumNodeDiameter:
         renderedLayoutMode === "focused"
-          ? destinationFocusedMinimumNodeDiameter
+          ? Math.max(
+              destinationNodeSizingTargets.desiredArtifactDiameter,
+              destinationNodeSizingTargets.desiredCollectionDiameter,
+            )
+          : undefined,
+      nodeDiameters:
+        renderedLayoutMode === "focused"
+          ? destinationNodeDiameters
           : undefined,
     });
     collectionTransitionDestinationSnapshotRef.current = {
@@ -2075,6 +2129,7 @@ export function ReservoirScene() {
       nodeSizing: getReservoirNodeSizingSnapshot(
         destinationLayout,
         destinationNodes.length,
+        destinationNodeDiameters,
       ),
     };
     collectionOrientationRef.current.set(
@@ -2919,7 +2974,8 @@ export function ReservoirScene() {
       data-collection-node-radius={activeNodeSizing.collectionRadius.toFixed(6)}
       data-collection-node-diameter={activeNodeSizing.collectionDiameter.toFixed(6)}
       data-node-sizing-population-count={activeNodeSizing.populationCount}
-      data-node-sizing-population-progress={activeNodeSizing.populationProgress.toFixed(6)}
+      data-node-sizing-density-progress={activeNodeSizing.densityProgress.toFixed(6)}
+      data-node-sizing-layout-safety-scale={activeNodeSizing.layoutSafetyScale.toFixed(6)}
       data-node-sizing-minimum-angular-separation={activeNodeSizing.minimumAngularSeparation.toFixed(9)}
       data-node-sizing-minimum-surface-distance={activeNodeSizing.minimumSurfaceDistance.toFixed(9)}
       data-node-sizing-maximum-safe-diameter={activeNodeSizing.maximumSafeDiameter.toFixed(9)}
