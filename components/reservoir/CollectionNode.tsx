@@ -74,7 +74,7 @@ type CollectionNodeProps = {
   emergenceChildCount?: number;
   sphereRef: RefObject<THREE.Group | null>;
   reservoirFrame: ReservoirFrame;
-  zoomLevel: number;
+  renderedZoomRef: MutableRefObject<number>;
 };
 
 export const COLLECTION_GRID_DETAIL = 1;
@@ -106,7 +106,7 @@ export function CollectionNode({
   emergenceChildCount = 1,
   sphereRef,
   reservoirFrame,
-  zoomLevel,
+  renderedZoomRef,
 }: CollectionNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
   const visualNodeRef = useRef<THREE.Group | null>(null);
@@ -528,7 +528,8 @@ export function CollectionNode({
         nodeRef={nodeRef}
         sphereRef={sphereRef}
         reservoirFrame={reservoirFrame}
-        zoomLevel={zoomLevel}
+        renderedZoomRef={renderedZoomRef}
+        diagnosticsRef={diagnosticsRef}
         nodeRadius={nodeRadius}
         suppressed={labelsSuppressed || !surfaced}
         hovered={effectiveHovered}

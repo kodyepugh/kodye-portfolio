@@ -66,7 +66,7 @@ type ArtifactNodeProps = {
   emergenceChildCount?: number;
   sphereRef: RefObject<THREE.Group | null>;
   reservoirFrame: ReservoirFrame;
-  zoomLevel: number;
+  renderedZoomRef: MutableRefObject<number>;
   onHoverChange: (artifactId: string, hovered: boolean) => void;
 };
 
@@ -101,7 +101,7 @@ export function ArtifactNode({
   emergenceChildCount = 1,
   sphereRef,
   reservoirFrame,
-  zoomLevel,
+  renderedZoomRef,
   onHoverChange,
 }: ArtifactNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
@@ -431,7 +431,8 @@ export function ArtifactNode({
         nodeRef={nodeRef}
         sphereRef={sphereRef}
         reservoirFrame={reservoirFrame}
-        zoomLevel={zoomLevel}
+        renderedZoomRef={renderedZoomRef}
+        diagnosticsRef={diagnosticsRef}
         selectionActive={selectionActive || !surfaced}
         hovered={hovered}
         nodeRadius={nodeRadius}

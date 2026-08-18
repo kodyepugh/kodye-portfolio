@@ -66,7 +66,7 @@ type ReservoirSphereProps = {
   interactionEnabled: boolean;
   isDragging: boolean;
   reservoirFrame: ReservoirFrame;
-  zoomLevel: number;
+  renderedZoomRef: MutableRefObject<number>;
   selectedPressActive: boolean;
   surfacedNodeIds?: ReadonlySet<string>;
   filterVisibleNodeIds?: ReadonlySet<string>;
@@ -111,7 +111,7 @@ export function ReservoirSphere({
   interactionEnabled,
   isDragging,
   reservoirFrame,
-  zoomLevel,
+  renderedZoomRef,
   selectedPressActive,
   surfacedNodeIds,
   filterVisibleNodeIds,
@@ -369,7 +369,7 @@ export function ReservoirSphere({
               meshEngagedNodeId === node.id
             }
             reservoirFrame={reservoirFrame}
-            zoomLevel={zoomLevel}
+            renderedZoomRef={renderedZoomRef}
             selectionActive={
               selectedNodeId !== null ||
               reconstitutionSinking ||
@@ -442,7 +442,7 @@ export function ReservoirSphere({
             emergenceChildCount={activeNodes.length}
             sphereRef={sphereRef}
             reservoirFrame={reservoirFrame}
-            zoomLevel={zoomLevel}
+            renderedZoomRef={renderedZoomRef}
           />
         );
         })}

@@ -814,7 +814,7 @@ The approved sizing curve is continuous and population-aware:
 
 Layout safety may proportionally reduce the resulting size when actual mixed-radius spacing requires it, but the curve itself does not impose a minimum size cap.
 
-V2 also introduces adaptive inspectability: the active collection may raise its maximum useful zoom when the smallest actual node in view still needs more screen-space resolution, while preserving the centered transform model and the approved baseline zoom ceiling as the default floor for denser collections.
+V2 also introduces adaptive inspectability. `2.15` is the ordinary baseline maximum; `4` is an absolute MVP guard, not the derived safety model. The active maximum may increase only when a smaller resolved node kind actually exists in the active semantic collection and needs more resolution. The node-inspectability target is `24px`, separate from label thresholds, and the required zoom is solved at the canonical viewer-facing center rather than from the current reservoir orientation. The active maximum is independent of rotation, remains below the responsive transform-safe maximum, and exposes whether the `24px` target is reachable. The transform-safe maximum accounts for camera-space depth, the near plane, responsive base scale, the sphere radius, the largest active node body, node center elevation, and a camera-clearance margin.
 
 # 11. Nodes
 
@@ -854,7 +854,7 @@ The collection node should not become visually louder than every artifact merely
 
 Artifact labels may float near or slightly in front of nodes.
 
-The V2 label MVP should resolve labels per node instead of through one global zoom toggle. Labels may move through hidden, inspection, and persistent visibility levels using projected node size and zoom thresholds, keep upright canvas sprites and front-facing suppression, and place themselves in screen space with dynamic anchors that follow the viewport center/outward direction while preserving hover bridging behavior.
+The V2 label MVP should resolve labels per node instead of through one global zoom toggle. Labels use `hidden`, `inspection`, and `persistent` levels. Inspection labels require active inspection intent such as pointer hover; persistent labels do not require hover. Resolver transitions use the actual rendered zoom and projected node size with hysteresis, while selected-node labels remain hidden. Labels keep upright canvas sprites and front-facing suppression, place themselves from the canvas viewport center rather than the safe-frame center, and test their full screen-space rectangle against safe bounds. They may flip inward near an edge, retain the chosen side with placement hysteresis, keep typography approximately bounded at a `52px` target height, and use a dynamic narrow hover bridge that follows the complete node-to-label path. Full collision solving, leader lines, and richer label tiers remain deferred.
 
 Default state may show:
 

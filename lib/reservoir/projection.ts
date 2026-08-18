@@ -7,43 +7,49 @@ type ProjectedWorldDiameterPixelsInput = {
   viewportHeight: number;
   worldDiameter: number;
   worldPosition: THREE.Vector3;
+  scratchCameraSpacePosition: THREE.Vector3;
 };
 
-/**
- * Projects a world-space diameter into screen pixels at the given world
- * position. The helper keeps the math centralized so zoom ceilings and label
- * thresholds use the same projection model.
- */
-export function getProjectedWorldDiameterPixels({
+export type ProjectedDiameterAtDepthInput = {
+  camera: THREE.Camera;
+  viewportHeight: number;
+  worldDiameter: number;
+  cameraDepth: number;
+};
+
+export function getCameraSpaceDepth(
+  camera: THREE.Camera,
+  worldPosition: THREE.Vector3,
+  scratchCameraSpacePosition: THREE.Vector3,
+) {
+  scratchCameraSpacePosition
+    .copy(worldPosition)
+    .applyMatrix4(camera.matrixWorldInverse);
+  return -scratchCameraSpacePosition.z;
+}
+
+export function getProjectedWorldDiameterPixelsAtDepth({
   camera,
   viewportHeight,
   worldDiameter,
-  worldPosition,
-}: ProjectedWorldDiameterPixelsInput) {
-  if (!Number.isFinite(worldDiameter) || worldDiameter <= 0) {
-    return 0;
-  }
-
-  camera.updateMatrixWorld();
-  const cameraSpacePosition = worldPosition
-    .clone()
-    .applyMatrix4(camera.matrixWorldInverse);
-  const depth = -cameraSpacePosition.z;
-  if (!Number.isFinite(depth) || depth <= PROJECTED_DIAMETER_EPSILON) {
+  cameraDepth,
+}: ProjectedDiameterAtDepthInput) {
+  if (
+    !Number.isFinite(worldDiameter) ||
+    worldDiameter <= 0 ||
+    !Number.isFinite(cameraDepth) ||
+    cameraDepth <= PROJECTED_DIAMETER_EPSILON
+  ) {
     return 0;
   }
 
   if (camera instanceof THREE.OrthographicCamera) {
-    const orthographicCamera = camera as THREE.OrthographicCamera;
-    const visibleHeight = orthographicCamera.top - orthographicCamera.bottom;
-    if (visibleHeight <= PROJECTED_DIAMETER_EPSILON) {
-      return 0;
-    }
+    const visibleHeight = camera.top - camera.bottom;
+    if (visibleHeight <= PROJECTED_DIAMETER_EPSILON) return 0;
 
     return (
-      (worldDiameter * viewportHeight) /
-      visibleHeight /
-      Math.max(orthographicCamera.zoom, PROJECTED_DIAMETER_EPSILON)
+      (worldDiameter * viewportHeight * Math.max(camera.zoom, PROJECTED_DIAMETER_EPSILON)) /
+      visibleHeight
     );
   }
 
@@ -56,5 +62,77 @@ export function getProjectedWorldDiameterPixels({
     return 0;
   }
 
-  return (worldDiameter * focalLengthPixels) / depth;
+  return (worldDiameter * focalLengthPixels) / cameraDepth;
+}
+
+export function getWorldDiameterForProjectedPixelsAtDepth({
+  camera,
+  viewportHeight,
+  projectedPixels,
+  cameraDepth,
+}: {
+  camera: THREE.Camera;
+  viewportHeight: number;
+  projectedPixels: number;
+  cameraDepth: number;
+}) {
+  if (
+    !Number.isFinite(projectedPixels) ||
+    projectedPixels <= 0 ||
+    !Number.isFinite(cameraDepth) ||
+    cameraDepth <= PROJECTED_DIAMETER_EPSILON
+  ) {
+    return 0;
+  }
+
+  if (camera instanceof THREE.OrthographicCamera) {
+    const visibleHeight = camera.top - camera.bottom;
+    if (visibleHeight <= PROJECTED_DIAMETER_EPSILON) return 0;
+    return (
+      (projectedPixels * visibleHeight) /
+      (viewportHeight * Math.max(camera.zoom, PROJECTED_DIAMETER_EPSILON))
+    );
+  }
+
+  const focalLengthPixels =
+    (viewportHeight * camera.projectionMatrix.elements[5]) / 2;
+  if (
+    !Number.isFinite(focalLengthPixels) ||
+    focalLengthPixels <= PROJECTED_DIAMETER_EPSILON
+  ) {
+    return 0;
+  }
+  return (projectedPixels * cameraDepth) / focalLengthPixels;
+}
+
+/** Positive values mean the surface normal points toward the viewer. */
+export function getReservoirFrontFacingScore(
+  surfaceNormal: THREE.Vector3,
+  cameraForward: THREE.Vector3,
+) {
+  return -surfaceNormal.dot(cameraForward);
+}
+
+/**
+ * Projects a world-space diameter into screen pixels at the given world
+ * position. The helper keeps the math centralized so zoom ceilings and label
+ * thresholds use the same projection model.
+ */
+export function getProjectedWorldDiameterPixels({
+  camera,
+  viewportHeight,
+  worldDiameter,
+  worldPosition,
+  scratchCameraSpacePosition,
+}: ProjectedWorldDiameterPixelsInput) {
+  return getProjectedWorldDiameterPixelsAtDepth({
+    camera,
+    viewportHeight,
+    worldDiameter,
+    cameraDepth: getCameraSpaceDepth(
+      camera,
+      worldPosition,
+      scratchCameraSpacePosition,
+    ),
+  });
 }

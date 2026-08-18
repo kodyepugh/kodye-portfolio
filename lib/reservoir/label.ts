@@ -26,8 +26,10 @@ export const RESERVOIR_LABEL_LEVEL = {
 type ReservoirLabelLevelInput = {
   currentLevel: ReservoirLabelLevel;
   projectedNodePixels: number;
+  renderedZoom: number;
+  inspectionActive: boolean;
+  frontFacing: boolean;
   suppressed: boolean;
-  zoomLevel: number;
 };
 
 function meetsInspectionThreshold(
@@ -77,37 +79,44 @@ function remainsPersistentThreshold(
 export function getReservoirLabelLevel({
   currentLevel,
   projectedNodePixels,
+  renderedZoom,
+  inspectionActive,
+  frontFacing,
   suppressed,
-  zoomLevel,
 }: ReservoirLabelLevelInput): ReservoirLabelLevel {
   if (
     suppressed ||
+    !frontFacing ||
     !Number.isFinite(projectedNodePixels) ||
     projectedNodePixels <= 0 ||
-    !Number.isFinite(zoomLevel)
+    !Number.isFinite(renderedZoom)
   ) {
     return "hidden";
   }
 
   if (
     currentLevel === "persistent" &&
-    remainsPersistentThreshold(projectedNodePixels, zoomLevel)
+    remainsPersistentThreshold(projectedNodePixels, renderedZoom)
   ) {
     return "persistent";
   }
 
-  if (meetsPersistentThreshold(projectedNodePixels, zoomLevel)) {
+  if (meetsPersistentThreshold(projectedNodePixels, renderedZoom)) {
     return "persistent";
   }
 
   if (
-    currentLevel === "inspection" &&
-    remainsInspectionThreshold(projectedNodePixels, zoomLevel)
+    inspectionActive &&
+    (currentLevel === "inspection" || currentLevel === "persistent") &&
+    remainsInspectionThreshold(projectedNodePixels, renderedZoom)
   ) {
     return "inspection";
   }
 
-  if (meetsInspectionThreshold(projectedNodePixels, zoomLevel)) {
+  if (
+    inspectionActive &&
+    meetsInspectionThreshold(projectedNodePixels, renderedZoom)
+  ) {
     return "inspection";
   }
 

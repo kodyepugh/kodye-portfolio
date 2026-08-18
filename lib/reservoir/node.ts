@@ -26,6 +26,11 @@ const COLLECTION_LOCAL_NORTH = new THREE.Vector3(0, 1, 0);
 const COLLECTION_LOCAL_TANGENT = new THREE.Vector3(0, 0, 1);
 const RESERVOIR_LABEL_RADIAL_OFFSET_MULTIPLIER =
   RESERVOIR_LABEL_RADIAL_OFFSET / RESERVOIR_NODE_RADIUS;
+export const RESERVOIR_NODE_CENTER_ELEVATION_RATIO = 0.04;
+
+export function getReservoirNodeCenterRadius(nodeRadius: number) {
+  return RESERVOIR_RADIUS + nodeRadius * RESERVOIR_NODE_CENTER_ELEVATION_RATIO;
+}
 
 /**
  * Builds the collection node's intrinsic frame in reservoir-local space.
@@ -119,7 +124,7 @@ export function getReservoirNodePlacement(
     normal,
     position: normal
       .clone()
-      .multiplyScalar(RESERVOIR_RADIUS + nodeRadius * 0.04),
+      .multiplyScalar(getReservoirNodeCenterRadius(nodeRadius)),
     labelPosition,
     hoverBridgePosition: labelPosition.clone().multiplyScalar(0.52),
     ringQuaternion: new THREE.Quaternion().setFromUnitVectors(

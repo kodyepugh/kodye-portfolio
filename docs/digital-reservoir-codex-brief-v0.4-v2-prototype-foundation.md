@@ -1318,6 +1318,19 @@ Introduce continuous render-mesh-independent spherical node positions and determ
 V2.4
 Tune deterministic population-aware node spacing and initial composition while validating the clean continuous reservoir surface without the V1 grid, using the approved continuous sizing curve (`7.0×` for 1-2 nodes, `5.5×` at 6 nodes, `1.0×` at 24 nodes) without reintroducing a minimum-size floor, and preserve the adaptive inspectability / dynamic-labels MVP that raises zoom only when smaller active nodes need more resolution.
 
+The adaptive inspectability and dynamic-labels MVP has these implementation rules:
+
+- keep `2.15` as the ordinary baseline maximum and `4` as an absolute guard only;
+- derive a responsive transform-safe maximum from camera-space depth, the near plane, responsive base scale, the sphere and largest active node extent, node center elevation, and a clearance margin;
+- select the smallest resolved node kind that actually exists in the active semantic collection, without using query-filtered visibility or a current-orientation projection pass;
+- solve the required zoom with a bounded nonlinear projection search at the canonical viewer-facing center for a separate `24px` node-inspectability target;
+- keep target reachability explicit and never allow active zoom above the transform-safe or hard maximum;
+- use allocation-light central projection helpers and do not update React state per frame for labels;
+- drive label hysteresis from rendered zoom and projected node size; inspection requires active hover/focus intent, while persistent labels do not;
+- evaluate full screen-space label rectangles, use viewport-center outward placement with inward edge flipping and side hysteresis, and keep the existing canvas typography approximately screen-bounded;
+- align the dynamic hover bridge from the node-facing body edge to the label-facing rectangle edge;
+- preserve centered zoom, current node sizing, Distributed and Focused layouts, query semantics, and Active + Destination transitions without adding semantic zoom or camera redesign.
+
 V2.5
 Refactor collection traversal to Active + Destination semantic transitions in the persistent centered frame.
 
