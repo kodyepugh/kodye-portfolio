@@ -34,6 +34,7 @@ import {
   generateReservoirLayout,
   getReservoirDirectionAngularDistance,
   getReservoirFocusedCapRadius,
+  getReservoirLayoutSphericalCentroid,
   getReservoirLayoutDiagnostics,
 } from "@/lib/reservoir/layout";
 import type {
@@ -306,8 +307,18 @@ type LayoutModeFocalDiagnostics = {
   roundTripAngleDegrees: number;
   roundTripFrontDot: number;
   roundTripUpDot: number;
+  focusedLayoutCentroidLocal: ReservoirDirection | null;
+  focusedLayoutCentroidWorld: ReservoirDirection | null;
+  focusedLayoutCentroidErrorDegrees: number;
+  focusedLayoutCentroidWorldErrorDegrees: number;
+  focusedLayoutCentroidFrontAngleDegrees: number;
+  focusedLayoutCentroidFrontDot: number;
+  focusedLayoutCentroidUpDot: number;
+  focusedLayoutCentroidAssertionsPassed: boolean;
   assertionsPassed: boolean;
 };
+
+const FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES = 0.001;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -444,10 +455,98 @@ function getRuntimeFocalDiagnostics(
     roundTripAngleDegrees,
     roundTripFrontDot,
     roundTripUpDot,
+    focusedLayoutCentroidLocal: null,
+    focusedLayoutCentroidWorld: null,
+    focusedLayoutCentroidErrorDegrees: 0,
+    focusedLayoutCentroidWorldErrorDegrees: 0,
+    focusedLayoutCentroidFrontAngleDegrees: 0,
+    focusedLayoutCentroidFrontDot: 0,
+    focusedLayoutCentroidUpDot: 0,
+    focusedLayoutCentroidAssertionsPassed: true,
     assertionsPassed:
       Math.abs(roundTripAngleDegrees - 15) < 0.05 &&
       roundTripFrontDot > 0 &&
       roundTripUpDot > 0,
+  };
+}
+
+function addFocusedLayoutFocalDiagnostics(
+  focalDiagnostics: LayoutModeFocalDiagnostics,
+  layout: ReservoirLayout,
+): LayoutModeFocalDiagnostics {
+  const focusedLayoutCentroidLocal = getReservoirLayoutSphericalCentroid(
+    layout,
+  );
+  if (!focusedLayoutCentroidLocal) {
+    return {
+      ...focalDiagnostics,
+      focusedLayoutCentroidLocal: null,
+      focusedLayoutCentroidWorld: null,
+      focusedLayoutCentroidErrorDegrees: 0,
+      focusedLayoutCentroidWorldErrorDegrees: 0,
+      focusedLayoutCentroidFrontAngleDegrees: 0,
+      focusedLayoutCentroidFrontDot: 0,
+      focusedLayoutCentroidUpDot: 0,
+      focusedLayoutCentroidAssertionsPassed: true,
+    };
+  }
+
+  const reservoirWorldQuaternion = new THREE.Quaternion().fromArray(
+    focalDiagnostics.reservoirWorldQuaternion,
+  );
+  const focusedLayoutCentroidWorld = toDirectionTuple(
+    new THREE.Vector3(...focusedLayoutCentroidLocal)
+      .applyQuaternion(reservoirWorldQuaternion)
+      .normalize(),
+  );
+  const focusedLayoutCentroidErrorDegrees = THREE.MathUtils.radToDeg(
+    getReservoirDirectionAngularDistance(
+      focusedLayoutCentroidLocal,
+      focalDiagnostics.targetLocal,
+    ),
+  );
+  const focusedLayoutCentroidWorldErrorDegrees = THREE.MathUtils.radToDeg(
+    getReservoirDirectionAngularDistance(
+      focusedLayoutCentroidWorld,
+      focalDiagnostics.targetWorld,
+    ),
+  );
+  const focusedLayoutCentroidFrontAngleDegrees = THREE.MathUtils.radToDeg(
+    getReservoirDirectionAngularDistance(
+      focusedLayoutCentroidWorld,
+      focalDiagnostics.frontWorld,
+    ),
+  );
+  const focusedLayoutCentroidFrontDot = focusedLayoutCentroidWorld.reduce(
+    (sum, value, index) => sum + value * focalDiagnostics.frontWorld[index],
+    0,
+  );
+  const focusedLayoutCentroidUpDot = focusedLayoutCentroidWorld.reduce(
+    (sum, value, index) =>
+      sum + value * focalDiagnostics.upTangentWorld[index],
+    0,
+  );
+  const focusedLayoutCentroidAssertionsPassed =
+    focusedLayoutCentroidErrorDegrees <=
+      FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES &&
+    focusedLayoutCentroidWorldErrorDegrees <=
+      FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES &&
+    Math.abs(focusedLayoutCentroidFrontAngleDegrees - 15) < 0.05 &&
+    focusedLayoutCentroidFrontDot > 0 &&
+    focusedLayoutCentroidUpDot > 0;
+
+  return {
+    ...focalDiagnostics,
+    focusedLayoutCentroidLocal,
+    focusedLayoutCentroidWorld,
+    focusedLayoutCentroidErrorDegrees,
+    focusedLayoutCentroidWorldErrorDegrees,
+    focusedLayoutCentroidFrontAngleDegrees,
+    focusedLayoutCentroidFrontDot,
+    focusedLayoutCentroidUpDot,
+    focusedLayoutCentroidAssertionsPassed,
+    assertionsPassed:
+      focalDiagnostics.assertionsPassed && focusedLayoutCentroidAssertionsPassed,
   };
 }
 
@@ -508,6 +607,12 @@ function prepareCollectionTransitionDestination({
     nodeDiameters:
       renderedLayoutMode === "focused" ? destinationNodeDiameters : undefined,
   });
+  if (focalDiagnostics) {
+    focalDiagnostics = addFocusedLayoutFocalDiagnostics(
+      focalDiagnostics,
+      destinationLayout,
+    );
+  }
   const destinationNodeSizing = getReservoirNodeSizingSnapshot(
     destinationLayout,
     destinationNodes.length,
@@ -2080,10 +2185,10 @@ export function ReservoirScene() {
 
     let destinationFocusedDirection =
       layoutModeTransitionFocusedDirectionRef.current;
+    let focalDiagnostics: LayoutModeFocalDiagnostics | null = null;
     if (nextLayoutMode === "focused") {
       if (!surface || !camera) return;
-      const focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
-      setLayoutModeFocalDiagnostics(focalDiagnostics);
+      focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
       if (interaction.current) {
         interaction.current.dataset.layoutModeFocalAssertions = String(
           focalDiagnostics.assertionsPassed,
@@ -2146,6 +2251,21 @@ export function ReservoirScene() {
           ? activeReservoirNodeDiameters
           : undefined,
     });
+    if (focalDiagnostics) {
+      focalDiagnostics = addFocusedLayoutFocalDiagnostics(
+        focalDiagnostics,
+        destinationLayout,
+      );
+      setLayoutModeFocalDiagnostics(focalDiagnostics);
+      if (!focalDiagnostics.assertionsPassed) {
+        console.error(
+          "Reservoir focused-layout centroid assertions failed",
+          focalDiagnostics,
+        );
+        layoutModeSourceSnapshotRef.current = null;
+        return;
+      }
+    }
     const destinationNodeSizing = getReservoirNodeSizingSnapshot(
       destinationLayout,
       activeReservoirNodes.length,
@@ -2249,6 +2369,13 @@ export function ReservoirScene() {
       destinationNodeSizing,
       focalDiagnostics,
     } = preparedDestination;
+    if (focalDiagnostics && !focalDiagnostics.assertionsPassed) {
+      console.error(
+        "Reservoir focused-layout centroid assertions failed",
+        focalDiagnostics,
+      );
+      return;
+    }
     if (focalDiagnostics) {
       setLayoutModeFocalDiagnostics(focalDiagnostics);
       if (interaction.current) {
@@ -2990,6 +3117,32 @@ export function ReservoirScene() {
       }
       data-layout-mode-focal-round-trip-up-dot={
         layoutModeFocalDiagnostics?.roundTripUpDot.toFixed(6) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-error-degrees={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidErrorDegrees.toFixed(
+          6,
+        ) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-world-error-degrees={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidWorldErrorDegrees.toFixed(
+          6,
+        ) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-front-angle-degrees={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidFrontAngleDegrees.toFixed(
+          6,
+        ) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-front-dot={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidFrontDot.toFixed(6) ??
+        ""
+      }
+      data-layout-mode-focused-layout-centroid-up-dot={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidUpDot.toFixed(6) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-assertions={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidAssertionsPassed ??
+        false
       }
       data-node-sizing-reference-population={
         RESERVOIR_NODE_SIZING_REFERENCE_POPULATION

@@ -456,8 +456,9 @@ function generateReservoirFocusedLayout(
       orderedNodeIds.length,
       latchedFocusedDirection,
     );
+    let layout: ReservoirLayout;
     try {
-      const layout = placeReservoirLayoutFromCandidates(
+      layout = placeReservoirLayoutFromCandidates(
         orderedNodeIds,
         candidates,
         (nodeId) =>
@@ -469,30 +470,35 @@ function generateReservoirFocusedLayout(
             latchedFocusedDirection,
           ),
       );
-      const layoutSafetyScale = nodeDiameters
-        ? getReservoirLayoutMaximumSafeScale(layout, nodeDiameters)
-        : minimumNodeDiameter === undefined
-          ? 1
-          : Math.min(
-              1,
-              getReservoirLayoutMaximumSafeDiameter(layout) /
-                minimumNodeDiameter,
-            );
-
-      if (layoutSafetyScale > bestLayoutSafetyScale) {
-        bestLayout = layout;
-        bestLayoutSafetyScale = layoutSafetyScale;
-      }
-
-      if (layoutSafetyScale >= 1) {
-        return layout;
-      }
     } catch {
       capRadius = Math.min(
         FOCUSED_LAYOUT_MAX_CAP_RADIUS,
         capRadius + FOCUSED_LAYOUT_CAP_STEP,
       );
       continue;
+    }
+
+    const recenteredLayout = recenterReservoirFocusedLayout(
+      layout,
+      latchedFocusedDirection,
+    );
+    const layoutSafetyScale = nodeDiameters
+      ? getReservoirLayoutMaximumSafeScale(recenteredLayout, nodeDiameters)
+      : minimumNodeDiameter === undefined
+        ? 1
+        : Math.min(
+            1,
+            getReservoirLayoutMaximumSafeDiameter(recenteredLayout) /
+              minimumNodeDiameter,
+          );
+
+    if (layoutSafetyScale > bestLayoutSafetyScale) {
+      bestLayout = recenteredLayout;
+      bestLayoutSafetyScale = layoutSafetyScale;
+    }
+
+    if (layoutSafetyScale >= 1) {
+      return recenteredLayout;
     }
 
     capRadius = Math.min(
@@ -694,6 +700,68 @@ function getDirectionAlignmentQuaternion(
     cross[2],
     alignment,
   ]);
+}
+
+export function getReservoirLayoutSphericalCentroid(
+  layout: ReservoirLayout,
+): ReservoirDirection | null {
+  if (layout.size === 0) return null;
+
+  let sum: ReservoirDirection = [0, 0, 0];
+  for (const direction of layout.values()) {
+    sum = addDirections(sum, normalizeReservoirDirection(direction));
+  }
+
+  return normalizeReservoirDirection(sum);
+}
+
+function recenterReservoirFocusedLayout(
+  layout: ReservoirLayout,
+  focusedDirection: ReservoirDirection,
+) {
+  if (layout.size === 0) return layout;
+
+  const centroid = getReservoirLayoutSphericalCentroid(layout);
+  if (!centroid) {
+    throw new Error("Unable to calculate focused reservoir layout centroid.");
+  }
+
+  const recenterQuaternion = getDirectionAlignmentQuaternion(
+    centroid,
+    focusedDirection,
+  );
+  const minimumSeparationBefore = getReservoirMinimumAngularSeparation(layout);
+  const recenteredLayout = new Map(
+    [...layout.entries()].map(([nodeId, direction]) => [
+      nodeId,
+      applyReservoirQuaternion(direction, recenterQuaternion),
+    ]),
+  );
+  const minimumSeparationAfter = getReservoirMinimumAngularSeparation(
+    recenteredLayout,
+  );
+
+  if (
+    !Number.isFinite(minimumSeparationAfter) ||
+    Math.abs(minimumSeparationBefore - minimumSeparationAfter) > 1e-9
+  ) {
+    throw new Error(
+      "Focused reservoir recentering changed layout separation safety.",
+    );
+  }
+
+  const recenteredCentroid = getReservoirLayoutSphericalCentroid(
+    recenteredLayout,
+  );
+  if (
+    !recenteredCentroid ||
+    getReservoirDirectionAngularDistance(recenteredCentroid, focusedDirection) >
+      1e-8
+  ) {
+    throw new Error("Focused reservoir layout centroid failed to recenter.");
+  }
+
+  return recenteredLayout;
 }
 
 export function applyReservoirQuaternion(
