@@ -1,7 +1,7 @@
 # Digital Reservoir
 ## Codex Implementation Brief
-**Version:** 0.4 — V2 Prototype Foundation
-**Status:** Persistent Developer Reference — V2 Prototype Architecture
+**Version:** 0.5 — V2 Prototype Foundation + Query Reservoir Methodology
+**Status:** Persistent Developer Reference — L1 PASS / CLOSED
 **Project:** kodyepugh.com
 **Primary reference:** `docs/digital-reservoir-interface-spec.md`
 
@@ -185,6 +185,24 @@ V2.6  Regression QA with artifacts, menu, footer, queries, and responsive behavi
 Do not add semantic zoom, automatic relationship layout, or new product systems until this substrate is visually and technically validated.
 
 V2.5 is complete: the audited implementation already uses one semantic Active + Destination coordinator in the persistent centered frame. Collection-node entry, Home, Back, ancestor/path selection, and direct collection requests resolve semantic destinations through that shared transition path. Semantic navigation history stays independent from geometry; the current rendered quaternion is preserved through transitions; current zoom is preserved when valid for the destination; and destination zoom is clamped before emergence when required. Per-collection orientation snapshots remain an implementation detail of the existing distributed-mode restoration behavior and are not a separate physical-slot history model.
+
+### L1 Closeout
+
+L1 Release-Candidate QA on `qa/l1-release-candidate-baseline` is closed as **PASS / CLOSED**.
+
+The sandbox production-build failure observed during the QA pass is recorded only as an environment-specific validation limitation. It is not a product defect.
+
+Local validation completed successfully and no confirmed L1 Blocker, Defect, or Serious Usability Failure remains open.
+
+### Next Authorized Increment
+
+`feat/query-reservoir-context`
+
+Scope should be limited to establishing Query Reservoir state and adapting the existing direct menu artifact retrieval behavior to use it.
+
+Query Reservoirs are navigation state, not semantic collection records. They may hold 0, 1, or N results, and they must preserve the distinction between collection context and query context.
+
+Do not implement full search, semantic retrieval, database systems, or broader filter architecture merely because Query Reservoir state now exists.
 
 # 8. Current Prototype Goal
 

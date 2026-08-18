@@ -1,7 +1,7 @@
 # Digital Reservoir
 ## Interface & Experience Specification
-**Version:** 0.4 — V2 Prototype Foundation
-**Status:** Foundational Design Specification / Living Document — V2 Prototype Architecture Established
+**Version:** 0.5 — V2 Prototype Foundation + Query Reservoir Methodology
+**Status:** Foundational Design Specification / Living Document — L1 PASS / CLOSED
 **Established:** 2026
 **Project:** kodyepugh.com
 **Working concept:** *Digital Reservoir — A collection of all things Kodye Pugh*
@@ -180,7 +180,36 @@ Root
 
 ---
 
-## 2.3 Reservoir
+## 2.3 Query Reservoir
+
+Queries answer “show me what matches.”
+
+A Query Reservoir is an ephemeral result context created from a query result set.
+
+It is not a stored Collection entity and does not alter artifact membership.
+
+A Query Reservoir may contain:
+
+- 0 results;
+- 1 result;
+- N results.
+
+The temporary query result set itself becomes the active reservoir context and is rendered through the existing reservoir layout system.
+
+Direct artifact requests should resolve through a temporary Query Reservoir rather than routing to an arbitrary collection merely because that collection contains the requested artifact.
+
+The interface should preserve progressive disclosure:
+
+1. resolve matching artifact(s) / collection(s);
+2. create temporary Query Reservoir;
+3. render the result set using the existing reservoir layout system;
+4. allow the user to deliberately open the artifact.
+
+Back returns to the reservoir/context from which the query was issued. Home returns directly to the root Digital Reservoir.
+
+---
+
+## 2.4 Reservoir
 
 A reservoir is the spatial representation of a collection.
 
@@ -202,7 +231,7 @@ The home sphere is simply the root instance of the same recursive system.
 
 ---
 
-## 2.4 Inspection Window
+## 2.5 Inspection Window
 
 Artifact content should not itself be forced into spatial 3D interaction.
 
@@ -226,7 +255,7 @@ This content layer may contain:
 
 ---
 
-## 2.5 Persistent Control Plane
+## 2.6 Persistent Control Plane
 
 The conventional website header is inverted.
 
@@ -1123,6 +1152,48 @@ Potential preserved state per collection:
 
 Exact persistence policy remains open, but V2 architecture should make it possible without restoring camera-path state.
 
+## 15.5 Query Reservoir Navigation
+
+Query and collection navigation are distinct.
+
+Collections answer “where am I?”
+Queries answer “show me what matches.”
+
+Query Reservoirs are ephemeral navigation state, not semantic collection records.
+
+Conceptually:
+
+```text
+query
+↓
+resolve matching artifact(s) / collection(s)
+↓
+create temporary Query Reservoir
+↓
+render only the result set using the existing reservoir layout system
+```
+
+For explicit direct artifact commands such as About or Resume, the intended Query Reservoir behavior is:
+
+```text
+direct artifact request
+↓
+Query Reservoir containing the requested artifact only
+↓
+artifact may emerge already selected
+↓
+artifact metadata appears in the atmosphere
+↓
+user may deliberately open the artifact
+```
+
+Query Reservoir recovery semantics:
+
+- Back returns to the reservoir/context from which the query was issued;
+- Home returns directly to the root reservoir and should become visibly apparent in the control plane while a Query Reservoir is active.
+
+Do not treat query state as a permanent collection, and do not create a permanent blank-query node entity.
+
 # 16. Artifact Activation Sequence
 
 Artifact activation should be deliberately simple.
@@ -1597,9 +1668,21 @@ V2 separates semantic collection state, spherical orientation, zoom, node layout
 Conceptual state:
 
 ```typescript
+type ReservoirContext =
+  | {
+      kind: "collection"
+      collectionId: string
+    }
+  | {
+      kind: "query"
+      resultIds: string[]
+      returnContext: ReservoirContext
+    }
+
 interface ReservoirState {
   currentCollectionId: string
   collectionHistory: string[]
+  reservoirContext: ReservoirContext
 
   selectedArtifactId: string | null
   focusedNodeId: string | null
@@ -1637,6 +1720,7 @@ Important architectural requirements:
 - zoom is independent of camera-path progress;
 - layout is independent of the reservoir's underlying render mesh;
 - collection identity is independent of physical transition geometry;
+- query context is independent from collection membership and is not stored as a collection record;
 - artifact-selected and artifact-open remain distinct states;
 - menu and footer remain independent states.
 
@@ -1648,6 +1732,12 @@ Primary states:
 HOME RESERVOIR
 │
 ├── NODE FOCUS
+│
+├── QUERY RESERVOIR
+│      ├── result set is ephemeral navigation state
+│      ├── Back returns to issuing context
+│      ├── Home returns to root reservoir
+│      └── direct artifact requests may emerge already selected
 │
 ├── ARTIFACT SELECTED
 │      │
