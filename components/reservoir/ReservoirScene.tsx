@@ -2157,9 +2157,58 @@ export function ReservoirScene() {
     if (!resolution) return;
 
     const sphere = sphereRotationRef.current;
+    const surface = surfaceRef.current;
+    const camera = cameraRef.current;
     const currentQuaternion = sphere
       ? toQuaternionTuple(sphere.quaternion)
       : ([0, 0, 0, 1] as QuaternionTuple);
+    let destinationFocusedDirection = focusedLayoutDirection;
+    if (renderedLayoutMode === "focused") {
+      if (!surface || !camera) return;
+      const focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
+      setLayoutModeFocalDiagnostics(focalDiagnostics);
+      if (interaction.current) {
+        interaction.current.dataset.layoutModeFocalAssertions = String(
+          focalDiagnostics.assertionsPassed,
+        );
+        interaction.current.dataset.layoutModeReservoirWorldPosition =
+          focalDiagnostics.reservoirWorldPosition
+            .map((value) => value.toFixed(6))
+            .join(",");
+        interaction.current.dataset.layoutModeReservoirWorldQuaternion =
+          focalDiagnostics.reservoirWorldQuaternion
+            .map((value) => value.toFixed(6))
+            .join(",");
+        interaction.current.dataset.layoutModeFrontWorld = formatDirectionTuple(
+          focalDiagnostics.frontWorld,
+        );
+        interaction.current.dataset.layoutModeUpTangentWorld =
+          formatDirectionTuple(focalDiagnostics.upTangentWorld);
+        interaction.current.dataset.layoutModeTargetWorld =
+          formatDirectionTuple(focalDiagnostics.targetWorld);
+        interaction.current.dataset.layoutModeTargetLocal =
+          formatDirectionTuple(focalDiagnostics.targetLocal);
+        interaction.current.dataset.layoutModeRoundTripWorld =
+          formatDirectionTuple(focalDiagnostics.roundTripWorld);
+        interaction.current.dataset.layoutModeRoundTripAngleDegrees =
+          focalDiagnostics.roundTripAngleDegrees.toFixed(6);
+        interaction.current.dataset.layoutModeRoundTripFrontDot =
+          focalDiagnostics.roundTripFrontDot.toFixed(6);
+        interaction.current.dataset.layoutModeRoundTripUpDot =
+          focalDiagnostics.roundTripUpDot.toFixed(6);
+      }
+      if (!focalDiagnostics.assertionsPassed) {
+        console.error(
+          "Reservoir focal-position assertions failed",
+          focalDiagnostics,
+        );
+        return;
+      }
+      destinationFocusedDirection = focalDiagnostics.targetLocal;
+      layoutModeTransitionFocusedDirectionRef.current =
+        destinationFocusedDirection;
+    }
+
     collectionTransitionSourceSnapshotRef.current = {
       collectionId: renderedActiveCollectionId,
       mode: renderedLayoutMode,
@@ -2181,7 +2230,7 @@ export function ReservoirScene() {
       mode: renderedLayoutMode,
       focusedDirection:
         renderedLayoutMode === "focused"
-          ? focusedLayoutDirection ?? undefined
+          ? destinationFocusedDirection ?? undefined
           : undefined,
       minimumNodeDiameter:
         renderedLayoutMode === "focused"
