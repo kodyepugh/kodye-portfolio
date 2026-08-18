@@ -8,6 +8,7 @@ import {
 import { useFrame } from "@react-three/fiber";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
+import type { ReservoirFrame } from "@/lib/reservoir/frame";
 import {
   RESERVOIR_BASE_ROTATION,
   RESERVOIR_RADIUS,
@@ -64,7 +65,8 @@ type ReservoirSphereProps = {
   hoveredArtifactId: string | null;
   interactionEnabled: boolean;
   isDragging: boolean;
-  labelsVisible: boolean;
+  reservoirFrame: ReservoirFrame;
+  renderedZoomRef: MutableRefObject<number>;
   selectedPressActive: boolean;
   surfacedNodeIds?: ReadonlySet<string>;
   filterVisibleNodeIds?: ReadonlySet<string>;
@@ -108,7 +110,8 @@ export function ReservoirSphere({
   hoveredArtifactId,
   interactionEnabled,
   isDragging,
-  labelsVisible,
+  reservoirFrame,
+  renderedZoomRef,
   selectedPressActive,
   surfacedNodeIds,
   filterVisibleNodeIds,
@@ -362,16 +365,17 @@ export function ReservoirSphere({
             selected={selectedArtifactId === node.id}
             meshEngaged={
               meshEngagementCurrent &&
-              selectedArtifactId === node.id &&
+            selectedArtifactId === node.id &&
               meshEngagedNodeId === node.id
             }
+            reservoirFrame={reservoirFrame}
+            renderedZoomRef={renderedZoomRef}
             selectionActive={
               selectedNodeId !== null ||
               reconstitutionSinking ||
               layoutTransitionSink ||
               layoutTransitionEmerging ||
-              emergingChildren ||
-              !labelsVisible
+              emergingChildren
             }
             hovered={hoveredArtifactId === node.id}
             isDragging={isDragging}
@@ -409,8 +413,7 @@ export function ReservoirSphere({
               reconstitutionSinking ||
               layoutTransitionSink ||
               layoutTransitionEmerging ||
-              emergingChildren ||
-              !labelsVisible
+              emergingChildren
             }
             interactionEnabled={interactionEnabled && surfaced}
             isDragging={isDragging}
@@ -438,6 +441,8 @@ export function ReservoirSphere({
             emergenceOrder={nodeIndex}
             emergenceChildCount={activeNodes.length}
             sphereRef={sphereRef}
+            reservoirFrame={reservoirFrame}
+            renderedZoomRef={renderedZoomRef}
           />
         );
         })}

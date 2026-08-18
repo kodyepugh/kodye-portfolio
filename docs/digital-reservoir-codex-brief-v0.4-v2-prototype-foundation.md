@@ -1316,7 +1316,21 @@ V2.3
 Introduce continuous render-mesh-independent spherical node positions and deterministic population layout.
 
 V2.4
-Tune deterministic population-aware node spacing and initial composition while validating the clean continuous reservoir surface without the V1 grid, using the approved continuous sizing curve (`7.0×` for 1-2 nodes, `5.5×` at 6 nodes, `1.0×` at 24 nodes) without reintroducing a minimum-size floor.
+Tune deterministic population-aware node spacing and initial composition while validating the clean continuous reservoir surface without the V1 grid, using the approved continuous sizing curve (`7.0×` for 1-2 nodes, `5.5×` at 6 nodes, `1.0×` at 24 nodes) without reintroducing a minimum-size floor, and preserve the adaptive inspectability / dynamic-labels MVP that raises zoom only when smaller active nodes need more resolution.
+
+The adaptive inspectability and dynamic-labels MVP has these implementation rules:
+
+- keep `2.15` as the ordinary baseline maximum and `4` as an absolute guard only;
+- derive a responsive transform-safe maximum from camera-space depth, the near plane, responsive base scale, the sphere and largest active node extent, node center elevation, and a clearance margin;
+- select the smallest resolved node kind that actually exists in the active semantic collection, without using query-filtered visibility or a current-orientation projection pass;
+- solve the required zoom with a bounded nonlinear projection search at the canonical viewer-facing center for a separate `24px` node-inspectability target;
+- keep target reachability explicit and never allow active zoom above the transform-safe or hard maximum;
+- use allocation-light central projection helpers and do not update React state per frame for labels;
+- drive label hysteresis from projected node size; raw zoom is not an independent label gate, inspection requires active hover/focus intent, and persistent labels do not;
+- treat node labels as screen-space annotations constrained by child-node and reservoir surface geometry, using sphere occlusion for child visibility and keeping accepted directions in the reservoir-exterior hemisphere;
+- evaluate full screen-space label rectangles with the correct ray-to-rectangle support distance, use a surface-authoritative outward candidate fan for viewport edges, and keep the existing canvas typography approximately screen-bounded;
+- place final anchors camera-side of visible geometry or on a surface-safe fallback plane, render eligible labels as whole foreground annotations, and align the dynamic hover bridge from the visible node edge to the label-facing rectangle edge;
+- preserve centered zoom, current node sizing, Distributed and Focused layouts, query semantics, and Active + Destination transitions without adding semantic zoom or camera redesign.
 
 V2.5
 Refactor collection traversal to Active + Destination semantic transitions in the persistent centered frame.

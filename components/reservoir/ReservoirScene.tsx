@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   useCallback,
   useEffect,
@@ -45,10 +45,7 @@ import {
   getReservoirNodeSizingTargets,
   RESERVOIR_NODE_SIZING_REFERENCE_POPULATION,
 } from "@/lib/reservoir/node-sizing";
-import {
-  getReservoirLabelsVisible,
-  RESERVOIR_LABEL_ZOOM,
-} from "@/lib/reservoir/label";
+import { RESERVOIR_LABEL_LEVEL } from "@/lib/reservoir/label";
 import {
   getReservoirNodePlacement,
 } from "@/lib/reservoir/node";
@@ -68,6 +65,13 @@ import {
   RESERVOIR_ZOOM_MAX,
   RESERVOIR_ZOOM_MIN,
 } from "@/lib/reservoir/frame";
+import {
+  getReservoirAdaptiveZoom,
+  RESERVOIR_NODE_INSPECTABLE_TARGET_PX,
+  RESERVOIR_ZOOM_BASELINE_MAX,
+  RESERVOIR_ZOOM_EXTENDED_HARD_MAX,
+  type ReservoirAdaptiveZoom,
+} from "@/lib/reservoir/zoom";
 import {
   getArtifactWindowRetractDuration,
   getReservoirRestoreDuration,
@@ -487,6 +491,26 @@ function ReservoirTransform({
   return <group ref={transformRef}>{children}</group>;
 }
 
+function ReservoirCameraBridge({
+  cameraRef,
+  sceneRef,
+  onReady,
+}: {
+  cameraRef: MutableRefObject<THREE.PerspectiveCamera | null>;
+  sceneRef: MutableRefObject<THREE.Scene | null>;
+  onReady: () => void;
+}) {
+  const { camera, scene } = useThree();
+
+  useEffect(() => {
+    cameraRef.current = camera as THREE.PerspectiveCamera;
+    sceneRef.current = scene;
+    onReady();
+  }, [camera, cameraRef, onReady, scene, sceneRef]);
+
+  return null;
+}
+
 type ReservoirOrientationProps = {
   children: ReactNode;
   collectionId: string;
@@ -601,14 +625,12 @@ export function ReservoirScene() {
       quaternion: [0, 0, 0, 1],
     });
   const [zoomLevel, setZoomLevel] = useState(RESERVOIR_ZOOM_DEFAULT);
-  const [labelsVisible, setLabelsVisible] = useState(() =>
-    getReservoirLabelsVisible(RESERVOIR_ZOOM_DEFAULT, false),
-  );
   const [viewportFrame, setViewportFrame] = useState({
     width: 1600,
     height: 1000,
     controlPlaneHeight: 120,
   });
+  const [cameraRevision, setCameraRevision] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [activeExploreFilter, setActiveExploreFilter] =
     useState<ActiveExploreFilter>("all");
@@ -707,6 +729,7 @@ export function ReservoirScene() {
   const pinchActiveRef = useRef(false);
   const zoomLevelRef = useRef(RESERVOIR_ZOOM_DEFAULT);
   const renderedZoomRef = useRef(RESERVOIR_ZOOM_DEFAULT);
+  const zoomMaximumRef = useRef(RESERVOIR_ZOOM_MAX);
   const renderedScaleRef = useRef(1);
   const interactionRevisionRef = useRef(0);
   const openingElapsedRef = useRef(0);
@@ -745,6 +768,9 @@ export function ReservoirScene() {
     [],
   );
   const dragDeltaQuaternion = useMemo(() => new THREE.Quaternion(), []);
+  const handleCameraReady = useCallback(() => {
+    setCameraRevision((revision) => revision + 1);
+  }, []);
 
   useEffect(() => {
     const element = interaction.current;
@@ -1047,11 +1073,99 @@ export function ReservoirScene() {
     () => getReservoirLayoutDiagnostics(activeReservoirLayout),
     [activeReservoirLayout],
   );
+  const adaptiveZoomCamera = useMemo(() => {
+    if (cameraRef.current) return cameraRef.current;
+    const fallbackCamera = new THREE.PerspectiveCamera(
+      CAMERA_FOV,
+      viewportFrame.width / Math.max(viewportFrame.height, 1),
+      CAMERA_NEAR,
+      40,
+    );
+    fallbackCamera.position.set(0, 0, CAMERA_DISTANCE);
+    fallbackCamera.lookAt(0, 0, 0);
+    fallbackCamera.updateProjectionMatrix();
+    fallbackCamera.updateMatrixWorld();
+    return fallbackCamera;
+  }, [cameraRevision, viewportFrame.height, viewportFrame.width]);
   const focusedLayoutCapRadius = useMemo(
     () => getReservoirFocusedCapRadius(activeReservoirNodes.length),
     [activeReservoirNodes.length],
   );
   const focusedLayoutFocalDirection = focusedLayoutDirection;
+  const activeAdaptiveZoom = useMemo<ReservoirAdaptiveZoom>(() => {
+    const camera = adaptiveZoomCamera;
+    if (!camera || cameraRevision < 0) {
+      return {
+        baselineMaximum: RESERVOIR_ZOOM_BASELINE_MAX,
+        requiredZoom: RESERVOIR_ZOOM_BASELINE_MAX,
+        transformSafeMaximum: RESERVOIR_ZOOM_BASELINE_MAX,
+        absoluteMaximum: RESERVOIR_ZOOM_EXTENDED_HARD_MAX,
+        activeMaximum: RESERVOIR_ZOOM_BASELINE_MAX,
+        targetReachable: false,
+        smallestNodeKind: null,
+        smallestNodeWorldDiameter: 0,
+        projectedNodePixelsAtBaseline: 0,
+        projectedNodePixelsAtActiveMaximum: 0,
+      };
+    }
+
+    return getReservoirAdaptiveZoom({
+      camera,
+      viewportHeight: viewportFrame.height,
+      reservoirCenter,
+      baseScale,
+      nodes: activeReservoirNodes,
+      artifactDiameter: activeNodeSizing.artifactDiameter,
+      collectionDiameter: activeNodeSizing.collectionDiameter,
+      cameraNear: CAMERA_NEAR,
+    });
+  }, [
+    activeNodeSizing.artifactDiameter,
+    activeNodeSizing.collectionDiameter,
+    activeReservoirNodes,
+    baseScale,
+    adaptiveZoomCamera,
+    cameraRevision,
+    reservoirCenter,
+    viewportFrame.height,
+  ]);
+  const reservoirZoomMaximum = activeAdaptiveZoom.activeMaximum;
+  zoomMaximumRef.current = reservoirZoomMaximum;
+  function getAdaptiveZoomForSnapshot(
+    nodes: readonly ReservoirContentNode[],
+    nodeSizing: ReturnType<typeof getReservoirNodeSizingSnapshot>,
+  ) {
+    return getReservoirAdaptiveZoom({
+      camera: adaptiveZoomCamera,
+      viewportHeight: viewportFrame.height,
+      reservoirCenter,
+      baseScale,
+      nodes,
+      artifactDiameter: nodeSizing.artifactDiameter,
+      collectionDiameter: nodeSizing.collectionDiameter,
+      cameraNear: CAMERA_NEAR,
+    });
+  }
+  const setReservoirZoom = useCallback(
+    (nextZoomLevel: number) => {
+      const boundedZoomLevel = clampReservoirZoom(
+        nextZoomLevel,
+        zoomMaximumRef.current,
+      );
+      zoomLevelRef.current = boundedZoomLevel;
+      setZoomLevel(boundedZoomLevel);
+      if (interaction.current) {
+        interaction.current.dataset.zoomLevel = boundedZoomLevel.toFixed(6);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (zoomLevelRef.current > reservoirZoomMaximum) {
+      setReservoirZoom(reservoirZoomMaximum);
+    }
+  }, [reservoirZoomMaximum, setReservoirZoom]);
 
   const surfacedNodeIds = useMemo(
     () => getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
@@ -1228,7 +1342,7 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateOpeningTimeline);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [preservedReservoirState, reducedMotion, transitionState]);
+  }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
   useEffect(() => {
     const requestedDestinationCollectionId =
       collectionNavigation.destinationCollectionId;
@@ -1413,7 +1527,7 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateSinking);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [layoutMode, layoutModeTransitionState, reducedMotion]);
+  }, [layoutMode, layoutModeTransitionState, reducedMotion, setReservoirZoom]);
 
   useEffect(() => {
     if (layoutModeTransitionState !== "orienting") {
@@ -1432,7 +1546,7 @@ export function ReservoirScene() {
     }
 
     return () => window.clearTimeout(timeoutId);
-  }, [layoutModeTransitionState, reducedMotion]);
+  }, [layoutModeTransitionState, reducedMotion, setReservoirZoom]);
 
   useEffect(() => {
     if (layoutModeTransitionState !== "emerging") {
@@ -1534,7 +1648,7 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateLayoutModeViewReset);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [layoutModeTransitionActive, reducedMotion]);
+  }, [layoutModeTransitionActive, reducedMotion, setReservoirZoom]);
 
   useLayoutEffect(() => {
     const readingMode = [
@@ -1594,7 +1708,7 @@ export function ReservoirScene() {
     }, getArtifactWindowRetractDuration(reducedMotion) * 1000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [preservedReservoirState, reducedMotion, transitionState]);
+  }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
 
   useEffect(() => {
     if (
@@ -1655,19 +1769,7 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateRestoration);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [preservedReservoirState, reducedMotion, transitionState]);
-
-  function setReservoirZoom(nextZoomLevel: number) {
-    const boundedZoomLevel = clampReservoirZoom(nextZoomLevel);
-    zoomLevelRef.current = boundedZoomLevel;
-    setZoomLevel(boundedZoomLevel);
-    setLabelsVisible((currentlyVisible) =>
-      getReservoirLabelsVisible(boundedZoomLevel, currentlyVisible),
-    );
-    if (interaction.current) {
-      interaction.current.dataset.zoomLevel = boundedZoomLevel.toFixed(6);
-    }
-  }
+  }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
 
   function getPinchDistance() {
     const touches = [...activeTouchPointersRef.current.values()];
@@ -2005,23 +2107,28 @@ export function ReservoirScene() {
           ? activeReservoirNodeDiameters
           : undefined,
     });
+    const destinationNodeSizing = getReservoirNodeSizingSnapshot(
+      destinationLayout,
+      activeReservoirNodes.length,
+      activeReservoirNodeDiameters,
+    );
     layoutModeDestinationSnapshotRef.current = {
       collectionId: renderedActiveCollectionId,
       mode: nextLayoutMode,
       directions: destinationLayout,
       quaternion: currentQuaternion,
-      nodeSizing: getReservoirNodeSizingSnapshot(
-        destinationLayout,
-        activeReservoirNodes.length,
-        activeReservoirNodeDiameters,
-      ),
+      nodeSizing: destinationNodeSizing,
     };
     collectionOrientationRef.current.set(
       collectionNavigation.activeCollectionId,
       currentQuaternion,
     );
     layoutModeResetStartZoomRef.current = zoomLevelRef.current;
-    layoutModeResetTargetZoomRef.current = RESERVOIR_ZOOM_DEFAULT;
+    layoutModeResetTargetZoomRef.current = clampReservoirZoom(
+      RESERVOIR_ZOOM_DEFAULT,
+      getAdaptiveZoomForSnapshot(activeReservoirNodes, destinationNodeSizing)
+        .activeMaximum,
+    );
     layoutModeViewResetProgressRef.current = 0;
     layoutModeTransitionPulseRef.current = 0;
     setHoveredArtifactId(null);
@@ -2121,16 +2228,27 @@ export function ReservoirScene() {
           ? destinationNodeDiameters
           : undefined,
     });
+    const destinationNodeSizing = getReservoirNodeSizingSnapshot(
+      destinationLayout,
+      destinationNodes.length,
+      destinationNodeDiameters,
+    );
+    const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
+      destinationNodes,
+      destinationNodeSizing,
+    );
+    const destinationZoom = clampReservoirZoom(
+      zoomLevelRef.current,
+      destinationAdaptiveZoom.activeMaximum,
+    );
+    zoomLevelRef.current = destinationZoom;
+    setZoomLevel(destinationZoom);
     collectionTransitionDestinationSnapshotRef.current = {
       collectionId: destinationCollectionId,
       mode: renderedLayoutMode,
       directions: destinationLayout,
       quaternion: currentQuaternion,
-      nodeSizing: getReservoirNodeSizingSnapshot(
-        destinationLayout,
-        destinationNodes.length,
-        destinationNodeDiameters,
-      ),
+      nodeSizing: destinationNodeSizing,
     };
     collectionOrientationRef.current.set(
       collectionNavigation.activeCollectionId,
@@ -2141,7 +2259,7 @@ export function ReservoirScene() {
       currentQuaternion,
     );
     collectionTransitionPoseSnapshotRef.current = {
-      zoomLevel: zoomLevelRef.current,
+      zoomLevel: destinationZoom,
     };
     collectionReconstitutionProgressRef.current = 0;
     collectionReconstitutionElapsedRef.current = 0;
@@ -2832,11 +2950,24 @@ export function ReservoirScene() {
       data-zoom-model="reservoir-scale"
       data-zoom-level={zoomLevel.toFixed(6)}
       data-zoom-min={RESERVOIR_ZOOM_MIN.toFixed(3)}
-      data-zoom-max={RESERVOIR_ZOOM_MAX.toFixed(3)}
-      data-labels-visible={labelsVisible}
-      data-label-zoom-enter={RESERVOIR_LABEL_ZOOM.enter.toFixed(3)}
-      data-label-zoom-exit={RESERVOIR_LABEL_ZOOM.exit.toFixed(3)}
-      data-label-zoom-hysteresis="true"
+      data-zoom-max={reservoirZoomMaximum.toFixed(3)}
+      data-zoom-baseline-max={activeAdaptiveZoom.baselineMaximum.toFixed(3)}
+      data-zoom-hard-max={activeAdaptiveZoom.absoluteMaximum.toFixed(3)}
+      data-zoom-transform-safe-max={activeAdaptiveZoom.transformSafeMaximum.toFixed(3)}
+      data-zoom-required-for-inspectability={activeAdaptiveZoom.requiredZoom.toFixed(3)}
+      data-zoom-active-max={activeAdaptiveZoom.activeMaximum.toFixed(3)}
+      data-zoom-inspectable-target-px={RESERVOIR_NODE_INSPECTABLE_TARGET_PX.toFixed(3)}
+      data-zoom-target-reachable={String(activeAdaptiveZoom.targetReachable)}
+      data-zoom-smallest-node-kind={activeAdaptiveZoom.smallestNodeKind ?? ""}
+      data-zoom-smallest-node-world-diameter={activeAdaptiveZoom.smallestNodeWorldDiameter.toFixed(6)}
+      data-zoom-smallest-node-px-at-baseline={activeAdaptiveZoom.projectedNodePixelsAtBaseline.toFixed(3)}
+      data-zoom-smallest-node-px-at-active-max={activeAdaptiveZoom.projectedNodePixelsAtActiveMaximum.toFixed(3)}
+      data-label-model="adaptive-projective"
+      data-label-level-inspection-node-enter={RESERVOIR_LABEL_LEVEL.inspection.nodePixels.enter.toFixed(3)}
+      data-label-level-inspection-node-exit={RESERVOIR_LABEL_LEVEL.inspection.nodePixels.exit.toFixed(3)}
+      data-label-level-persistent-node-enter={RESERVOIR_LABEL_LEVEL.persistent.nodePixels.enter.toFixed(3)}
+      data-label-level-persistent-node-exit={RESERVOIR_LABEL_LEVEL.persistent.nodePixels.exit.toFixed(3)}
+      data-label-level-hysteresis="true"
       data-label-far-hover-reveal="false"
       data-reservoir-base-scale={baseScale.toFixed(6)}
       data-reservoir-safe-zones={[
@@ -3125,6 +3256,11 @@ export function ReservoirScene() {
         gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
         scene={{ background: undefined }}
       >
+        <ReservoirCameraBridge
+          cameraRef={cameraRef}
+          sceneRef={sceneRef}
+          onReady={handleCameraReady}
+        />
         <color attach="background" args={[RESERVOIR_THEME.environment]} />
         <ambientLight intensity={1.35} />
         <directionalLight position={[-4, 5, 7]} intensity={2.25} />
@@ -3182,7 +3318,8 @@ export function ReservoirScene() {
               hoveredArtifactId={hoveredArtifactId}
               interactionEnabled={!inputLocked}
               isDragging={isDragging}
-              labelsVisible={labelsVisible}
+              reservoirFrame={reservoirFrame}
+              renderedZoomRef={renderedZoomRef}
               selectedPressActive={selectedPressActive}
               surfacedNodeIds={surfacedNodeIds}
               filterVisibleNodeIds={queryVisibleNodeIds}

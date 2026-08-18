@@ -814,6 +814,8 @@ The approved sizing curve is continuous and population-aware:
 
 Layout safety may proportionally reduce the resulting size when actual mixed-radius spacing requires it, but the curve itself does not impose a minimum size cap.
 
+V2 also introduces adaptive inspectability. `2.15` is the ordinary baseline maximum; `4` is an absolute MVP guard, not the derived safety model. The active maximum may increase only when a smaller resolved node kind actually exists in the active semantic collection and needs more resolution. The node-inspectability target is `24px`, separate from label thresholds, and the required zoom is solved at the canonical viewer-facing center rather than from the current reservoir orientation. The active maximum is independent of rotation, remains below the responsive transform-safe maximum, and exposes whether the `24px` target is reachable. The transform-safe maximum accounts for camera-space depth, the near plane, responsive base scale, the sphere radius, the largest active node body, node center elevation, and a camera-clearance margin.
+
 # 11. Nodes
 
 ## 11.1 Artifact Node
@@ -851,6 +853,8 @@ The collection node should not become visually louder than every artifact merely
 ## 11.3 Node Labels
 
 Artifact labels may float near or slightly in front of nodes.
+
+The V2 label MVP should resolve labels per node instead of through one global zoom toggle. Labels use `hidden`, `inspection`, and `persistent` levels. Inspection labels require active inspection intent such as pointer hover; persistent labels do not require hover. Projected node size controls presentation with hysteresis; raw zoom is not an independent label gate, so sparse large nodes may retain persistent labels at minimum zoom. Selected-node labels remain hidden. A node label is a screen-space annotation constrained by the actual child-node sphere and parent-reservoir sphere: child visibility uses sphere occlusion, labels remain on the reservoir-exterior side, and viewport composition can influence placement but cannot override that surface constraint. Placement uses an outward candidate fan rather than a 180-degree reservoir-facing fallback, correct ray-to-rectangle support distance, full safe-bound containment when physically possible, and camera-side surface-aware anchoring. Eligible labels render as whole foreground annotations rather than being depth-fragmented by the reservoir. Labels keep upright canvas sprites at an approximately `52px` target height, and a dynamic narrow hover bridge follows the actual node-edge-to-label-edge path. Full collision solving, leader lines, and richer label tiers remain deferred.
 
 Default state may show:
 

@@ -2,6 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
+import type { ReservoirFrame } from "@/lib/reservoir/frame";
 import {
   RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
 } from "@/lib/reservoir/opening";
@@ -72,6 +73,8 @@ type CollectionNodeProps = {
   emergenceOrder?: number;
   emergenceChildCount?: number;
   sphereRef: RefObject<THREE.Group | null>;
+  reservoirFrame: ReservoirFrame;
+  renderedZoomRef: MutableRefObject<number>;
 };
 
 export const COLLECTION_GRID_DETAIL = 1;
@@ -102,6 +105,8 @@ export function CollectionNode({
   emergenceOrder = 0,
   emergenceChildCount = 1,
   sphereRef,
+  reservoirFrame,
+  renderedZoomRef,
 }: CollectionNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
   const visualNodeRef = useRef<THREE.Group | null>(null);
@@ -518,26 +523,13 @@ export function CollectionNode({
           colorWrite={false}
         />
       </mesh> : null}
-      {dormantInteractive ? <mesh
-        position={placement.hoverBridgePosition}
-        onPointerEnter={() => beginHover("label-bridge")}
-        onPointerLeave={() => endHover("label-bridge")}
-      >
-        <sphereGeometry
-          args={[nodeRadius * 2.8, 12, 10]}
-        />
-        <meshBasicMaterial
-          transparent
-          opacity={0}
-          depthWrite={false}
-          colorWrite={false}
-        />
-      </mesh> : null}
       {filterVisible ? <ReservoirNodeLabel
         content={labelContent}
         nodeRef={nodeRef}
         sphereRef={sphereRef}
-        position={placement.labelPosition}
+        reservoirFrame={reservoirFrame}
+        renderedZoomRef={renderedZoomRef}
+        diagnosticsRef={diagnosticsRef}
         nodeRadius={nodeRadius}
         suppressed={labelsSuppressed || !surfaced}
         hovered={effectiveHovered}
