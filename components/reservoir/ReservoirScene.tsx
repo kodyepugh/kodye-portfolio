@@ -451,6 +451,78 @@ function getRuntimeFocalDiagnostics(
   };
 }
 
+type PreparedCollectionTransitionDestination = {
+  destinationFocusedDirection: ReservoirDirection | null;
+  destinationNodes: readonly ReservoirContentNode[];
+  destinationLayout: ReservoirLayout;
+  destinationNodeSizing: ReturnType<typeof getReservoirNodeSizingSnapshot>;
+  focalDiagnostics: LayoutModeFocalDiagnostics | null;
+};
+
+function prepareCollectionTransitionDestination({
+  destinationCollectionId,
+  focusedLayoutDirection,
+  renderedLayoutMode,
+  surface,
+  camera,
+}: {
+  destinationCollectionId: string;
+  focusedLayoutDirection: ReservoirDirection | null;
+  renderedLayoutMode: ReservoirLayoutMode;
+  surface: THREE.Object3D | null;
+  camera: THREE.Camera | null;
+}): PreparedCollectionTransitionDestination | null {
+  const destinationNodes = getReservoirContentNodes(destinationCollectionId);
+  const destinationNodeSizingTargets = getReservoirNodeSizingTargets(
+    destinationNodes.length,
+  );
+  const destinationNodeDiameters = getReservoirNodeDiameters(
+    destinationNodes,
+    destinationNodeSizingTargets.desiredArtifactDiameter,
+    destinationNodeSizingTargets.desiredCollectionDiameter,
+  );
+
+  let destinationFocusedDirection = focusedLayoutDirection;
+  let focalDiagnostics: LayoutModeFocalDiagnostics | null = null;
+  if (renderedLayoutMode === "focused") {
+    if (!surface || !camera) return null;
+    focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
+    if (!focalDiagnostics.assertionsPassed) return null;
+    destinationFocusedDirection = focalDiagnostics.targetLocal;
+  }
+
+  const destinationLayout = generateReservoirLayout(destinationNodes, {
+    seed: destinationCollectionId,
+    mode: renderedLayoutMode,
+    focusedDirection:
+      renderedLayoutMode === "focused"
+        ? destinationFocusedDirection ?? undefined
+        : undefined,
+    minimumNodeDiameter:
+      renderedLayoutMode === "focused"
+        ? Math.max(
+            destinationNodeSizingTargets.desiredArtifactDiameter,
+            destinationNodeSizingTargets.desiredCollectionDiameter,
+          )
+        : undefined,
+    nodeDiameters:
+      renderedLayoutMode === "focused" ? destinationNodeDiameters : undefined,
+  });
+  const destinationNodeSizing = getReservoirNodeSizingSnapshot(
+    destinationLayout,
+    destinationNodes.length,
+    destinationNodeDiameters,
+  );
+
+  return {
+    destinationFocusedDirection,
+    destinationNodes,
+    destinationLayout,
+    destinationNodeSizing,
+    focalDiagnostics,
+  };
+}
+
 type ReservoirTransformProps = {
   baseScale: number;
   centerWorldY: number;
@@ -2162,10 +2234,22 @@ export function ReservoirScene() {
     const currentQuaternion = sphere
       ? toQuaternionTuple(sphere.quaternion)
       : ([0, 0, 0, 1] as QuaternionTuple);
-    let destinationFocusedDirection = focusedLayoutDirection;
-    if (renderedLayoutMode === "focused") {
-      if (!surface || !camera) return;
-      const focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
+    const preparedDestination = prepareCollectionTransitionDestination({
+      destinationCollectionId,
+      focusedLayoutDirection,
+      renderedLayoutMode,
+      surface,
+      camera,
+    });
+    if (!preparedDestination) return;
+    const {
+      destinationFocusedDirection,
+      destinationNodes,
+      destinationLayout,
+      destinationNodeSizing,
+      focalDiagnostics,
+    } = preparedDestination;
+    if (focalDiagnostics) {
       setLayoutModeFocalDiagnostics(focalDiagnostics);
       if (interaction.current) {
         interaction.current.dataset.layoutModeFocalAssertions = String(
@@ -2197,58 +2281,10 @@ export function ReservoirScene() {
         interaction.current.dataset.layoutModeRoundTripUpDot =
           focalDiagnostics.roundTripUpDot.toFixed(6);
       }
-      if (!focalDiagnostics.assertionsPassed) {
-        console.error(
-          "Reservoir focal-position assertions failed",
-          focalDiagnostics,
-        );
-        return;
-      }
-      destinationFocusedDirection = focalDiagnostics.targetLocal;
       layoutModeTransitionFocusedDirectionRef.current =
         destinationFocusedDirection;
     }
 
-    collectionTransitionSourceSnapshotRef.current = {
-      collectionId: renderedActiveCollectionId,
-      mode: renderedLayoutMode,
-      directions: new Map(activeReservoirLayout),
-      quaternion: currentQuaternion,
-      nodeSizing: activeNodeSizing,
-    };
-    const destinationNodes = getReservoirContentNodes(destinationCollectionId);
-    const destinationNodeSizingTargets = getReservoirNodeSizingTargets(
-      destinationNodes.length,
-    );
-    const destinationNodeDiameters = getReservoirNodeDiameters(
-      destinationNodes,
-      destinationNodeSizingTargets.desiredArtifactDiameter,
-      destinationNodeSizingTargets.desiredCollectionDiameter,
-    );
-    const destinationLayout = generateReservoirLayout(destinationNodes, {
-      seed: destinationCollectionId,
-      mode: renderedLayoutMode,
-      focusedDirection:
-        renderedLayoutMode === "focused"
-          ? destinationFocusedDirection ?? undefined
-          : undefined,
-      minimumNodeDiameter:
-        renderedLayoutMode === "focused"
-          ? Math.max(
-              destinationNodeSizingTargets.desiredArtifactDiameter,
-              destinationNodeSizingTargets.desiredCollectionDiameter,
-            )
-          : undefined,
-      nodeDiameters:
-        renderedLayoutMode === "focused"
-          ? destinationNodeDiameters
-          : undefined,
-    });
-    const destinationNodeSizing = getReservoirNodeSizingSnapshot(
-      destinationLayout,
-      destinationNodes.length,
-      destinationNodeDiameters,
-    );
     const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
       destinationNodes,
       destinationNodeSizing,
@@ -2257,6 +2293,14 @@ export function ReservoirScene() {
       zoomLevelRef.current,
       destinationAdaptiveZoom.activeMaximum,
     );
+
+    collectionTransitionSourceSnapshotRef.current = {
+      collectionId: renderedActiveCollectionId,
+      mode: renderedLayoutMode,
+      directions: new Map(activeReservoirLayout),
+      quaternion: currentQuaternion,
+      nodeSizing: activeNodeSizing,
+    };
     zoomLevelRef.current = destinationZoom;
     setZoomLevel(destinationZoom);
     collectionTransitionDestinationSnapshotRef.current = {
