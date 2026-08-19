@@ -1,6 +1,6 @@
 import { useFrame } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import type { ReservoirFrame } from "@/lib/reservoir/frame";
@@ -155,14 +155,12 @@ export function ArtifactNode({
     }),
   );
   const previousInteractionRevision = useRef(-1);
-  const filterRadialOffset = useRef(
-    surfaced
-      ? 0
-      : nodeRadius *
-          RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
-  );
-  const lastRenderedRadialOffset = useRef(filterRadialOffset.current);
-  const collectionDepartureStartOffset = useRef(filterRadialOffset.current);
+  const initialFilterRadialOffset = surfaced
+    ? 0
+    : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
+  const filterRadialOffset = useRef(initialFilterRadialOffset);
+  const lastRenderedRadialOffset = useRef(initialFilterRadialOffset);
+  const collectionDepartureStartOffset = useRef(initialFilterRadialOffset);
   const previousCollectionTransitionPhase = useRef<
     CollectionNodeTransitionPhase | null
   >(null);
@@ -182,6 +180,41 @@ export function ArtifactNode({
       ? 0
       : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
   }, [nodeRadius, surfaced]);
+
+  useLayoutEffect(() => {
+    const visualOrb = visualOrbRef.current;
+    if (
+      !visualOrb ||
+      !placement ||
+      collectionTransitionPhase !== "arrival" ||
+      !collectionTransitionProgressRef
+    ) {
+      return;
+    }
+
+    visualOrb.position.copy(placement.normal).multiplyScalar(
+      getCollectionNodeTransitionOffset({
+        nodeRadius,
+        progress: getCollectionNodeTransitionProgress(
+          collectionTransitionProgressRef.current,
+          "arrival",
+          collectionTransitionOrder,
+          collectionTransitionChildCount,
+        ),
+        phase: "arrival",
+        settledOffset: ORB_RESTING_RADIAL_OFFSET,
+        reducedMotion: openingReducedMotion,
+      }),
+    );
+  }, [
+    collectionTransitionChildCount,
+    collectionTransitionOrder,
+    collectionTransitionPhase,
+    collectionTransitionProgressRef,
+    nodeRadius,
+    openingReducedMotion,
+    placement,
+  ]);
 
   useEffect(() => {
     if (!surfaced || !interactionEnabled) {
@@ -444,24 +477,6 @@ export function ArtifactNode({
         ref={visualOrbRef}
         userData={{ artifactId: artifact.id }}
         renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
-        position={
-          collectionTransitionPhase === "arrival" && collectionTransitionProgressRef
-            ? placement.normal.clone().multiplyScalar(
-                getCollectionNodeTransitionOffset({
-                  nodeRadius,
-                  progress: getCollectionNodeTransitionProgress(
-                    collectionTransitionProgressRef.current,
-                    "arrival",
-                    collectionTransitionOrder,
-                    collectionTransitionChildCount,
-                  ),
-                  phase: "arrival",
-                  settledOffset: ORB_RESTING_RADIAL_OFFSET,
-                  reducedMotion: openingReducedMotion,
-                }),
-              )
-            : undefined
-        }
       >
         <mesh
           renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}

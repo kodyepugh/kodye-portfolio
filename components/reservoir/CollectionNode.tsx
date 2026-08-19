@@ -1,6 +1,13 @@
 import { useFrame } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import type { ReservoirFrame } from "@/lib/reservoir/frame";
@@ -186,14 +193,12 @@ export function CollectionNode({
     [],
   );
   const hoverProgress = useRef(hovered ? 1 : 0);
-  const filterRadialOffset = useRef(
-    surfaced
-      ? 0
-      : nodeRadius *
-          RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
-  );
-  const lastRenderedRadialOffset = useRef(filterRadialOffset.current);
-  const collectionDepartureStartOffset = useRef(filterRadialOffset.current);
+  const initialFilterRadialOffset = surfaced
+    ? 0
+    : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
+  const filterRadialOffset = useRef(initialFilterRadialOffset);
+  const lastRenderedRadialOffset = useRef(initialFilterRadialOffset);
+  const collectionDepartureStartOffset = useRef(initialFilterRadialOffset);
   const previousCollectionTransitionPhase = useRef<
     CollectionNodeTransitionPhase | null
   >(null);
@@ -259,6 +264,41 @@ export function CollectionNode({
       ? 0
       : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
   }, [nodeRadius, surfaced]);
+
+  useLayoutEffect(() => {
+    const visualNode = visualNodeRef.current;
+    if (
+      !visualNode ||
+      !placement ||
+      collectionTransitionPhase !== "arrival" ||
+      !collectionTransitionProgressRef
+    ) {
+      return;
+    }
+
+    visualNode.position.copy(placement.normal).multiplyScalar(
+      getCollectionNodeTransitionOffset({
+        nodeRadius,
+        progress: getCollectionNodeTransitionProgress(
+          collectionTransitionProgressRef.current,
+          "arrival",
+          collectionTransitionOrder,
+          collectionTransitionChildCount,
+        ),
+        phase: "arrival",
+        settledOffset: 0,
+        reducedMotion: openingReducedMotion,
+      }),
+    );
+  }, [
+    collectionTransitionChildCount,
+    collectionTransitionOrder,
+    collectionTransitionPhase,
+    collectionTransitionProgressRef,
+    nodeRadius,
+    openingReducedMotion,
+    placement,
+  ]);
 
   useEffect(() => {
     if (!surfaced || !interactionEnabled) {
@@ -564,24 +604,6 @@ export function CollectionNode({
       <group
         ref={visualNodeRef}
         quaternion={embeddedQuaternion ?? undefined}
-        position={
-          collectionTransitionPhase === "arrival" && collectionTransitionProgressRef
-            ? placement.normal.clone().multiplyScalar(
-                getCollectionNodeTransitionOffset({
-                  nodeRadius,
-                  progress: getCollectionNodeTransitionProgress(
-                    collectionTransitionProgressRef.current,
-                    "arrival",
-                    collectionTransitionOrder,
-                    collectionTransitionChildCount,
-                  ),
-                  phase: "arrival",
-                  settledOffset: 0,
-                  reducedMotion: openingReducedMotion,
-                }),
-              )
-            : undefined
-        }
       >
         <CollectionSphere
           collection={collection}
