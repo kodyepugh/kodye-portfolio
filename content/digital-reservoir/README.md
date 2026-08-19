@@ -4,13 +4,16 @@ This directory contains semantic, local/static content records. Spatial layout
 and prototype placement data remain in `content/reservoir/` and are intentionally
 not imported here.
 
-The registry in `lib/content/registry.ts` exposes five independent entity sets:
+The registry in `lib/content/registry.ts` exposes the canonical object sets plus
+compatibility views:
 
-- artifacts: logical inspectable objects;
+- resources: canonical inspectable objects;
+- artifacts: compatibility view over artifact-status resources;
 - collections: logical grouping objects;
-- memberships: artifact/collection relationships, including many-to-many use;
+- memberships: resource/collection relationships, including many-to-many use;
+- resource support relations: artifact-status resource-to-resource support/provenance links;
 - assets: stored public media payloads;
-- source records: internal provenance for artifacts or assets.
+- source records: internal provenance for resources or assets.
 
 Public reservoir presentation should enter through
 `lib/content/reservoir-adapter.ts`. The adapter includes only records explicitly

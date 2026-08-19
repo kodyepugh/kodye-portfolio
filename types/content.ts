@@ -16,7 +16,23 @@ export const ARTIFACT_TYPES = [
 ] as const;
 
 export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
+export type ResourceType = ArtifactType;
+
+export const RESOURCE_INSPECTION_KINDS = [
+  "structured-document",
+  "image",
+  "video",
+  "audio",
+  "external-link",
+  "dataset-table",
+  "notebook-code",
+  "generic-file",
+] as const;
+
+export type ResourceInspectionKind =
+  (typeof RESOURCE_INSPECTION_KINDS)[number];
 export type ArtifactContentStatus = "ready" | "placeholder";
+export type ResourceContentStatus = ArtifactContentStatus;
 
 export type ArtifactSection = {
   id: string;
@@ -25,7 +41,9 @@ export type ArtifactSection = {
   assetIds?: readonly string[];
 };
 
-export type ArtifactContent =
+export type ResourceSection = ArtifactSection;
+
+export type ResourceContent =
   | {
       kind: "rich-text";
       status: ArtifactContentStatus;
@@ -55,13 +73,73 @@ export type ArtifactContent =
       note?: string;
     };
 
-export type Artifact = {
+export type ArtifactContent = ResourceContent;
+
+export type ResourceRepresentationBase = {
+  id: string;
+  label?: string;
+  order?: number;
+  published?: boolean;
+};
+
+export type ResourceAssetRepresentation = ResourceRepresentationBase & {
+  kind: "asset";
+  assetId: string;
+  caption?: string;
+};
+
+export type ResourceInlineRepresentation = ResourceRepresentationBase & {
+  kind: "inline";
+  format: "html" | "markdown" | "text";
+  body: string;
+};
+
+export type ResourceExternalRepresentation = ResourceRepresentationBase & {
+  kind: "external";
+  url: string;
+  sourceLabel?: string;
+};
+
+export type ResourceRepresentation =
+  | ResourceAssetRepresentation
+  | ResourceInlineRepresentation
+  | ResourceExternalRepresentation;
+
+export type ResourceSupportRelationship = {
+  id: string;
+  sourceResourceId: string;
+  targetResourceId: string;
+  relationshipType: "supporting" | "source" | "provenance";
+  order?: number;
+  published?: boolean;
+  label?: string;
+  role?: string;
+};
+
+export type Collection = {
+  objectType: "collection";
   id: string;
   slug: string;
   title: string;
   subtitle?: string;
   description?: string;
-  type: ArtifactType;
+  icon?: string;
+  category?: string;
+  categoryColor?: string;
+  featured?: boolean;
+  published?: boolean;
+};
+
+export type Resource = {
+  objectType: "resource";
+  id: string;
+  slug: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  type: ResourceType;
+  inspectionKind: ResourceInspectionKind;
+  isArtifact: boolean;
   icon?: string;
   category?: string;
   categoryColor?: string;
@@ -72,28 +150,28 @@ export type Artifact = {
   format?: string;
   featured?: boolean;
   published?: boolean;
-  content?: ArtifactContent;
+  representations?: readonly ResourceRepresentation[];
+  content?: ResourceContent;
   createdAt?: string;
   updatedAt?: string;
 };
 
-export type Collection = {
-  id: string;
-  slug: string;
-  title: string;
-  subtitle?: string;
-  description?: string;
-  icon?: string;
-  category?: string;
-  categoryColor?: string;
-  featured?: boolean;
-  published?: boolean;
+export type Artifact = Resource & {
+  isArtifact: true;
 };
+
+export type SemanticObject = Collection | Resource;
+export type SemanticObjectAddress = string;
 
 type MembershipBase = {
   id: string;
   collectionId: string;
   order?: number;
+};
+
+export type ResourceMembership = MembershipBase & {
+  memberType: "resource";
+  memberId: string;
 };
 
 export type ArtifactMembership = MembershipBase & {
@@ -106,7 +184,10 @@ export type CollectionMembership = MembershipBase & {
   memberId: string;
 };
 
-export type Membership = ArtifactMembership | CollectionMembership;
+export type Membership =
+  | ResourceMembership
+  | ArtifactMembership
+  | CollectionMembership;
 
 export const ASSET_KINDS = [
   "image",
@@ -150,22 +231,24 @@ type SourceRecordBase = {
   importedAt?: string;
 };
 
-export type ArtifactSourceRecord = SourceRecordBase & {
-  artifactId: string;
+export type ResourceSourceRecord = SourceRecordBase & {
+  resourceId: string;
   assetId?: never;
 };
 
 export type AssetSourceRecord = SourceRecordBase & {
-  artifactId?: never;
   assetId: string;
+  resourceId?: never;
 };
 
-export type SourceRecord = ArtifactSourceRecord | AssetSourceRecord;
+export type SourceRecord = ResourceSourceRecord | AssetSourceRecord;
 
 export type ContentRegistry = {
+  resources: readonly Resource[];
   artifacts: readonly Artifact[];
   collections: readonly Collection[];
   memberships: readonly Membership[];
+  resourceSupportRelations: readonly ResourceSupportRelationship[];
   assets: readonly Asset[];
   sourceRecords: readonly SourceRecord[];
 };

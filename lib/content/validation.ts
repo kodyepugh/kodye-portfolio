@@ -1,4 +1,7 @@
-import { getArtifactContentAssetIds } from "./references";
+import {
+  getArtifactContentAssetIds,
+  getResourceRepresentationAssetIds,
+} from "./references";
 import type { ContentRegistry } from "../../types/content";
 
 export type ContentValidationResult = {
@@ -69,13 +72,13 @@ export function validateContentRegistry(
 
   reportDuplicates(
     errors,
-    "artifact ID",
-    registry.artifacts.map((artifact) => artifact.id),
+    "resource ID",
+    registry.resources.map((resource) => resource.id),
   );
   reportDuplicates(
     errors,
-    "artifact slug",
-    registry.artifacts.map((artifact) => artifact.slug),
+    "resource slug",
+    registry.resources.map((resource) => resource.slug),
   );
   reportDuplicates(
     errors,
@@ -94,6 +97,11 @@ export function validateContentRegistry(
   );
   reportDuplicates(
     errors,
+    "resource support relationship ID",
+    registry.resourceSupportRelations.map((relationship) => relationship.id),
+  );
+  reportDuplicates(
+    errors,
     "asset ID",
     registry.assets.map((asset) => asset.id),
   );
@@ -103,36 +111,118 @@ export function validateContentRegistry(
     registry.sourceRecords.map((sourceRecord) => sourceRecord.id),
   );
 
-  const artifactIds = new Set(registry.artifacts.map((artifact) => artifact.id));
+  const resourceIds = new Set(registry.resources.map((resource) => resource.id));
+  const resourceSlugs = new Set(
+    registry.resources.map((resource) => resource.slug),
+  );
   const collectionIds = new Set(
     registry.collections.map((collection) => collection.id),
+  );
+  const collectionSlugs = new Set(
+    registry.collections.map((collection) => collection.slug),
   );
   const assetIds = new Set(registry.assets.map((asset) => asset.id));
   const membershipEdges = new Set<string>();
   const membershipOrders = new Set<string>();
+  const supportEdges = new Set<string>();
+  const supportOrders = new Set<string>();
+  const representationIds = new Set<string>();
+
+  for (const collection of registry.collections) {
+    if (resourceIds.has(collection.id)) {
+      errors.push(
+        `Collection ${collection.id} conflicts with an existing resource ID`,
+      );
+    }
+    if (resourceSlugs.has(collection.slug)) {
+      errors.push(
+        `Collection ${collection.id} conflicts with an existing resource slug ${collection.slug}`,
+      );
+    }
+  }
+
+  for (const resource of registry.resources) {
+    if (collectionIds.has(resource.id)) {
+      errors.push(
+        `Resource ${resource.id} conflicts with an existing collection ID`,
+      );
+    }
+    if (collectionSlugs.has(resource.slug)) {
+      errors.push(
+        `Resource ${resource.id} conflicts with an existing collection slug ${resource.slug}`,
+      );
+    }
+
+    for (const assetId of getArtifactContentAssetIds(resource.content)) {
+      if (!assetIds.has(assetId)) {
+        errors.push(`Resource ${resource.id} references unknown asset ${assetId}`);
+      }
+    }
+
+    for (const assetId of getResourceRepresentationAssetIds(resource)) {
+      if (!assetIds.has(assetId)) {
+        errors.push(
+          `Resource ${resource.id} references unknown representation asset ${assetId}`,
+        );
+      }
+    }
+
+    if (resource.representations) {
+      for (const representation of resource.representations) {
+        if (representationIds.has(representation.id)) {
+          errors.push(`Duplicate resource representation ID: ${representation.id}`);
+        }
+        representationIds.add(representation.id);
+      }
+    }
+
+    if (resource.content?.status === "placeholder") {
+      warnings.push(`Resource ${resource.id} still has placeholder content`);
+    }
+  }
 
   for (const membership of registry.memberships) {
+    const memberType: string = membership.memberType;
     if (!collectionIds.has(membership.collectionId)) {
       errors.push(
         `Membership ${membership.id} has unknown collectionId ${membership.collectionId}`,
       );
     }
 
-    const targetIds =
-      membership.memberType === "artifact" ? artifactIds : collectionIds;
-    if (!targetIds.has(membership.memberId)) {
-      errors.push(
-        `Membership ${membership.id} has unknown ${membership.memberType} memberId ${membership.memberId}`,
-      );
-    }
-    if (
-      membership.memberType === "collection" &&
-      membership.collectionId === membership.memberId
-    ) {
-      errors.push(`Membership ${membership.id} makes a collection contain itself`);
+    const isResourceMembership =
+      memberType === "resource" || memberType === "artifact";
+    if (memberType !== "collection" && !isResourceMembership) {
+      errors.push(`Membership ${membership.id} has unknown memberType ${memberType}`);
+      continue;
     }
 
-    const edge = `${membership.collectionId}:${membership.memberType}:${membership.memberId}`;
+    if (memberType === "collection") {
+      if (!collectionIds.has(membership.memberId)) {
+        errors.push(
+          `Membership ${membership.id} has unknown collection memberId ${membership.memberId}`,
+        );
+      }
+      if (membership.collectionId === membership.memberId) {
+        errors.push(`Membership ${membership.id} makes a collection contain itself`);
+      }
+    } else {
+      const resource = registry.resources.find(
+        (candidate) => candidate.id === membership.memberId,
+      );
+      if (!resource) {
+        errors.push(
+          `Membership ${membership.id} has unknown resource memberId ${membership.memberId}`,
+        );
+      } else if (resource.isArtifact !== true) {
+        errors.push(
+          `Membership ${membership.id} assigns collection membership to non-artifact resource ${resource.id}`,
+        );
+      }
+    }
+
+    const normalizedMemberType =
+      memberType === "artifact" ? "resource" : memberType;
+    const edge = `${membership.collectionId}:${normalizedMemberType}:${membership.memberId}`;
     if (membershipEdges.has(edge)) {
       errors.push(`Duplicate membership relationship: ${edge}`);
     }
@@ -147,29 +237,62 @@ export function validateContentRegistry(
     }
   }
 
-  for (const artifact of registry.artifacts) {
-    for (const assetId of getArtifactContentAssetIds(artifact.content)) {
-      if (!assetIds.has(assetId)) {
-        errors.push(`Artifact ${artifact.id} references unknown asset ${assetId}`);
-      }
+  for (const relationship of registry.resourceSupportRelations) {
+    const source = registry.resources.find(
+      (candidate) => candidate.id === relationship.sourceResourceId,
+    );
+    if (!source) {
+      errors.push(
+        `Resource support relationship ${relationship.id} references unknown source resource ${relationship.sourceResourceId}`,
+      );
+      continue;
+    }
+    if (source.isArtifact !== true) {
+      errors.push(
+        `Resource support relationship ${relationship.id} must originate from an artifact-status resource`,
+      );
     }
 
-    if (artifact.content?.status === "placeholder") {
-      warnings.push(`Artifact ${artifact.id} still has placeholder content`);
+    const target = registry.resources.find(
+      (candidate) => candidate.id === relationship.targetResourceId,
+    );
+    if (!target) {
+      errors.push(
+        `Resource support relationship ${relationship.id} references unknown target resource ${relationship.targetResourceId}`,
+      );
+    }
+    if (relationship.sourceResourceId === relationship.targetResourceId) {
+      errors.push(
+        `Resource support relationship ${relationship.id} cannot point a resource at itself`,
+      );
+    }
+
+    const edge = `${relationship.sourceResourceId}:${relationship.relationshipType}:${relationship.targetResourceId}`;
+    if (supportEdges.has(edge)) {
+      errors.push(`Duplicate resource support relationship: ${edge}`);
+    }
+    supportEdges.add(edge);
+
+    if (relationship.order !== undefined) {
+      const orderKey = `${relationship.sourceResourceId}:${relationship.order}`;
+      if (supportOrders.has(orderKey)) {
+        errors.push(`Duplicate resource support order: ${orderKey}`);
+      }
+      supportOrders.add(orderKey);
     }
   }
 
   for (const sourceRecord of registry.sourceRecords) {
-    const artifactId = sourceRecord.artifactId;
+    const resourceId = sourceRecord.resourceId;
     const assetId = sourceRecord.assetId;
-    if (Boolean(artifactId) === Boolean(assetId)) {
+    if (Boolean(resourceId) === Boolean(assetId)) {
       errors.push(
-        `Source record ${sourceRecord.id} must reference exactly one artifact or asset`,
+        `Source record ${sourceRecord.id} must reference exactly one resource or asset`,
       );
     }
-    if (artifactId && !artifactIds.has(artifactId)) {
+    if (resourceId && !resourceIds.has(resourceId)) {
       errors.push(
-        `Source record ${sourceRecord.id} references unknown artifact ${artifactId}`,
+        `Source record ${sourceRecord.id} references unknown resource ${resourceId}`,
       );
     }
     if (assetId && !assetIds.has(assetId)) {

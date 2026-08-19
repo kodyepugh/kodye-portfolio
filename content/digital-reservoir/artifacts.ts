@@ -1,4 +1,5 @@
-import type { Artifact } from "../../types/content";
+import type { Artifact, Resource } from "../../types/content";
+import { ASSET_IDS } from "./assets";
 
 export const ARTIFACT_IDS = {
   bellabeat: "artifact-bellabeat-wellness-analysis",
@@ -8,13 +9,16 @@ export const ARTIFACT_IDS = {
   brandSymbol: "artifact-kodyepugh-symbol",
 } as const;
 
-export const artifacts = [
+export const resources = [
   {
+    objectType: "resource",
     id: ARTIFACT_IDS.bellabeat,
     slug: "bellabeat-wellness-analysis",
     title: "Bellabeat Wellness Analysis",
     subtitle: "Patterns in everyday activity and rest",
     type: "case-study",
+    inspectionKind: "structured-document",
+    isArtifact: true,
     category: "Data / Analytics",
     categoryColor: "#28758c",
     date: "2024",
@@ -38,11 +42,14 @@ export const artifacts = [
     },
   },
   {
+    objectType: "resource",
     id: ARTIFACT_IDS.resume,
     slug: "resume",
     title: "Resume",
     subtitle: "Experience, capabilities, and selected engagements",
     type: "resume",
+    inspectionKind: "structured-document",
+    isArtifact: true,
     category: "Practice / Experience",
     categoryColor: "#667d83",
     medium: "Document",
@@ -56,11 +63,14 @@ export const artifacts = [
     },
   },
   {
+    objectType: "resource",
     id: ARTIFACT_IDS.about,
     slug: "about",
     title: "About",
     subtitle: "A working portrait of practice, context, and intent",
     type: "profile",
+    inspectionKind: "structured-document",
+    isArtifact: true,
     category: "About / Self",
     categoryColor: "#8d7257",
     medium: "Profile",
@@ -76,11 +86,14 @@ export const artifacts = [
     },
   },
   {
+    objectType: "resource",
     id: ARTIFACT_IDS.reservoirStudy,
     slug: "reservoir-interface-study",
     title: "Reservoir Interface Study",
     subtitle: "A spatial navigation prototype",
     type: "project",
+    inspectionKind: "structured-document",
+    isArtifact: true,
     category: "Web / Interaction",
     categoryColor: "#b9573f",
     date: "2026",
@@ -104,19 +117,36 @@ export const artifacts = [
     },
   },
   {
+    objectType: "resource",
     id: ARTIFACT_IDS.brandSymbol,
     slug: "kodyepugh-symbol",
     title: "Kodye Pugh Symbol",
     type: "image",
+    inspectionKind: "image",
+    isArtifact: true,
     category: "Identity",
     categoryColor: "#6f8065",
     medium: "Vector graphic",
     format: "SVG",
     published: true,
+    representations: [
+      {
+        id: "representation-kodyepugh-symbol-svg",
+        kind: "asset",
+        assetId: ASSET_IDS.brandSymbol,
+        label: "Public SVG",
+        order: 1,
+        published: true,
+      },
+    ],
     content: {
       kind: "media",
       status: "ready",
-      assetId: "asset-kodyepugh-symbol",
+      assetId: ASSET_IDS.brandSymbol,
     },
   },
-] satisfies readonly Artifact[];
+] satisfies readonly Resource[];
+
+export const artifacts = resources.filter(
+  (resource) => resource.isArtifact === true,
+) as readonly Artifact[];

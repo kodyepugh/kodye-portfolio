@@ -13,6 +13,7 @@ export const ROOT_COLLECTION_ID = COLLECTION_IDS.root;
 
 export const collections = [
   {
+    objectType: "collection",
     id: COLLECTION_IDS.root,
     slug: "digital-reservoir",
     title: "Digital Reservoir",
@@ -21,6 +22,7 @@ export const collections = [
     published: true,
   },
   {
+    objectType: "collection",
     id: COLLECTION_IDS.work,
     slug: "work",
     title: "Work",
@@ -31,6 +33,7 @@ export const collections = [
     published: true,
   },
   {
+    objectType: "collection",
     id: COLLECTION_IDS.dataAnalytics,
     slug: "data-analytics",
     title: "Data / Analytics",
@@ -39,6 +42,7 @@ export const collections = [
     published: true,
   },
   {
+    objectType: "collection",
     id: COLLECTION_IDS.web,
     slug: "web",
     title: "Web",
@@ -47,6 +51,7 @@ export const collections = [
     published: true,
   },
   {
+    objectType: "collection",
     id: COLLECTION_IDS.filmCreative,
     slug: "film-creative",
     title: "Film / Creative",
@@ -55,6 +60,7 @@ export const collections = [
     published: true,
   },
   {
+    objectType: "collection",
     id: COLLECTION_IDS.aboutSelf,
     slug: "about-self",
     title: "About / Self",

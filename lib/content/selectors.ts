@@ -1,19 +1,34 @@
 import { contentRegistry } from "./registry";
-import { getArtifactContentAssetIds } from "./references";
+import {
+  getArtifactContentAssetIds,
+  getResourceRepresentationAssetIds,
+} from "./references";
 import type {
   Artifact,
   ArtifactMembership,
   Collection,
   CollectionMembership,
+  Resource,
+  ResourceMembership,
 } from "../../types/content";
 
+const resourceById = new Map(
+  contentRegistry.resources.map((resource) => [resource.id, resource] as const),
+);
+const resourceBySlug = new Map(
+  contentRegistry.resources.map(
+    (resource) => [resource.slug, resource] as const,
+  ),
+);
 const artifactById = new Map(
-  contentRegistry.artifacts.map((artifact) => [artifact.id, artifact] as const),
+  contentRegistry.resources
+    .filter((resource): resource is Artifact => resource.isArtifact === true)
+    .map((resource) => [resource.id, resource] as const),
 );
 const artifactBySlug = new Map(
-  contentRegistry.artifacts.map(
-    (artifact) => [artifact.slug, artifact] as const,
-  ),
+  contentRegistry.resources
+    .filter((resource): resource is Artifact => resource.isArtifact === true)
+    .map((resource) => [resource.slug, resource] as const),
 );
 const collectionById = new Map(
   contentRegistry.collections.map(
@@ -32,13 +47,23 @@ const assetById = new Map(
 export type ResolvedCollectionMember =
   | {
       kind: "artifact";
-      membership: ArtifactMembership;
+      membership: ResourceMembership | ArtifactMembership;
       artifact: Artifact;
     }
   | {
       kind: "collection";
       membership: CollectionMembership;
       collection: Collection;
+    };
+
+export type ResolvedSemanticObject =
+  | {
+      kind: "collection";
+      collection: Collection;
+    }
+  | {
+      kind: "resource";
+      resource: Resource;
     };
 
 function compareMembershipOrder(
@@ -50,6 +75,22 @@ function compareMembershipOrder(
       (b.order ?? Number.MAX_SAFE_INTEGER) ||
     a.id.localeCompare(b.id)
   );
+}
+
+function resolveResource(resource: Resource | null) {
+  return resource ?? null;
+}
+
+export function getResourceById(resourceId: string) {
+  return resolveResource(resourceById.get(resourceId) ?? null);
+}
+
+export function getResourceBySlug(slug: string) {
+  return resolveResource(resourceBySlug.get(slug) ?? null);
+}
+
+export function getResourceByAddress(address: string) {
+  return getResourceById(address) ?? getResourceBySlug(address);
 }
 
 export function getArtifactById(artifactId: string) {
@@ -66,6 +107,40 @@ export function getCollectionById(collectionId: string) {
 
 export function getCollectionBySlug(slug: string) {
   return collectionBySlug.get(slug) ?? null;
+}
+
+export function getCollectionByAddress(address: string) {
+  return getCollectionById(address) ?? getCollectionBySlug(address);
+}
+
+export function resolveSemanticObjectAddress(
+  address: string,
+): ResolvedSemanticObject | null {
+  const collection = getCollectionByAddress(address);
+  if (collection) {
+    return { kind: "collection", collection };
+  }
+
+  const resource = getResourceByAddress(address);
+  if (resource) {
+    return { kind: "resource", resource };
+  }
+
+  return null;
+}
+
+export function getSemanticObjectByAddress(address: string) {
+  return resolveSemanticObjectAddress(address);
+}
+
+export function getArtifactStatusResources() {
+  return contentRegistry.resources.filter(
+    (resource): resource is Artifact => resource.isArtifact === true,
+  );
+}
+
+export function getResourceStatusResources() {
+  return getArtifactStatusResources();
 }
 
 export function getAssetById(assetId: string) {
@@ -85,16 +160,20 @@ export function getCollectionMembers(
   const members: ResolvedCollectionMember[] = [];
 
   for (const membership of getCollectionMemberships(collectionId)) {
-    if (membership.memberType === "artifact") {
-      const artifact = getArtifactById(membership.memberId);
-      if (artifact) members.push({ kind: "artifact", membership, artifact });
+    if (membership.memberType === "collection") {
+      const collection = getCollectionById(membership.memberId);
+      if (collection) {
+        members.push({ kind: "collection", membership, collection });
+      }
       continue;
     }
 
-    const collection = getCollectionById(membership.memberId);
-    if (collection) {
-      members.push({ kind: "collection", membership, collection });
+    if (membership.memberType !== "resource" && membership.memberType !== "artifact") {
+      continue;
     }
+
+    const artifact = getArtifactById(membership.memberId);
+    if (artifact) members.push({ kind: "artifact", membership, artifact });
   }
 
   return members;
@@ -108,12 +187,15 @@ export function getPublishedCollectionMembers(collectionId: string) {
   );
 }
 
-export function getArtifactCollections(artifactId: string) {
+export function getResourceCollections(resourceId: string) {
   return contentRegistry.memberships.flatMap((membership) => {
     if (
-      membership.memberType !== "artifact" ||
-      membership.memberId !== artifactId
+      membership.memberType !== "resource" &&
+      membership.memberType !== "artifact"
     ) {
+      return [];
+    }
+    if (membership.memberId !== resourceId) {
       return [];
     }
 
@@ -122,28 +204,67 @@ export function getArtifactCollections(artifactId: string) {
   });
 }
 
-export function getPublishedArtifactCollections(artifactId: string) {
-  return getArtifactCollections(artifactId).filter(
+export function getArtifactCollections(artifactId: string) {
+  return getResourceCollections(artifactId);
+}
+
+export function getPublishedResourceCollections(resourceId: string) {
+  return getResourceCollections(resourceId).filter(
     (collection) => collection.published === true,
   );
 }
 
-export function getAssetsForArtifact(artifactId: string) {
-  const artifact = getArtifactById(artifactId);
-  if (!artifact) return [];
+export function getPublishedArtifactCollections(artifactId: string) {
+  return getPublishedResourceCollections(artifactId);
+}
 
-  return [...new Set(getArtifactContentAssetIds(artifact.content))].flatMap(
-    (assetId) => {
-      const asset = getAssetById(assetId);
-      return asset ? [asset] : [];
-    },
+export function getResourceRepresentations(resourceId: string) {
+  return getResourceById(resourceId)?.representations ?? [];
+}
+
+export function getResourceSupportRelationships(resourceId: string) {
+  return contentRegistry.resourceSupportRelations
+    .filter((relationship) => relationship.sourceResourceId === resourceId)
+    .slice()
+    .sort(compareMembershipOrder);
+}
+
+export function getSupportingResourcesForResource(resourceId: string) {
+  return getResourceSupportRelationships(resourceId).flatMap((relationship) => {
+    const resource = getResourceById(relationship.targetResourceId);
+    return resource ? [resource] : [];
+  });
+}
+
+export function getAssetsForResource(resourceId: string) {
+  const resource = getResourceById(resourceId);
+  if (!resource) return [];
+
+  const assetIds = [
+    ...new Set([
+      ...getArtifactContentAssetIds(resource.content),
+      ...getResourceRepresentationAssetIds(resource),
+    ]),
+  ];
+
+  return assetIds.flatMap((assetId) => {
+    const asset = getAssetById(assetId);
+    return asset ? [asset] : [];
+  });
+}
+
+export function getAssetsForArtifact(artifactId: string) {
+  return getAssetsForResource(artifactId);
+}
+
+export function getSourceRecordsForResource(resourceId: string) {
+  return contentRegistry.sourceRecords.filter(
+    (sourceRecord) => sourceRecord.resourceId === resourceId,
   );
 }
 
 export function getSourceRecordsForArtifact(artifactId: string) {
-  return contentRegistry.sourceRecords.filter(
-    (sourceRecord) => sourceRecord.artifactId === artifactId,
-  );
+  return getSourceRecordsForResource(artifactId);
 }
 
 export function getSourceRecordsForAsset(assetId: string) {
@@ -152,40 +273,46 @@ export function getSourceRecordsForAsset(assetId: string) {
   );
 }
 
-function getArtifactDateLabel(artifact: Artifact) {
-  if (artifact.date) return artifact.date;
-  if (artifact.dateStart && artifact.dateEnd) {
-    return `${artifact.dateStart}–${artifact.dateEnd}`;
+function getArtifactDateLabel(resource: Resource) {
+  if (resource.date) return resource.date;
+  if (resource.dateStart && resource.dateEnd) {
+    return `${resource.dateStart}–${resource.dateEnd}`;
   }
-  return artifact.dateStart ?? artifact.dateEnd;
+  return resource.dateStart ?? resource.dateEnd;
+}
+
+export function getResourceAtmosphereMetadata(
+  resourceId: string,
+  collectionId?: string,
+) {
+  const resource = getResourceById(resourceId);
+  if (!resource) return null;
+
+  const relationshipContext = collectionId
+    ? getPublishedResourceCollections(resourceId).filter(
+        (collection) => collection.id === collectionId,
+      )
+    : getPublishedResourceCollections(resourceId);
+
+  return {
+    resourceId: resource.id,
+    artifactId: resource.id,
+    type: resource.type,
+    title: resource.title,
+    subtitle: resource.subtitle,
+    date: getArtifactDateLabel(resource),
+    category: resource.category,
+    categoryColor: resource.categoryColor,
+    relationshipContext: relationshipContext.map((collection) => collection.title),
+    medium: resource.medium,
+    format: resource.format,
+    description: resource.description,
+  };
 }
 
 export function getArtifactAtmosphereMetadata(
   artifactId: string,
   collectionId?: string,
 ) {
-  const artifact = getArtifactById(artifactId);
-  if (!artifact) return null;
-
-  const relationshipContext = collectionId
-    ? getPublishedArtifactCollections(artifactId).filter(
-        (collection) => collection.id === collectionId,
-      )
-    : getPublishedArtifactCollections(artifactId);
-
-  return {
-    artifactId: artifact.id,
-    type: artifact.type,
-    title: artifact.title,
-    subtitle: artifact.subtitle,
-    date: getArtifactDateLabel(artifact),
-    category: artifact.category,
-    categoryColor: artifact.categoryColor,
-    relationshipContext: relationshipContext.map(
-      (collection) => collection.title,
-    ),
-    medium: artifact.medium,
-    format: artifact.format,
-    description: artifact.description,
-  };
+  return getResourceAtmosphereMetadata(artifactId, collectionId);
 }

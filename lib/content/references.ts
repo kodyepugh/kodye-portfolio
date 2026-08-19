@@ -1,7 +1,7 @@
-import type { ArtifactContent } from "../../types/content";
+import type { Resource, ResourceContent } from "../../types/content";
 
-export function getArtifactContentAssetIds(
-  content: ArtifactContent | undefined,
+export function getResourceContentAssetIds(
+  content: ResourceContent | undefined,
 ) {
   if (!content) return [];
 
@@ -16,4 +16,20 @@ export function getArtifactContentAssetIds(
     case "rich-text":
       return [];
   }
+}
+
+export function getResourceRepresentationAssetIds(
+  resource: Resource | undefined,
+) {
+  if (!resource?.representations) return [];
+
+  return resource.representations.flatMap((representation) =>
+    representation.kind === "asset" ? [representation.assetId] : [],
+  );
+}
+
+export function getArtifactContentAssetIds(
+  content: ResourceContent | undefined,
+) {
+  return getResourceContentAssetIds(content);
 }

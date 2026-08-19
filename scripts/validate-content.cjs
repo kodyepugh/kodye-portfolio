@@ -47,9 +47,16 @@ const {
   getArtifactCollections,
   getAssetsForArtifact,
   getCollectionById,
+  getCollectionByAddress,
   getCollectionMembers,
+  getResourceByAddress,
+  getResourceById,
+  getResourceRepresentations,
+  getResourceStatusResources,
+  getSupportingResourcesForResource,
   getSourceRecordsForArtifact,
   getSourceRecordsForAsset,
+  resolveSemanticObjectAddress,
 } = require(path.join(projectRoot, "lib/content/selectors.ts"));
 const { assertValidContentRegistry } = require(path.join(
   projectRoot,
@@ -75,9 +82,22 @@ const checks = [
     ),
   ],
   [
+    "resource address resolution works",
+    getResourceById(ARTIFACT_IDS.brandSymbol)?.id === ARTIFACT_IDS.brandSymbol &&
+    getResourceByAddress("kodyepugh-symbol")?.id === ARTIFACT_IDS.brandSymbol &&
+      getCollectionByAddress("digital-reservoir")?.id ===
+        COLLECTION_IDS.root &&
+      resolveSemanticObjectAddress(ARTIFACT_IDS.brandSymbol)?.kind ===
+        "resource",
+  ],
+  [
     "artifact slug selector resolves canonical record",
     getArtifactBySlug("bellabeat-wellness-analysis") ===
       getArtifactById(ARTIFACT_IDS.bellabeat),
+  ],
+  [
+    "artifact status resources resolve",
+    getResourceStatusResources().every((resource) => resource.isArtifact === true),
   ],
   [
     "one artifact belongs to multiple collections without duplication",
@@ -101,6 +121,18 @@ const checks = [
     ),
   ],
   [
+    "resource representations resolve",
+    getResourceRepresentations(ARTIFACT_IDS.brandSymbol).some(
+      (representation) =>
+        representation.kind === "asset" &&
+        representation.assetId === ASSET_IDS.brandSymbol,
+    ),
+  ],
+  [
+    "supporting resources selector is stable",
+    Array.isArray(getSupportingResourcesForResource(ARTIFACT_IDS.bellabeat)),
+  ],
+  [
     "source records resolve independently",
     getSourceRecordsForArtifact(ARTIFACT_IDS.bellabeat).length > 0 &&
       getSourceRecordsForAsset(ASSET_IDS.brandSymbol).length > 0,
@@ -122,7 +154,7 @@ if (failedChecks.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `Content graph valid: ${contentRegistry.artifacts.length} artifacts, ` +
+    `Content graph valid: ${contentRegistry.resources.length} resources, ` +
       `${contentRegistry.collections.length} collections, ` +
       `${contentRegistry.memberships.length} memberships, ` +
       `${contentRegistry.assets.length} asset, ` +
