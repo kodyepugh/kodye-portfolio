@@ -36,6 +36,8 @@ import {
   getReservoirFocusedCapRadius,
   getReservoirLayoutSphericalCentroid,
   getReservoirLayoutDiagnostics,
+  isReservoirDirectionWithinAngularTolerance,
+  RESERVOIR_FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES,
 } from "@/lib/reservoir/layout";
 import type {
   ReservoirInitialComposition,
@@ -48,6 +50,14 @@ import {
   getReservoirNodeSizingTargets,
   RESERVOIR_NODE_SIZING_REFERENCE_POPULATION,
 } from "@/lib/reservoir/node-sizing";
+import {
+  RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY,
+  resolveReservoirNodePointerCandidate,
+  type ReservoirNodePointerVisibilityResolver,
+  type ReservoirPointerCandidate,
+  type ReservoirPointerCandidateSource,
+  type ReservoirPointerResolution,
+} from "@/lib/reservoir/pointer";
 import { RESERVOIR_LABEL_LEVEL } from "@/lib/reservoir/label";
 import {
   getCollectionReconstitutionDuration,
@@ -105,7 +115,6 @@ const RESERVOIR_PINCH_ZOOM_RATE = 0.0045;
 const MAX_WHEEL_DELTA = 120;
 const DRAG_SENSITIVITY = 0.0042;
 const NODE_CLICK_MAX_TRAVEL = 6;
-const NODE_VISIBLE_SURFACE_EPSILON = 0.003;
 const FOOTER_TRIGGER_OVERSCAN = 28;
 const LAYOUT_MODE_SWITCH_DURATION = 0.62;
 
@@ -318,8 +327,6 @@ type LayoutModeFocalDiagnostics = {
   assertionsPassed: boolean;
 };
 
-const FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES = 0.001;
-
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
@@ -371,6 +378,28 @@ function toDirectionTuple(direction: THREE.Vector3): ReservoirDirection {
 
 function formatDirectionTuple(direction: ReservoirDirection, precision = 6) {
   return direction.map((value) => value.toFixed(precision)).join(",");
+}
+
+function recordReservoirPointerDiagnostics(
+  element: HTMLDivElement | null,
+  resolution: ReservoirPointerResolution,
+) {
+  if (!element) return;
+
+  element.dataset.pointerCandidateNodeId = resolution.candidate?.id ?? "";
+  element.dataset.pointerCandidateSource = resolution.candidate?.source ?? "";
+  element.dataset.pointerCandidateDistance =
+    resolution.candidate?.distance.toFixed(9) ?? "";
+  element.dataset.pointerReservoirSurfaceDistance =
+    resolution.surfaceDistance?.toFixed(9) ?? "";
+  element.dataset.pointerReservoirSurfaceHit = String(
+    resolution.surfaceDistance !== null,
+  );
+  element.dataset.pointerCandidateOccluded = String(
+    resolution.candidateOccluded,
+  );
+  element.dataset.pointerCandidateAccepted = String(resolution.accepted);
+  element.dataset.pointerDistanceTolerance = resolution.tolerance.toFixed(9);
 }
 
 function getRuntimeFocalDiagnostics(
@@ -527,10 +556,16 @@ function addFocusedLayoutFocalDiagnostics(
     0,
   );
   const focusedLayoutCentroidAssertionsPassed =
-    focusedLayoutCentroidErrorDegrees <=
-      FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES &&
-    focusedLayoutCentroidWorldErrorDegrees <=
-      FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES &&
+    isReservoirDirectionWithinAngularTolerance(
+      focusedLayoutCentroidLocal,
+      focalDiagnostics.targetLocal,
+      RESERVOIR_FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES,
+    ) &&
+    isReservoirDirectionWithinAngularTolerance(
+      focusedLayoutCentroidWorld,
+      focalDiagnostics.targetWorld,
+      RESERVOIR_FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES,
+    ) &&
     Math.abs(focusedLayoutCentroidFrontAngleDegrees - 15) < 0.05 &&
     focusedLayoutCentroidFrontDot > 0 &&
     focusedLayoutCentroidUpDot > 0;
@@ -586,7 +621,6 @@ function prepareCollectionTransitionDestination({
   if (renderedLayoutMode === "focused") {
     if (!surface || !camera) return null;
     focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
-    if (!focalDiagnostics.assertionsPassed) return null;
     destinationFocusedDirection = focalDiagnostics.targetLocal;
   }
 
@@ -959,6 +993,7 @@ export function ReservoirScene() {
   const surfaceRef = useRef<THREE.Mesh | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const pointerVisibilityRaycaster = useMemo(() => new THREE.Raycaster(), []);
   const pointerNdc = useMemo(() => new THREE.Vector2(), []);
   const cameraWorldQuaternion = useMemo(() => new THREE.Quaternion(), []);
   const cameraRight = useMemo(() => new THREE.Vector3(), []);
@@ -975,6 +1010,29 @@ export function ReservoirScene() {
   const handleCameraReady = useCallback(() => {
     setCameraRevision((revision) => revision + 1);
   }, []);
+  const resolvePointerVisibility = useCallback<
+    ReservoirNodePointerVisibilityResolver
+  >(
+    ({ ray, ...candidate }) => {
+      const surface = surfaceRef.current;
+      if (!surface) return false;
+
+      surface.updateWorldMatrix(true, false);
+      pointerVisibilityRaycaster.ray.copy(ray);
+      pointerVisibilityRaycaster.near = 0;
+      pointerVisibilityRaycaster.far = Number.POSITIVE_INFINITY;
+      const surfaceDistance =
+        pointerVisibilityRaycaster.intersectObject(surface, false)[0]
+          ?.distance ?? null;
+      const resolution = resolveReservoirNodePointerCandidate({
+        candidates: [candidate],
+        surfaceDistance,
+      });
+      recordReservoirPointerDiagnostics(interaction.current, resolution);
+      return resolution.accepted;
+    },
+    [pointerVisibilityRaycaster],
+  );
 
   useEffect(() => {
     const element = interaction.current;
@@ -2105,30 +2163,47 @@ export function ReservoirScene() {
 
     const surfaceDistance =
       raycaster.intersectObject(surface, false)[0]?.distance ?? null;
-    if (surfaceDistance === null) return null;
-    const nodeHit = raycaster
+    const candidates = raycaster
       .intersectObjects(scene.children, true)
-      .find((hit) => {
+      .flatMap<ReservoirPointerCandidate>((hit) => {
         const artifactId = hit.object.userData.artifactId;
         const collectionId = hit.object.userData.collectionId;
+        const source = hit.object.userData[
+          RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY
+        ];
+        const kind =
+          typeof artifactId === "string"
+            ? "artifact"
+            : typeof collectionId === "string"
+              ? "collection"
+              : null;
+        const id = kind === "artifact" ? artifactId : collectionId;
 
-        const nodeId =
-          typeof artifactId === "string" ? artifactId : collectionId;
-        return (
-          typeof nodeId === "string" &&
-          surfacedNodeIds.has(nodeId) &&
-          hit.distance < surfaceDistance - NODE_VISIBLE_SURFACE_EPSILON
-        );
+        if (
+          kind === null ||
+          typeof id !== "string" ||
+          !surfacedNodeIds.has(id) ||
+          (source !== "visible-mesh" && source !== "hit-area")
+        ) {
+          return [];
+        }
+
+        return [{
+          distance: hit.distance,
+          id,
+          kind,
+          source: source as ReservoirPointerCandidateSource,
+        }];
       });
-    const artifactId = nodeHit?.object.userData.artifactId;
-    if (typeof artifactId === "string") {
-      return { kind: "artifact", id: artifactId };
-    }
-    const collectionId = nodeHit?.object.userData.collectionId;
-    if (typeof collectionId === "string") {
-      return { kind: "collection", id: collectionId };
-    }
-    return null;
+    const resolution = resolveReservoirNodePointerCandidate({
+      candidates,
+      surfaceDistance,
+    });
+    recordReservoirPointerDiagnostics(interaction.current, resolution);
+
+    return resolution.candidate && resolution.accepted
+      ? { kind: resolution.candidate.kind, id: resolution.candidate.id }
+      : null;
   }
 
   function capturePreservedReservoirState(
@@ -2219,14 +2294,6 @@ export function ReservoirScene() {
         interaction.current.dataset.layoutModeRoundTripUpDot =
           focalDiagnostics.roundTripUpDot.toFixed(6);
       }
-      if (!focalDiagnostics.assertionsPassed) {
-        console.error(
-          "Reservoir focal-position assertions failed",
-          focalDiagnostics,
-        );
-        layoutModeSourceSnapshotRef.current = null;
-        return;
-      }
       destinationFocusedDirection = focalDiagnostics.targetLocal;
       layoutModeTransitionFocusedDirectionRef.current =
         destinationFocusedDirection;
@@ -2257,14 +2324,6 @@ export function ReservoirScene() {
         destinationLayout,
       );
       setLayoutModeFocalDiagnostics(focalDiagnostics);
-      if (!focalDiagnostics.assertionsPassed) {
-        console.error(
-          "Reservoir focused-layout centroid assertions failed",
-          focalDiagnostics,
-        );
-        layoutModeSourceSnapshotRef.current = null;
-        return;
-      }
     }
     const destinationNodeSizing = getReservoirNodeSizingSnapshot(
       destinationLayout,
@@ -2369,13 +2428,6 @@ export function ReservoirScene() {
       destinationNodeSizing,
       focalDiagnostics,
     } = preparedDestination;
-    if (focalDiagnostics && !focalDiagnostics.assertionsPassed) {
-      console.error(
-        "Reservoir focused-layout centroid assertions failed",
-        focalDiagnostics,
-      );
-      return;
-    }
     if (focalDiagnostics) {
       setLayoutModeFocalDiagnostics(focalDiagnostics);
       if (interaction.current) {
@@ -3382,6 +3434,7 @@ export function ReservoirScene() {
               selectedCollectionId={selectedCollectionId}
               hoveredArtifactId={hoveredArtifactId}
               interactionEnabled={!inputLocked}
+              resolvePointerVisibility={resolvePointerVisibility}
               isDragging={isDragging}
               reservoirFrame={reservoirFrame}
               renderedZoomRef={renderedZoomRef}

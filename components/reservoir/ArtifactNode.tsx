@@ -1,4 +1,5 @@
 import { useFrame } from "@react-three/fiber";
+import type { ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
@@ -38,6 +39,11 @@ import {
   RESERVOIR_NODE_REDUCED_MOTION_WHITE_MIX,
 } from "@/lib/reservoir/selection";
 import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import {
+  RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY,
+  type ReservoirNodePointerVisibilityResolver,
+  type ReservoirPointerCandidateSource,
+} from "@/lib/reservoir/pointer";
 import { ArtifactLabel } from "./ArtifactLabel";
 import { useReservoirNodeHover } from "./useReservoirNodeHover";
 
@@ -52,6 +58,7 @@ type ArtifactNodeProps = {
   isDragging: boolean;
   selectedPressActive: boolean;
   surfaced: boolean;
+  interactionEnabled: boolean;
   continuationCueEnabled: boolean;
   interactionRevisionRef: MutableRefObject<number>;
   diagnosticsRef: RefObject<HTMLDivElement | null>;
@@ -74,6 +81,7 @@ type ArtifactNodeProps = {
   reservoirFrame: ReservoirFrame;
   renderedZoomRef: MutableRefObject<number>;
   onHoverChange: (artifactId: string, hovered: boolean) => void;
+  resolvePointerVisibility: ReservoirNodePointerVisibilityResolver;
 };
 
 const ORB_RESTING_RADIAL_OFFSET = 0;
@@ -91,6 +99,7 @@ export function ArtifactNode({
   isDragging,
   selectedPressActive,
   surfaced,
+  interactionEnabled,
   continuationCueEnabled,
   interactionRevisionRef,
   diagnosticsRef,
@@ -113,6 +122,7 @@ export function ArtifactNode({
   reservoirFrame,
   renderedZoomRef,
   onHoverChange,
+  resolvePointerVisibility,
 }: ArtifactNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
   const visualOrbRef = useRef<THREE.Group | null>(null);
@@ -174,10 +184,33 @@ export function ArtifactNode({
   }, [nodeRadius, surfaced]);
 
   useEffect(() => {
-    if (!surfaced) {
+    if (!surfaced || !interactionEnabled) {
       clearHover();
     }
-  }, [clearHover, surfaced]);
+  }, [clearHover, interactionEnabled, surfaced]);
+
+  function updatePointerHover(
+    event: ThreeEvent<PointerEvent>,
+    target: string,
+    source: ReservoirPointerCandidateSource,
+  ) {
+    if (
+      !surfaced ||
+      !interactionEnabled ||
+      !resolvePointerVisibility({
+        distance: event.distance,
+        id: artifact.id,
+        kind: "artifact",
+        ray: event.ray,
+        source,
+      })
+    ) {
+      clearHover();
+      return;
+    }
+
+    beginHover(target);
+  }
 
   useFrame((_, delta) => {
     const visualOrb = visualOrbRef.current;
@@ -432,7 +465,16 @@ export function ArtifactNode({
       >
         <mesh
           renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
-          onPointerEnter={() => surfaced && beginHover("orb")}
+          userData={{
+            artifactId: artifact.id,
+            [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "visible-mesh",
+          }}
+          onPointerEnter={(event) =>
+            updatePointerHover(event, "orb", "visible-mesh")
+          }
+          onPointerMove={(event) =>
+            updatePointerHover(event, "orb", "visible-mesh")
+          }
           onPointerLeave={() => endHover("orb")}
         >
           <sphereGeometry args={[nodeRadius, 18, 14]} />
@@ -445,8 +487,16 @@ export function ArtifactNode({
           />
         </mesh>
         <mesh
-          userData={{ artifactId: artifact.id }}
-          onPointerEnter={() => surfaced && beginHover("orb-hit-area")}
+          userData={{
+            artifactId: artifact.id,
+            [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "hit-area",
+          }}
+          onPointerEnter={(event) =>
+            updatePointerHover(event, "orb-hit-area", "hit-area")
+          }
+          onPointerMove={(event) =>
+            updatePointerHover(event, "orb-hit-area", "hit-area")
+          }
           onPointerLeave={() => endHover("orb-hit-area")}
         >
           <sphereGeometry args={[nodeRadius * 1.28, 12, 10]} />
@@ -468,7 +518,9 @@ export function ArtifactNode({
         selectionActive={selectionActive || !surfaced}
         hovered={hovered}
         nodeRadius={nodeRadius}
-        onPointerEnter={() => surfaced && beginHover("label")}
+        onPointerEnter={() =>
+          surfaced && interactionEnabled && beginHover("label")
+        }
         onPointerLeave={() => endHover("label")}
       />
     </group>

@@ -1,4 +1,5 @@
 import { useFrame } from "@react-three/fiber";
+import type { ThreeEvent } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
@@ -45,6 +46,11 @@ import {
   RESERVOIR_THEME,
 } from "@/lib/reservoir/theme";
 import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import {
+  RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY,
+  type ReservoirNodePointerVisibilityResolver,
+  type ReservoirPointerCandidateSource,
+} from "@/lib/reservoir/pointer";
 import { ReservoirNodeLabel } from "./ArtifactLabel";
 import { CollectionSphere } from "./CollectionSphere";
 import { useReservoirNodeHover } from "./useReservoirNodeHover";
@@ -81,6 +87,7 @@ type CollectionNodeProps = {
   sphereRef: RefObject<THREE.Group | null>;
   reservoirFrame: ReservoirFrame;
   renderedZoomRef: MutableRefObject<number>;
+  resolvePointerVisibility: ReservoirNodePointerVisibilityResolver;
 };
 
 export const COLLECTION_GRID_DETAIL = 1;
@@ -117,6 +124,7 @@ export function CollectionNode({
   sphereRef,
   reservoirFrame,
   renderedZoomRef,
+  resolvePointerVisibility,
 }: CollectionNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
   const visualNodeRef = useRef<THREE.Group | null>(null);
@@ -257,6 +265,29 @@ export function CollectionNode({
       clearHover();
     }
   }, [clearHover, interactionEnabled, surfaced]);
+
+  function updatePointerHover(
+    event: ThreeEvent<PointerEvent>,
+    target: string,
+    source: ReservoirPointerCandidateSource,
+  ) {
+    if (
+      !surfaced ||
+      !interactionEnabled ||
+      !resolvePointerVisibility({
+        distance: event.distance,
+        id: collection.id,
+        kind: "collection",
+        ray: event.ray,
+        source,
+      })
+    ) {
+      clearHover();
+      return;
+    }
+
+    beginHover(target);
+  }
 
   useFrame((_, delta) => {
     const visualNode = visualNodeRef.current;
@@ -497,7 +528,7 @@ export function CollectionNode({
 
   if (!placement) return null;
 
-  const dormantInteractive = surfaced;
+  const dormantInteractive = surfaced && interactionEnabled;
 
   return (
     <group
@@ -565,16 +596,32 @@ export function CollectionNode({
           resolvedGridDetail={RESERVOIR_GRID_DETAIL}
           resolvedGridMaterialRef={resolvedGridMaterialRef}
           dormantGridContactDirection={selectedContactDirection}
-          surfaceUserData={{ collectionId: collection.id }}
+          surfaceUserData={{
+            collectionId: collection.id,
+            [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "visible-mesh",
+          }}
           surfaceOnBeforeCompile={configureSurfaceMaterial}
           surfaceProgramCacheKey={getSurfaceProgramCacheKey}
-          onPointerEnter={() => interactionEnabled && beginHover("orb")}
+          onPointerEnter={(event) =>
+            updatePointerHover(event, "orb", "visible-mesh")
+          }
+          onPointerMove={(event) =>
+            updatePointerHover(event, "orb", "visible-mesh")
+          }
           onPointerLeave={() => endHover("orb")}
         />
         {dormantInteractive ? (
           <mesh
-            userData={{ collectionId: collection.id }}
-            onPointerEnter={() => beginHover("orb-hit-area")}
+            userData={{
+              collectionId: collection.id,
+              [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "hit-area",
+            }}
+            onPointerEnter={(event) =>
+              updatePointerHover(event, "orb-hit-area", "hit-area")
+            }
+            onPointerMove={(event) =>
+              updatePointerHover(event, "orb-hit-area", "hit-area")
+            }
             onPointerLeave={() => endHover("orb-hit-area")}
           >
             <sphereGeometry args={[nodeRadius * 1.22, 12, 10]} />
@@ -598,7 +645,7 @@ export function CollectionNode({
         suppressed={labelsSuppressed || !surfaced}
         hovered={effectiveHovered}
         userData={{ collectionId: collection.id }}
-        onPointerEnter={() => beginHover("label")}
+        onPointerEnter={() => interactionEnabled && beginHover("label")}
         onPointerLeave={() => endHover("label")}
       /> : null}
     </group>

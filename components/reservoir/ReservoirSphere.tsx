@@ -15,6 +15,7 @@ import {
 } from "@/lib/reservoir/geometry";
 import type { ReservoirLayout } from "@/lib/reservoir/layout";
 import type { ReservoirNodeSizingSnapshot } from "@/lib/reservoir/node-sizing";
+import type { ReservoirNodePointerVisibilityResolver } from "@/lib/reservoir/pointer";
 import {
   RESERVOIR_SURFACE_MATERIAL,
   RESERVOIR_SURFACE_PATTERN,
@@ -88,6 +89,7 @@ type ReservoirSphereProps = {
   emergingChildren: boolean;
   emergenceProgressRef: MutableRefObject<number>;
   onArtifactHoverChange: (artifactId: string, hovered: boolean) => void;
+  resolvePointerVisibility: ReservoirNodePointerVisibilityResolver;
   queryActivityRevision?: number | null;
   queryActivityMode?: ReservoirQueryActivityMode | null;
   onQueryActivityComplete?: () => void;
@@ -132,6 +134,7 @@ export function ReservoirSphere({
   emergingChildren,
   emergenceProgressRef,
   onArtifactHoverChange,
+  resolvePointerVisibility,
   queryActivityRevision = null,
   queryActivityMode = null,
   onQueryActivityComplete,
@@ -551,6 +554,7 @@ export function ReservoirSphere({
               selectedPressActive && selectedArtifactId === node.id
             }
             surfaced={surfaced}
+            interactionEnabled={interactionEnabled && surfaced}
             continuationCueEnabled={continuationCueEnabled}
             interactionRevisionRef={interactionRevisionRef}
             diagnosticsRef={diagnosticsRef}
@@ -572,6 +576,7 @@ export function ReservoirSphere({
             collectionTransitionOrder={nodeIndex}
             collectionTransitionChildCount={activeNodes.length}
             onHoverChange={onArtifactHoverChange}
+            resolvePointerVisibility={resolvePointerVisibility}
           />
         ) : (
           <CollectionNode
@@ -588,6 +593,7 @@ export function ReservoirSphere({
               emergingChildren
             }
             interactionEnabled={interactionEnabled && surfaced}
+            resolvePointerVisibility={resolvePointerVisibility}
             isDragging={isDragging}
             selected={selectedCollectionId === node.id}
             meshEngaged={
