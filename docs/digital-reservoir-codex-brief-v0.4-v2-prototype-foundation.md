@@ -1,7 +1,7 @@
 # Digital Reservoir
 ## Codex Implementation Brief
-**Version:** 0.5 — V2 Prototype Foundation + Query Reservoir Methodology
-**Status:** Persistent Developer Reference — L1 PASS / CLOSED
+**Version:** 0.6 — Official Query Reservoir Closure Baseline
+**Status:** Persistent Developer Reference — Closure Baseline / L1 PASS / CLOSED
 **Project:** kodyepugh.com
 **Primary reference:** `docs/digital-reservoir-interface-spec.md`
 
@@ -78,6 +78,22 @@ how one state becomes another
 ```
 
 Do not collapse these concerns into one component or one data structure without a compelling reason.
+
+## 3.1 Approved Runtime Contract
+
+The Query Reservoir feature branch is closed for this development phase. Future Codex work should treat the following as baseline rules, not optional experiments:
+
+- one authoritative `activeLayout` at rest;
+- one ephemeral `transitionPlan` during a transition, then `null` again on completion;
+- semantic history is separate from geometry and must not depend on persistent reusable geometry snapshots;
+- collection and query changes share the same exchange choreography: departure → semantic handoff → arrival;
+- `returnContext` defines directional query ancestry, `Back` follows that ancestry, and query chains must not form reciprocal loops;
+- `Home` always returns to the root reservoir;
+- a direct single-result Query Reservoir uses the canonical viewport-relative focal anchor regardless of the global Distributed / Focused preference;
+- query filter ownership is context-local, so a fresh Query Reservoir starts at `All` unless its own context is being restored;
+- staying nodes remain stationary; leaving nodes sink; entering nodes emerge; failed filters produce the red reservoir response rather than mutating state;
+- direct artifact Query Reservoirs auto-select on arrival, but the artifact window still requires a second click to open;
+- preserved quaternion / zoom behavior continues through exchange, but no historical geometry-restoration hierarchy should be reintroduced.
 
 ---
 
@@ -179,12 +195,12 @@ V2.2  Scale-based zoom with simplified camera model
 V2.3  Continuous render-mesh-independent spherical node layout
 V2.4  Population-aware deterministic spacing and starting composition
 V2.5  COMPLETE  Active + Destination collection transition integration
-V2.6  Regression QA with artifacts, menu, footer, queries, and responsive behavior
+V2.6  COMPLETE  Query Reservoir closure baseline, documentation alignment, and regression QA
 ```
 
 Do not add semantic zoom, automatic relationship layout, or new product systems until this substrate is visually and technically validated.
 
-V2.5 is complete: the audited implementation already uses one semantic Active + Destination coordinator in the persistent centered frame. Collection-node entry, Home, Back, ancestor/path selection, and direct collection requests resolve semantic destinations through that shared transition path. Semantic navigation history stays independent from geometry; the current rendered quaternion is preserved through transitions; current zoom is preserved when valid for the destination; and destination zoom is clamped before emergence when required. Per-collection orientation snapshots remain an implementation detail of the existing distributed-mode restoration behavior and are not a separate physical-slot history model.
+The approved implementation already uses one authoritative `activeLayout` and one ephemeral `transitionPlan` per exchange in the persistent centered frame. Collection-node entry, Home, Back, ancestor/path selection, and direct collection requests resolve semantic destinations through the shared transition coordinator. Query Reservoir ancestry is directional through `returnContext`; query filters are context-local; direct single-result Query Reservoirs retain canonical focal placement regardless of the global Distributed / Focused preference; staying nodes remain stationary while leaving and entering nodes reconcile through the same choreography; direct results auto-select on arrival; and a second click is still required to open artifact content. Semantic navigation history is independent from geometry, and the implementation does not rely on a persistent reusable geometry-snapshot hierarchy.
 
 ### L1 Closeout
 
@@ -194,19 +210,17 @@ The sandbox production-build failure observed during the QA pass is recorded onl
 
 Local validation completed successfully and no confirmed L1 Blocker, Defect, or Serious Usability Failure remains open.
 
-### Next Authorized Increment
+### Closure Note
 
-`feat/query-reservoir-context`
+`feat/query-reservoir-context` is complete and closed for this phase.
 
-Scope should be limited to establishing Query Reservoir state and adapting the existing direct menu artifact retrieval behavior to use it.
+Query Reservoirs remain navigation state, not semantic collection records. They may hold 0, 1, or N results, and they preserve the distinction between collection context and query context.
 
-Query Reservoirs are navigation state, not semantic collection records. They may hold 0, 1, or N results, and they must preserve the distinction between collection context and query context.
-
-Do not implement full search, semantic retrieval, database systems, or broader filter architecture merely because Query Reservoir state now exists.
+Do not reintroduce full search, semantic retrieval, database systems, or broader filter architecture unless a later explicit task authorizes it.
 
 # 8. Current Prototype Goal
 
-The immediate goal is to replace the V1 camera/path-centric spatial substrate with a stable V2 reservoir model while preserving validated higher-level interaction behavior.
+The V2 camera/path-centric spatial substrate work is complete for this prototype cycle, and the approved baseline should be treated as the current reference implementation while preserving validated higher-level interaction behavior.
 
 Target model:
 
@@ -1355,7 +1369,7 @@ The adaptive inspectability and dynamic-labels MVP has these implementation rule
 V2.5 COMPLETE
 Active + Destination collection transitions are already implemented and validated in the persistent centered frame.
 
-V2.6
+V2.6 COMPLETE
 Run regression / density / responsive / performance QA across artifacts, queries, menu, footer, content-window interactions, and presentation-pattern surface legibility.
 ```
 
@@ -1373,4 +1387,4 @@ The foundation is ready when:
 - existing control-plane/menu/footer/query behavior remains coherent;
 - TypeScript, lint, build, and visual QA pass.
 
-Only after this should semantic zoom, production ingestion, or broader commercialization features be layered on top.
+These criteria are satisfied for the approved baseline. Future work should preserve them rather than reopening retired geometry or navigation models.
