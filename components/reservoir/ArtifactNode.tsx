@@ -48,7 +48,10 @@ import { ArtifactLabel } from "./ArtifactLabel";
 import { useReservoirNodeHover } from "./useReservoirNodeHover";
 
 type ArtifactNodeProps = {
-  artifact: Extract<ReservoirContentNode, { kind: "artifact" }>;
+  artifact: Extract<
+    ReservoirContentNode,
+    { kind: "artifact" | "resource" }
+  >;
   direction: ReservoirDirection;
   nodeRadius: number;
   selected: boolean;
@@ -80,7 +83,7 @@ type ArtifactNodeProps = {
   sphereRef: RefObject<THREE.Group | null>;
   reservoirFrame: ReservoirFrame;
   renderedZoomRef: MutableRefObject<number>;
-  onHoverChange: (artifactId: string, hovered: boolean) => void;
+  onHoverChange: (resourceId: string, hovered: boolean) => void;
   resolvePointerVisibility: ReservoirNodePointerVisibilityResolver;
 };
 
@@ -233,7 +236,7 @@ export function ArtifactNode({
       !resolvePointerVisibility({
         distance: event.distance,
         id: artifact.id,
-        kind: "artifact",
+        kind: artifact.kind,
         ray: event.ray,
         source,
       })
@@ -475,13 +478,19 @@ export function ArtifactNode({
       </mesh>
       <group
         ref={visualOrbRef}
-        userData={{ artifactId: artifact.id }}
+        userData={{
+          resourceId: artifact.id,
+          artifactId: artifact.kind === "artifact" ? artifact.id : undefined,
+          reservoirNodeKind: artifact.kind,
+        }}
         renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
       >
         <mesh
           renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
           userData={{
-            artifactId: artifact.id,
+            resourceId: artifact.id,
+            artifactId: artifact.kind === "artifact" ? artifact.id : undefined,
+            reservoirNodeKind: artifact.kind,
             [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "visible-mesh",
           }}
           onPointerEnter={(event) =>
@@ -503,7 +512,9 @@ export function ArtifactNode({
         </mesh>
         <mesh
           userData={{
-            artifactId: artifact.id,
+            resourceId: artifact.id,
+            artifactId: artifact.kind === "artifact" ? artifact.id : undefined,
+            reservoirNodeKind: artifact.kind,
             [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "hit-area",
           }}
           onPointerEnter={(event) =>

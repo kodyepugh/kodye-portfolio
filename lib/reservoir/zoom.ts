@@ -1,5 +1,8 @@
 import * as THREE from "three";
-import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import {
+  isReservoirInspectableResourceNode,
+  type ReservoirContentNode,
+} from "@/lib/content/reservoir-adapter";
 import { getReservoirNodeCenterRadius } from "@/lib/reservoir/node";
 import {
   RESERVOIR_ZOOM_BASELINE_MAX,
@@ -38,7 +41,11 @@ function getPresentKind(
   nodes: readonly ReservoirContentNode[],
   kind: "artifact" | "collection",
 ) {
-  return nodes.some((node) => node.kind === kind);
+  return nodes.some((node) =>
+    kind === "artifact"
+      ? isReservoirInspectableResourceNode(node)
+      : node.kind === kind,
+  );
 }
 
 function getWorldPositionAtCanonicalFront(

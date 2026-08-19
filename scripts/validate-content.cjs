@@ -37,9 +37,14 @@ const { contentRegistry } = require(path.join(
   projectRoot,
   "lib/content/registry.ts",
 ));
-const { getReservoirContentNodes } = require(path.join(
+const {
+  adaptResourceToReservoirContentNode,
+  getReservoirContentNodes,
+  getReservoirNodeSizingFamily,
+} = require(path.join(projectRoot, "lib/content/reservoir-adapter.ts"));
+const { getReservoirResourceSelectionAction } = require(path.join(
   projectRoot,
-  "lib/content/reservoir-adapter.ts",
+  "lib/reservoir/resource-selection.ts",
 ));
 const {
   getArtifactById,
@@ -64,6 +69,22 @@ const { assertValidContentRegistry } = require(path.join(
 ));
 
 const result = assertValidContentRegistry(contentRegistry);
+const syntheticPublishedResource = {
+  objectType: "resource",
+  id: "qa-resource-query-only",
+  slug: "qa-resource-query-only",
+  title: "Synthetic Query-only Resource",
+  type: "report",
+  inspectionKind: "structured-document",
+  isArtifact: false,
+  published: true,
+};
+const syntheticReservoirNode = adaptResourceToReservoirContentNode(
+  syntheticPublishedResource,
+);
+const allPersistentCollectionNodes = contentRegistry.collections.flatMap(
+  (collection) => getReservoirContentNodes(collection.id),
+);
 const checks = [
   ["root collection resolves", Boolean(getCollectionById(ROOT_COLLECTION_ID))],
   [
@@ -150,6 +171,45 @@ const checks = [
         node.id === ARTIFACT_IDS.bellabeat &&
         !("vertexId" in node),
     ),
+  ],
+  [
+    "persistent collection reservoirs remain artifact-gated",
+    allPersistentCollectionNodes.every(
+      (node) => node.kind === "collection" || node.isArtifact === true,
+    ) &&
+      !allPersistentCollectionNodes.some(
+        (node) => node.id === syntheticPublishedResource.id,
+      ),
+  ],
+  [
+    "published non-artifact resource adapts without membership",
+    syntheticReservoirNode.kind === "resource" &&
+      syntheticReservoirNode.isArtifact === false &&
+      syntheticReservoirNode.id === syntheticPublishedResource.id &&
+      !contentRegistry.memberships.some(
+        (membership) => membership.memberId === syntheticPublishedResource.id,
+      ),
+  ],
+  [
+    "non-artifact query node uses inspectable-resource sizing",
+    getReservoirNodeSizingFamily(syntheticReservoirNode) ===
+      "inspectable-resource",
+  ],
+  [
+    "non-artifact second selection defers Resource inspection",
+    getReservoirResourceSelectionAction(
+      syntheticReservoirNode,
+      syntheticReservoirNode.id,
+    ) === "resource-inspection-deferred",
+  ],
+  [
+    "artifact second selection preserves existing opening behavior",
+    getReservoirResourceSelectionAction(
+      adaptResourceToReservoirContentNode(
+        getArtifactById(ARTIFACT_IDS.about),
+      ),
+      ARTIFACT_IDS.about,
+    ) === "open-artifact",
   ],
 ];
 

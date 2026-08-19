@@ -108,7 +108,10 @@ type ArtifactLabelProps = Omit<
   ReservoirNodeLabelProps,
   "content" | "suppressed" | "userData"
 > & {
-  artifact: Extract<ReservoirContentNode, { kind: "artifact" }>;
+  artifact: Extract<
+    ReservoirContentNode,
+    { kind: "artifact" | "resource" }
+  >;
   selectionActive: boolean;
 };
 
@@ -956,8 +959,10 @@ export function ReservoirNodeLabel({
 
     if (diagnosticsRef?.current && hovered) {
       const nodeId =
-        typeof userData?.artifactId === "string"
-          ? userData.artifactId
+        typeof userData?.resourceId === "string"
+          ? userData.resourceId
+          : typeof userData?.artifactId === "string"
+            ? userData.artifactId
           : typeof userData?.collectionId === "string"
             ? userData.collectionId
             : "";
@@ -1072,7 +1077,11 @@ export function ArtifactLabel({
       content={content}
       nodeRadius={labelProps.nodeRadius}
       suppressed={selectionActive}
-      userData={{ artifactId: artifact.id }}
+      userData={{
+        resourceId: artifact.id,
+        artifactId: artifact.kind === "artifact" ? artifact.id : undefined,
+        reservoirNodeKind: artifact.kind,
+      }}
     />
   );
 }

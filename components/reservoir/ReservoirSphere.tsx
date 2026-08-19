@@ -32,7 +32,11 @@ import type { CollectionReconstitutionPhase } from "@/lib/reservoir/collection-e
 import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
 import type { Collection } from "@/types/content";
 import type { Artifact } from "@/types/content";
-import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import {
+  getReservoirNodeSizingFamily,
+  isReservoirInspectableResourceNode,
+  type ReservoirContentNode,
+} from "@/lib/content/reservoir-adapter";
 import {
   getNodeReactionArrival,
   getShockwaveStart,
@@ -66,9 +70,9 @@ type ReservoirSphereProps = {
   selectedMeshRetractionStarted: boolean;
   collectionActivityRevision?: number | null;
   surfaceRef?: RefObject<THREE.Mesh | null>;
-  selectedArtifactId: string | null;
+  selectedResourceId: string | null;
   selectedCollectionId: string | null;
-  hoveredArtifactId: string | null;
+  hoveredResourceId: string | null;
   interactionEnabled: boolean;
   isDragging: boolean;
   reservoirFrame: ReservoirFrame;
@@ -76,7 +80,7 @@ type ReservoirSphereProps = {
   selectedPressActive: boolean;
   surfacedNodeIds?: ReadonlySet<string>;
   filterVisibleNodeIds?: ReadonlySet<string>;
-  locatingArtifactId?: string | null;
+  locatingResourceId?: string | null;
   continuationCueEnabled: boolean;
   interactionRevisionRef: MutableRefObject<number>;
   diagnosticsRef: RefObject<HTMLDivElement | null>;
@@ -89,7 +93,7 @@ type ReservoirSphereProps = {
   restoring: boolean;
   restorationProgressRef: MutableRefObject<number>;
   emergingChildren: boolean;
-  onArtifactHoverChange: (artifactId: string, hovered: boolean) => void;
+  onResourceHoverChange: (resourceId: string, hovered: boolean) => void;
   resolvePointerVisibility: ReservoirNodePointerVisibilityResolver;
   queryActivityRevision?: number | null;
   queryActivityMode?: ReservoirQueryActivityMode | null;
@@ -112,9 +116,9 @@ export function ReservoirSphere({
   selectedMeshRetractionStarted,
   collectionActivityRevision = null,
   surfaceRef,
-  selectedArtifactId,
+  selectedResourceId,
   selectedCollectionId,
-  hoveredArtifactId,
+  hoveredResourceId,
   interactionEnabled,
   isDragging,
   reservoirFrame,
@@ -122,7 +126,7 @@ export function ReservoirSphere({
   selectedPressActive,
   surfacedNodeIds,
   filterVisibleNodeIds,
-  locatingArtifactId = null,
+  locatingResourceId = null,
   continuationCueEnabled,
   interactionRevisionRef,
   diagnosticsRef,
@@ -135,7 +139,7 @@ export function ReservoirSphere({
   restoring,
   restorationProgressRef,
   emergingChildren,
-  onArtifactHoverChange,
+  onResourceHoverChange,
   resolvePointerVisibility,
   queryActivityRevision = null,
   queryActivityMode = null,
@@ -204,7 +208,7 @@ export function ReservoirSphere({
     layoutModeTransitionState === "emerging";
   const layoutModeSwitchHidden =
     layoutModeTransitionState === "orienting";
-  const selectedNodeId = selectedArtifactId ?? selectedCollectionId;
+  const selectedNodeId = selectedResourceId ?? selectedCollectionId;
   const selectedNode = useMemo(
     () =>
       selectedNodeId
@@ -228,7 +232,7 @@ export function ReservoirSphere({
   );
   const selectedNodeRadius = useMemo(() => {
     if (!selectedNode) return 0;
-    return selectedNode.kind === "artifact"
+    return getReservoirNodeSizingFamily(selectedNode) === "inspectable-resource"
       ? nodeSizing.artifactRadius
       : nodeSizing.collectionRadius;
   }, [nodeSizing.artifactRadius, nodeSizing.collectionRadius, selectedNode]);
@@ -347,7 +351,7 @@ export function ReservoirSphere({
       surfaceSelectionPresentationRef.current;
     const selectionRetreatActive =
       selectedMeshRetractionStarted ||
-      (openingActive && openingArtifact?.id === selectedArtifactId);
+      (openingActive && openingArtifact?.id === selectedResourceId);
     const selectedCollectionIndex = selectedCollectionId
       ? activeNodes.findIndex((node) => node.id === selectedCollectionId)
       : -1;
@@ -421,7 +425,7 @@ export function ReservoirSphere({
     surfaceSelectionUniforms.current.selectedGlowVisibility.value =
       selectionPresentation.selectedGlowVisibility;
     surfaceSelectionUniforms.current.selectedShockwaveProgress.value =
-      openingActive && openingArtifact?.id === selectedArtifactId
+      openingActive && openingArtifact?.id === selectedResourceId
         ? Math.min(
             Math.max(
               (openingElapsedRef.current -
@@ -433,7 +437,7 @@ export function ReservoirSphere({
           )
         : 0;
     surfaceSelectionUniforms.current.selectedShockwaveActive.value =
-      openingActive && openingArtifact?.id === selectedArtifactId ? 1 : 0;
+      openingActive && openingArtifact?.id === selectedResourceId ? 1 : 0;
     const patternMaterial = surfacePatternMaterialRef.current;
     if (patternMaterial) {
       patternMaterial.uniforms.lineOpacity.value =
@@ -511,8 +515,8 @@ export function ReservoirSphere({
         const filterVisible = filterVisibleNodeIds?.has(node.id) ?? true;
         const surfaced =
           filterSurfaced ||
-          (node.kind === "artifact" && node.id === locatingArtifactId) ||
-          (node.kind === "artifact" && node.id === openingArtifact?.id);
+          (node.kind !== "collection" && node.id === locatingResourceId) ||
+          (node.kind !== "collection" && node.id === openingArtifact?.id);
         const reconstitutionSinking = reservoirExchangeDeactivating;
         const collectionNodeTransitionPhase = reservoirExchangeDeactivating
           ? "departure"
@@ -540,17 +544,17 @@ export function ReservoirSphere({
                   getShockwaveStart(openingReducedMotion),
                 );
 
-        return node.kind === "artifact" ? (
+        return isReservoirInspectableResourceNode(node) ? (
           <ArtifactNode
             key={node.id}
             artifact={node}
             direction={direction}
             nodeRadius={nodeSizing.artifactRadius}
             sphereRef={sphereRef}
-            selected={selectedArtifactId === node.id}
+            selected={selectedResourceId === node.id}
             meshEngaged={
               meshEngagementCurrent &&
-            selectedArtifactId === node.id &&
+            selectedResourceId === node.id &&
               meshEngagedNodeId === node.id
             }
             reservoirFrame={reservoirFrame}
@@ -563,14 +567,16 @@ export function ReservoirSphere({
               reservoirExchangeReactivating ||
               emergingChildren
             }
-            hovered={hoveredArtifactId === node.id}
+            hovered={hoveredResourceId === node.id}
             isDragging={isDragging}
             selectedPressActive={
-              selectedPressActive && selectedArtifactId === node.id
+              selectedPressActive && selectedResourceId === node.id
             }
             surfaced={surfaced}
             interactionEnabled={interactionEnabled && surfaced}
-            continuationCueEnabled={continuationCueEnabled}
+            continuationCueEnabled={
+              continuationCueEnabled && node.kind === "artifact"
+            }
             interactionRevisionRef={interactionRevisionRef}
             diagnosticsRef={diagnosticsRef}
             opening={nodeOpening}
@@ -590,7 +596,7 @@ export function ReservoirSphere({
             collectionTransitionProgressRef={reservoirExchangeProgressRef}
             collectionTransitionOrder={nodeIndex}
             collectionTransitionChildCount={activeNodes.length}
-            onHoverChange={onArtifactHoverChange}
+            onHoverChange={onResourceHoverChange}
             resolvePointerVisibility={resolvePointerVisibility}
           />
         ) : (

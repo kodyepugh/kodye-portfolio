@@ -1,9 +1,32 @@
-import { getArtifactById, getCollectionById, getPublishedCollectionMembers } from "./selectors";
-import type { ResourceType } from "../../types/content";
+import {
+  getArtifactById,
+  getCollectionById,
+  getPublishedCollectionMembers,
+  getResourceById,
+} from "./selectors";
+import type { Resource, ResourceType } from "../../types/content";
 
 export type ReservoirContentNode =
   | {
       kind: "artifact";
+      isArtifact: true;
+      id: string;
+      membershipId?: string;
+      order?: number;
+      title: string;
+      subtitle?: string;
+      type: ResourceType;
+      typeLabel: string;
+      icon?: string;
+      category?: string;
+      categoryColor?: string;
+      date?: string;
+      medium?: string;
+      format?: string;
+    }
+  | {
+      kind: "resource";
+      isArtifact: false;
       id: string;
       membershipId?: string;
       order?: number;
@@ -30,11 +53,50 @@ export type ReservoirContentNode =
       categoryColor?: string;
     };
 
+export type ReservoirInspectableResourceNode = Extract<
+  ReservoirContentNode,
+  { kind: "artifact" | "resource" }
+>;
+
+export function isReservoirInspectableResourceNode(
+  node: ReservoirContentNode,
+): node is ReservoirInspectableResourceNode {
+  return node.kind !== "collection";
+}
+
+export function getReservoirNodeSizingFamily(node: ReservoirContentNode) {
+  return isReservoirInspectableResourceNode(node)
+    ? ("inspectable-resource" as const)
+    : ("collection" as const);
+}
+
 function getTypeLabel(type: ResourceType) {
   return type
     .split("-")
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+}
+
+export function adaptResourceToReservoirContentNode(
+  resource: Resource,
+): ReservoirInspectableResourceNode {
+  const metadata = {
+    id: resource.id,
+    title: resource.title,
+    subtitle: resource.subtitle,
+    type: resource.type,
+    typeLabel: getTypeLabel(resource.type),
+    icon: resource.icon,
+    category: resource.category,
+    categoryColor: resource.categoryColor,
+    date: resource.date,
+    medium: resource.medium,
+    format: resource.format,
+  };
+
+  return resource.isArtifact
+    ? { kind: "artifact", isArtifact: true, ...metadata }
+    : { kind: "resource", isArtifact: false, ...metadata };
 }
 
 export function getReservoirContentNodes(
@@ -44,20 +106,9 @@ export function getReservoirContentNodes(
     if (member.kind === "artifact") {
       const { artifact, membership } = member;
       return {
-        kind: "artifact",
-        id: artifact.id,
+        ...adaptResourceToReservoirContentNode(artifact),
         membershipId: membership.id,
         order: membership.order,
-        title: artifact.title,
-        subtitle: artifact.subtitle,
-        type: artifact.type,
-        typeLabel: getTypeLabel(artifact.type),
-        icon: artifact.icon,
-        category: artifact.category,
-        categoryColor: artifact.categoryColor,
-        date: artifact.date,
-        medium: artifact.medium,
-        format: artifact.format,
       };
     }
 
@@ -79,22 +130,9 @@ export function getReservoirContentNodes(
 export function getReservoirContentNodeBySemanticId(
   nodeId: string,
 ): ReservoirContentNode | null {
-  const artifact = getArtifactById(nodeId);
-  if (artifact?.published === true) {
-    return {
-      kind: "artifact",
-      id: artifact.id,
-      title: artifact.title,
-      subtitle: artifact.subtitle,
-      type: artifact.type,
-      typeLabel: getTypeLabel(artifact.type),
-      icon: artifact.icon,
-      category: artifact.category,
-      categoryColor: artifact.categoryColor,
-      date: artifact.date,
-      medium: artifact.medium,
-      format: artifact.format,
-    };
+  const resource = getResourceById(nodeId);
+  if (resource?.published === true) {
+    return adaptResourceToReservoirContentNode(resource);
   }
 
   const collection = getCollectionById(nodeId);
@@ -133,20 +171,7 @@ export function getReservoirArtifactNodeById(artifactId: string) {
   const artifact = getArtifactById(artifactId);
   if (!artifact || artifact.published !== true) return null;
 
-  return {
-    kind: "artifact" as const,
-    id: artifact.id,
-    title: artifact.title,
-    subtitle: artifact.subtitle,
-    type: artifact.type,
-    typeLabel: getTypeLabel(artifact.type),
-    icon: artifact.icon,
-    category: artifact.category,
-    categoryColor: artifact.categoryColor,
-    date: artifact.date,
-    medium: artifact.medium,
-    format: artifact.format,
-  };
+  return adaptResourceToReservoirContentNode(artifact);
 }
 
 export function getReservoirCollectionNodeById(collectionId: string) {

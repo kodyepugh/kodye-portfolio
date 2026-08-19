@@ -1,7 +1,7 @@
 import type { Ref } from "react";
-import type { Artifact } from "@/types/content";
+import type { Resource } from "@/types/content";
 import type { Collection } from "@/types/content";
-import { getArtifactAtmosphereMetadata } from "@/lib/content/selectors";
+import { getResourceAtmosphereMetadata } from "@/lib/content/selectors";
 
 function getTypeLabel(type: string) {
   return type
@@ -12,18 +12,18 @@ function getTypeLabel(type: string) {
 
 type AtmosphereContentProps = {
   containerRef?: Ref<HTMLElement>;
-  selectedArtifact: Artifact | null;
+  selectedResource: Resource | null;
   selectedCollection: Collection | null;
   activeCollection: Collection;
 };
 
 export function AtmosphereContent({
   containerRef,
-  selectedArtifact,
+  selectedResource,
   selectedCollection,
   activeCollection,
 }: AtmosphereContentProps) {
-  if (!selectedArtifact && !selectedCollection) {
+  if (!selectedResource && !selectedCollection) {
     return (
       <header
         ref={containerRef}
@@ -36,28 +36,28 @@ export function AtmosphereContent({
     );
   }
 
-  const selectedMetadata = selectedArtifact
-    ? getArtifactAtmosphereMetadata(
-        selectedArtifact.id,
+  const selectedMetadata = selectedResource
+    ? getResourceAtmosphereMetadata(
+        selectedResource.id,
         selectedCollection?.id,
       )
     : null;
-  const selectedNode = selectedArtifact ?? selectedCollection;
+  const selectedNode = selectedResource ?? selectedCollection;
   if (!selectedNode) return null;
-  const selectedType = selectedArtifact
-    ? getTypeLabel(selectedArtifact.type)
+  const selectedType = selectedResource
+    ? getTypeLabel(selectedResource.type)
     : "Collection";
   const selectedSubtitle =
     selectedMetadata?.subtitle ?? selectedNode.subtitle ?? selectedCollection?.description;
   const metadata = [
     { label: "Date", value: selectedMetadata?.date },
     {
-      label: selectedArtifact ? "Context" : "Lens",
+      label: selectedResource ? "Context" : "Lens",
       value: selectedMetadata?.category ?? selectedCollection?.category,
     },
     {
-      label: selectedArtifact ? "Medium" : "Contents",
-      value: selectedArtifact?.medium ?? selectedCollection?.description,
+      label: selectedResource ? "Medium" : "Contents",
+      value: selectedResource?.medium ?? selectedCollection?.description,
     },
     {
       label: "Collection",
@@ -71,7 +71,7 @@ export function AtmosphereContent({
   return (
     <section
       ref={containerRef}
-      key={`${selectedArtifact ? "artifact" : "collection"}-${selectedNode.id}`}
+      key={`${selectedResource ? "resource" : "collection"}-${selectedNode.id}`}
       className="atmosphere-content atmosphere-content--artifact"
       aria-live="polite"
       aria-atomic="true"

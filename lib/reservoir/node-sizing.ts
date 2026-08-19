@@ -5,7 +5,7 @@ import {
 } from "@/lib/reservoir/geometry";
 import type { ReservoirLayout } from "@/lib/reservoir/layout";
 
-export type ReservoirNodeKind = "artifact" | "collection";
+export type ReservoirNodeKind = "artifact" | "resource" | "collection";
 
 export const RESERVOIR_NODE_SIZING_REFERENCE_POPULATION = 24;
 export const RESERVOIR_NODE_CLEARANCE_RATIO = 0.6;

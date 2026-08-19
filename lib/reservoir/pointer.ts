@@ -5,7 +5,7 @@ export type ReservoirPointerCandidateSource = "visible-mesh" | "hit-area";
 export type ReservoirPointerCandidate = {
   distance: number;
   id: string;
-  kind: "artifact" | "collection";
+  kind: "artifact" | "resource" | "collection";
   source: ReservoirPointerCandidateSource;
 };
 
