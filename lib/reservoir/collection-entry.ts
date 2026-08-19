@@ -19,6 +19,8 @@ export const COLLECTION_RECONSTITUTION_TIMING = {
   destinationNodesSettled: 1,
 } as const;
 
+const COLLECTION_RECONSTITUTION_HANDOFF_LEAD = 0.06;
+
 function clamp01(value: number) {
   return Math.min(Math.max(value, 0), 1);
 }
@@ -42,6 +44,16 @@ function getCollectionTwinkleEnvelope(progress: number) {
   return 1 - smoothstep01((progress - settledStart) / (1 - settledStart));
 }
 
+function getCollectionReactivationProgress(progress: number) {
+  return smoothstep01(
+    (progress - COLLECTION_RECONSTITUTION_TIMING.handoff +
+      COLLECTION_RECONSTITUTION_HANDOFF_LEAD) /
+      (1 -
+        COLLECTION_RECONSTITUTION_TIMING.handoff +
+        COLLECTION_RECONSTITUTION_HANDOFF_LEAD),
+  );
+}
+
 export function getCollectionReconstitutionDuration(reducedMotion: boolean) {
   return reducedMotion
     ? COLLECTION_RECONSTITUTION_TIMING.reducedMotionDuration
@@ -52,9 +64,7 @@ export function getCollectionReconstitutionFrame(progress: number) {
   const normalized = clamp01(progress);
   const handoff = COLLECTION_RECONSTITUTION_TIMING.handoff;
   const deactivationProgress = smoothstep01(normalized / handoff);
-  const reactivationProgress = smoothstep01(
-    (normalized - handoff) / (1 - handoff),
-  );
+  const reactivationProgress = getCollectionReactivationProgress(normalized);
   const twinkleEnvelope = getCollectionTwinkleEnvelope(normalized);
 
   return {
@@ -81,7 +91,7 @@ export function getCollectionNodeTransitionProgress(
   const handoff = COLLECTION_RECONSTITUTION_TIMING.handoff;
   const phaseProgress = phase === "departure"
     ? clamp01(progress / handoff)
-    : clamp01((progress - handoff) / (1 - handoff));
+    : getCollectionReactivationProgress(progress);
   const stagger = childCount > 1
     ? (Math.min(Math.max(order, 0), childCount - 1) / (childCount - 1)) *
       COLLECTION_RECONSTITUTION_TIMING.nodeStagger

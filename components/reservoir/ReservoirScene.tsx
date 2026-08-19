@@ -188,7 +188,6 @@ const DIRECT_ARTIFACT_TARGETS = new Map<Exclude<DirectArtifactId, "contact">, st
 ]);
 
 type QueryReservoirSelectionSnapshot = {
-  activeExploreFilter: ActiveExploreFilter;
   hoveredArtifactId: string | null;
   selectedArtifactId: string | null;
   selectedCollectionId: string | null;
@@ -218,6 +217,14 @@ function getReservoirContextNodes(context: ReservoirContext) {
   return context.kind === "collection"
     ? getReservoirContentNodes(context.collectionId)
     : getReservoirContentNodesBySemanticIds(context.resultIds);
+}
+
+function getReservoirLayoutPlacementPolicy(
+  context: ReservoirContext,
+): ReservoirLayoutPlacementPolicy {
+  return context.kind === "query" && context.resultIds.length === 1
+    ? "canonical-focal-single-result"
+    : "normal";
 }
 
 function canNavigateBackFromQueryContext(
@@ -627,16 +634,15 @@ function prepareReservoirLayoutState({
   mode,
   surface,
   camera,
-  placementPolicy = "normal",
 }: {
   context: ReservoirContext;
   mode: ReservoirLayoutMode;
   surface: THREE.Object3D | null;
   camera: THREE.Camera | null;
-  placementPolicy?: ReservoirLayoutPlacementPolicy;
 }): PreparedReservoirLayoutState | null {
   const nodes = getReservoirContextNodes(context);
   const nodeSizingTargets = getReservoirNodeSizingTargets(nodes.length);
+  const placementPolicy = getReservoirLayoutPlacementPolicy(context);
   const nodeDiameters = getReservoirNodeDiameters(
     nodes,
     nodeSizingTargets.desiredArtifactDiameter,
@@ -1042,8 +1048,28 @@ export function ReservoirScene() {
   const queryReservoirTransitionProgressRef = useRef(0);
   const queryReservoirTransitionPhaseRef =
     useRef<CollectionReconstitutionPhase>("idle");
+  const reservoirExploreFilterByContextKeyRef = useRef(
+    new Map<string, ActiveExploreFilter>(),
+  );
   const queryReservoirSnapshotByContextKeyRef = useRef(
     new Map<string, QueryReservoirSelectionSnapshot>(),
+  );
+  const restoreReservoirFilterForContext = useCallback(
+    (context: ReservoirContext) => {
+      const contextKey = getReservoirContextKey(context);
+      const restoredFilter =
+        reservoirExploreFilterByContextKeyRef.current.get(contextKey) ?? "all";
+      reservoirExploreFilterByContextKeyRef.current.set(
+        contextKey,
+        restoredFilter,
+      );
+      setActiveExploreFilter(restoredFilter);
+      setQueryVisibleNodeIds(
+        getExploreNodeIds(getReservoirContextNodes(context), restoredFilter),
+      );
+      return restoredFilter;
+    },
+    [],
   );
   const reservoirTransformRef = useRef<THREE.Group | null>(null);
   const sphereRotationRef = useRef<THREE.Group | null>(null);
@@ -1670,18 +1696,14 @@ export function ReservoirScene() {
         const resolution = pendingCollectionResolutionRef.current;
         setQueryReservoirContext(null);
         setQueryReservoirTransitionContext(null);
-        setQueryVisibleNodeIds(
-          new Set(
-            getReservoirContentNodes(destinationCollectionId).map(
-              (node) => node.id,
-            ),
-          ),
-        );
+        restoreReservoirFilterForContext({
+          kind: "collection",
+          collectionId: destinationCollectionId,
+        });
         setQueryReconciliation(null);
         setQueryActivityRevision(null);
         setQueryActivityMode(null);
         setRejectedExploreFilter(null);
-        setActiveExploreFilter("all");
         if (resolution) setCollectionHistory(resolution.history);
         setSelectedArtifactId(null);
         setSelectedCollectionId(null);
@@ -1752,6 +1774,7 @@ export function ReservoirScene() {
     collectionNavigation.destinationCollectionId,
     promoteReservoirTransitionDestination,
     reducedMotion,
+    restoreReservoirFilterForContext,
     transitionState,
   ]);
 
@@ -1760,22 +1783,24 @@ export function ReservoirScene() {
       queryReservoirTransitionPhase;
   }, [queryReservoirTransitionPhase]);
 
-  function persistQueryReservoirSnapshot() {
-    const currentContext = queryReservoirContext;
-    if (!currentContext || currentContext.kind !== "query") {
+  function persistReservoirPresentationForCurrentContext() {
+    const currentContext = queryReservoirContext ?? collectionReservoirContext;
+    const contextKey = getReservoirContextKey(currentContext);
+
+    reservoirExploreFilterByContextKeyRef.current.set(
+      contextKey,
+      activeExploreFilterRef.current,
+    );
+    if (currentContext.kind !== "query") {
       return;
     }
 
-    queryReservoirSnapshotByContextKeyRef.current.set(
-      getReservoirContextKey(currentContext),
-      {
-        activeExploreFilter: activeExploreFilterRef.current,
-        hoveredArtifactId: hoveredArtifactIdRef.current,
-        selectedArtifactId: selectedArtifactIdRef.current,
-        selectedCollectionId: selectedCollectionIdRef.current,
-        selectedPressActive: selectedPressActiveRef.current,
-      },
-    );
+    queryReservoirSnapshotByContextKeyRef.current.set(contextKey, {
+      hoveredArtifactId: hoveredArtifactIdRef.current,
+      selectedArtifactId: selectedArtifactIdRef.current,
+      selectedCollectionId: selectedCollectionIdRef.current,
+      selectedPressActive: selectedPressActiveRef.current,
+    });
   }
 
   const restoreQueryReservoirSnapshotForContext = useCallback(
@@ -1787,7 +1812,6 @@ export function ReservoirScene() {
       );
       if (!snapshot) return;
 
-      setActiveExploreFilter(snapshot.activeExploreFilter);
       setHoveredArtifactId(snapshot.hoveredArtifactId);
       if (
         snapshot.selectedArtifactId !== null ||
@@ -1797,12 +1821,6 @@ export function ReservoirScene() {
         setSelectedCollectionId(snapshot.selectedCollectionId);
       }
       setSelectedPressActive(snapshot.selectedPressActive);
-      setQueryVisibleNodeIds(
-        getExploreNodeIds(
-          getReservoirContextNodes(context),
-          snapshot.activeExploreFilter,
-        ),
-      );
     },
     [],
   );
@@ -1810,16 +1828,12 @@ export function ReservoirScene() {
   const settleQueryReservoirContext = useCallback((context: ReservoirContext) => {
     setQueryReservoirContext(context.kind === "query" ? context : null);
     setQueryReservoirTransitionContext(null);
-    setQueryVisibleNodeIds(
-      new Set(
-        getReservoirContextNodes(context).map((node) => node.id),
-      ),
-    );
+    restoreReservoirFilterForContext(context);
     setQueryReconciliation(null);
     setQueryActivityRevision(null);
     setQueryActivityMode(null);
     setRejectedExploreFilter(null);
-  }, []);
+  }, [restoreReservoirFilterForContext]);
 
   const completeQueryTransition = useCallback(() => {
     const transitionContext = queryReservoirTransitionContext;
@@ -1893,11 +1907,7 @@ export function ReservoirScene() {
         }
         setQueryReservoirContext(destinationContext);
         setQueryReservoirTransitionPhase("reactivating");
-        setQueryVisibleNodeIds(
-          new Set(
-            getReservoirContextNodes(destinationContext).map((node) => node.id),
-          ),
-        );
+        restoreReservoirFilterForContext(destinationContext);
       }
 
       if (interaction.current) {
@@ -1934,6 +1944,7 @@ export function ReservoirScene() {
     completeQueryTransition,
     queryReservoirTransitionContext,
     reducedMotion,
+    restoreReservoirFilterForContext,
   ]);
 
   useEffect(() => {
@@ -2647,7 +2658,7 @@ export function ReservoirScene() {
       return;
     }
 
-    persistQueryReservoirSnapshot();
+    persistReservoirPresentationForCurrentContext();
     const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
       preparedDestination.nodes,
       preparedDestination.layoutState.nodeSizing,
@@ -2708,7 +2719,7 @@ export function ReservoirScene() {
       history: collectionHistory.slice(0, targetHistoryIndex + 1),
       spatialSelectionId: null,
     };
-    persistQueryReservoirSnapshot();
+    persistReservoirPresentationForCurrentContext();
     requestCollection(targetCollectionId);
   }
 
@@ -3014,11 +3025,6 @@ export function ReservoirScene() {
       mode: layoutOwnership.activeLayout.mode,
       surface: surfaceRef.current,
       camera: cameraRef.current,
-      placementPolicy:
-        destinationContext.kind === "query" &&
-        destinationContext.resultIds.length === 1
-          ? "canonical-focal-single-result"
-          : "normal",
     });
     if (!preparedDestination) return false;
     if (
@@ -3039,7 +3045,7 @@ export function ReservoirScene() {
       return false;
     }
 
-    persistQueryReservoirSnapshot();
+    persistReservoirPresentationForCurrentContext();
     const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
       preparedDestination.nodes,
       preparedDestination.layoutState.nodeSizing,
