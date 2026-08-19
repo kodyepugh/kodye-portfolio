@@ -157,6 +157,17 @@ type QueryReconciliation = {
 
 type QueryActivityMode = "success" | "empty";
 
+type ReservoirLayoutPlacementPolicy =
+  | "normal"
+  | "canonical-focal-single-result";
+
+type QueryPlacementDiagnostics = {
+  policy: ReservoirLayoutPlacementPolicy;
+  resultCount: number;
+  canonicalFocalDirection: ReservoirDirection | null;
+  canonicalFocalErrorDegrees: number;
+};
+
 const SEMANTIC_EXPLORE_LENSES = new Map<string, readonly ActiveExploreFilter[]>([
   [ROOT_COLLECTION_ID, ["collections", "inquiry"]],
   ["collection-work", ["work", "inquiry"]],
@@ -192,7 +203,7 @@ function getReservoirContextCollectionId(context: ReservoirContext) {
 function getReservoirContextSeed(context: ReservoirContext) {
   return context.kind === "collection"
     ? context.collectionId
-    : `query:${context.resultIds.join(",")}`;
+    : `query:${context.resultIds.join(",")}|return=${getReservoirContextKey(context.returnContext)}`;
 }
 
 function getReservoirContextKey(context: ReservoirContext): string {
@@ -207,6 +218,13 @@ function getReservoirContextNodes(context: ReservoirContext) {
   return context.kind === "collection"
     ? getReservoirContentNodes(context.collectionId)
     : getReservoirContentNodesBySemanticIds(context.resultIds);
+}
+
+function canNavigateBackFromQueryContext(
+  context: Extract<ReservoirContext, { kind: "query" }>,
+) {
+  if (context.returnContext.kind === "query") return true;
+  return context.returnContext.collectionId !== ROOT_COLLECTION_ID;
 }
 
 function getExploreNodeIds(
@@ -300,6 +318,8 @@ type ReservoirLayoutState = {
   directions: ReservoirLayout;
   nodeSizing: ReturnType<typeof getReservoirNodeSizingSnapshot>;
   focusedDirection: ReservoirDirection | null;
+  placementPolicy: ReservoirLayoutPlacementPolicy;
+  queryPlacementDiagnostics: QueryPlacementDiagnostics | null;
 };
 
 type ReservoirTransitionPlan = {
@@ -599,6 +619,7 @@ type PreparedReservoirLayoutState = {
   layoutState: ReservoirLayoutState;
   nodes: readonly ReservoirContentNode[];
   focalDiagnostics: LayoutModeFocalDiagnostics | null;
+  queryPlacementDiagnostics: QueryPlacementDiagnostics | null;
 };
 
 function prepareReservoirLayoutState({
@@ -606,11 +627,13 @@ function prepareReservoirLayoutState({
   mode,
   surface,
   camera,
+  placementPolicy = "normal",
 }: {
   context: ReservoirContext;
   mode: ReservoirLayoutMode;
   surface: THREE.Object3D | null;
   camera: THREE.Camera | null;
+  placementPolicy?: ReservoirLayoutPlacementPolicy;
 }): PreparedReservoirLayoutState | null {
   const nodes = getReservoirContextNodes(context);
   const nodeSizingTargets = getReservoirNodeSizingTargets(nodes.length);
@@ -622,17 +645,37 @@ function prepareReservoirLayoutState({
 
   let focusedDirection: ReservoirDirection | null = null;
   let focalDiagnostics: LayoutModeFocalDiagnostics | null = null;
-  if (mode === "focused") {
+  let queryPlacementDiagnostics: QueryPlacementDiagnostics | null = null;
+  const canonicalSingleResultPlacement =
+    context.kind === "query" &&
+    context.resultIds.length === 1 &&
+    placementPolicy === "canonical-focal-single-result";
+  if (mode === "focused" || canonicalSingleResultPlacement) {
     if (!surface || !camera) return null;
     focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
-    focusedDirection = focalDiagnostics.targetLocal;
+    focusedDirection =
+      mode === "focused" ? focalDiagnostics.targetLocal : null;
+    if (canonicalSingleResultPlacement) {
+      queryPlacementDiagnostics = {
+        policy: placementPolicy,
+        resultCount: nodes.length,
+        canonicalFocalDirection: focalDiagnostics.targetLocal,
+        canonicalFocalErrorDegrees: 0,
+      };
+    }
   }
 
   const directions = generateReservoirLayout(nodes, {
     seed: getReservoirContextSeed(context),
-    mode,
-    focusedDirection:
-      mode === "focused" ? focusedDirection ?? undefined : undefined,
+    mode:
+      canonicalSingleResultPlacement || mode === "focused"
+        ? "focused"
+        : mode,
+    focusedDirection: canonicalSingleResultPlacement
+      ? focalDiagnostics?.targetLocal ?? undefined
+      : mode === "focused"
+        ? focusedDirection ?? undefined
+        : undefined,
     minimumNodeDiameter:
       mode === "focused"
         ? Math.max(
@@ -647,6 +690,24 @@ function prepareReservoirLayoutState({
       focalDiagnostics,
       directions,
     );
+    if (queryPlacementDiagnostics) {
+      const firstDirection = directions.values().next().value as
+        | ReservoirDirection
+        | undefined;
+      queryPlacementDiagnostics = {
+        ...queryPlacementDiagnostics,
+        canonicalFocalErrorDegrees: firstDirection
+          ? THREE.MathUtils.radToDeg(
+              getReservoirDirectionAngularDistance(
+                firstDirection,
+                queryPlacementDiagnostics.canonicalFocalDirection ?? [
+                  0, 1, 0,
+                ],
+              ),
+            )
+          : 0,
+      };
+    }
   }
 
   return {
@@ -660,9 +721,12 @@ function prepareReservoirLayoutState({
         nodeDiameters,
       ),
       focusedDirection,
+      placementPolicy,
+      queryPlacementDiagnostics,
     },
     nodes,
     focalDiagnostics,
+    queryPlacementDiagnostics,
   };
 }
 
@@ -964,6 +1028,11 @@ export function ReservoirScene() {
   const atmosphereRef = useRef<HTMLElement | null>(null);
   const drag = useRef<DragState | null>(null);
   const queryRevisionRef = useRef(0);
+  const activeExploreFilterRef = useRef(activeExploreFilter);
+  const hoveredArtifactIdRef = useRef(hoveredArtifactId);
+  const selectedArtifactIdRef = useRef(selectedArtifactId);
+  const selectedCollectionIdRef = useRef(selectedCollectionId);
+  const selectedPressActiveRef = useRef(selectedPressActive);
   const layoutModeTransitionProgressRef = useRef(0);
   const layoutModeTransitionElapsedRef = useRef(0);
   const layoutModeViewResetProgressRef = useRef(0);
@@ -973,6 +1042,9 @@ export function ReservoirScene() {
   const queryReservoirTransitionProgressRef = useRef(0);
   const queryReservoirTransitionPhaseRef =
     useRef<CollectionReconstitutionPhase>("idle");
+  const queryReservoirSnapshotByContextKeyRef = useRef(
+    new Map<string, QueryReservoirSelectionSnapshot>(),
+  );
   const reservoirTransformRef = useRef<THREE.Group | null>(null);
   const sphereRotationRef = useRef<THREE.Group | null>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
@@ -989,8 +1061,6 @@ export function ReservoirScene() {
   const openingElapsedRef = useRef(0);
   const collectionReconstitutionProgressRef = useRef(0);
   const collectionEmergenceProgressRef = useRef(1);
-  const queryReservoirSnapshotRef =
-    useRef<QueryReservoirSelectionSnapshot | null>(null);
   const pendingCollectionResolutionRef =
     useRef<PendingCollectionResolution | null>(null);
   const collectionTransitionPoseSnapshotRef =
@@ -1424,27 +1494,36 @@ export function ReservoirScene() {
   }, [reservoirZoomMaximum, setReservoirZoom]);
 
   const surfacedNodeIds = useMemo(() => {
-    if (
-      queryReservoirTransitionContext &&
-      queryReservoirTransitionPhase === "deactivating"
-    ) {
-      return getExploreNodeIds(activeReservoirNodes, activeExploreFilter);
-    }
     if (queryReservoirContext || queryReservoirTransitionContext) {
-      return new Set(activeReservoirNodes.map((node) => node.id));
+      return queryVisibleNodeIds;
     }
     return getExploreNodeIds(activeReservoirNodes, activeExploreFilter);
   }, [
     activeExploreFilter,
     activeReservoirNodes,
+    queryVisibleNodeIds,
     queryReservoirContext,
     queryReservoirTransitionContext,
-    queryReservoirTransitionPhase,
   ]);
   const surfacedNodeIdsRef = useRef(surfacedNodeIds);
   useEffect(() => {
     surfacedNodeIdsRef.current = surfacedNodeIds;
   }, [surfacedNodeIds]);
+  useEffect(() => {
+    activeExploreFilterRef.current = activeExploreFilter;
+  }, [activeExploreFilter]);
+  useEffect(() => {
+    hoveredArtifactIdRef.current = hoveredArtifactId;
+  }, [hoveredArtifactId]);
+  useEffect(() => {
+    selectedArtifactIdRef.current = selectedArtifactId;
+  }, [selectedArtifactId]);
+  useEffect(() => {
+    selectedCollectionIdRef.current = selectedCollectionId;
+  }, [selectedCollectionId]);
+  useEffect(() => {
+    selectedPressActiveRef.current = selectedPressActive;
+  }, [selectedPressActive]);
   useEffect(() => {
     queryReconciliationRef.current = queryReconciliation;
   }, [queryReconciliation]);
@@ -1516,6 +1595,14 @@ export function ReservoirScene() {
     inputLocked || collectionNavigation.transitionPhase !== "idle";
   const secondaryControlsDimmed =
     collectionContextTransition || layoutModeTransitionActive;
+  const navigationContext =
+    queryReservoirContext ?? queryReservoirTransitionContext;
+  const showHomeNavigation =
+    navigationContext?.kind === "query" || collectionHistory.length > 1;
+  const showBackNavigation =
+    navigationContext?.kind === "query"
+      ? canNavigateBackFromQueryContext(navigationContext)
+      : collectionHistory.length >= 3;
 
   useEffect(() => {
     if (
@@ -1581,7 +1668,6 @@ export function ReservoirScene() {
       if (!handoffCommitted && progress >= 0.5) {
         handoffCommitted = true;
         const resolution = pendingCollectionResolutionRef.current;
-        queryReservoirSnapshotRef.current = null;
         setQueryReservoirContext(null);
         setQueryReservoirTransitionContext(null);
         setQueryVisibleNodeIds(
@@ -1674,27 +1760,66 @@ export function ReservoirScene() {
       queryReservoirTransitionPhase;
   }, [queryReservoirTransitionPhase]);
 
-  const settleQueryReservoirContext = useCallback(
+  function persistQueryReservoirSnapshot() {
+    const currentContext = queryReservoirContext;
+    if (!currentContext || currentContext.kind !== "query") {
+      return;
+    }
+
+    queryReservoirSnapshotByContextKeyRef.current.set(
+      getReservoirContextKey(currentContext),
+      {
+        activeExploreFilter: activeExploreFilterRef.current,
+        hoveredArtifactId: hoveredArtifactIdRef.current,
+        selectedArtifactId: selectedArtifactIdRef.current,
+        selectedCollectionId: selectedCollectionIdRef.current,
+        selectedPressActive: selectedPressActiveRef.current,
+      },
+    );
+  }
+
+  const restoreQueryReservoirSnapshotForContext = useCallback(
     (context: ReservoirContext) => {
-      if (context.kind === "collection") {
-        queryReservoirSnapshotRef.current = null;
-      }
-      setQueryReservoirContext(
-        context.kind === "query" ? context : null,
+      if (context.kind !== "query") return;
+
+      const snapshot = queryReservoirSnapshotByContextKeyRef.current.get(
+        getReservoirContextKey(context),
       );
-      setQueryReservoirTransitionContext(null);
+      if (!snapshot) return;
+
+      setActiveExploreFilter(snapshot.activeExploreFilter);
+      setHoveredArtifactId(snapshot.hoveredArtifactId);
+      if (
+        snapshot.selectedArtifactId !== null ||
+        snapshot.selectedCollectionId !== null
+      ) {
+        setSelectedArtifactId(snapshot.selectedArtifactId);
+        setSelectedCollectionId(snapshot.selectedCollectionId);
+      }
+      setSelectedPressActive(snapshot.selectedPressActive);
       setQueryVisibleNodeIds(
-        new Set(
-          getReservoirContextNodes(context).map((node) => node.id),
+        getExploreNodeIds(
+          getReservoirContextNodes(context),
+          snapshot.activeExploreFilter,
         ),
       );
-      setQueryReconciliation(null);
-      setQueryActivityRevision(null);
-      setQueryActivityMode(null);
-      setRejectedExploreFilter(null);
     },
     [],
   );
+
+  const settleQueryReservoirContext = useCallback((context: ReservoirContext) => {
+    setQueryReservoirContext(context.kind === "query" ? context : null);
+    setQueryReservoirTransitionContext(null);
+    setQueryVisibleNodeIds(
+      new Set(
+        getReservoirContextNodes(context).map((node) => node.id),
+      ),
+    );
+    setQueryReconciliation(null);
+    setQueryActivityRevision(null);
+    setQueryActivityMode(null);
+    setRejectedExploreFilter(null);
+  }, []);
 
   const completeQueryTransition = useCallback(() => {
     const transitionContext = queryReservoirTransitionContext;
@@ -1709,6 +1834,7 @@ export function ReservoirScene() {
         setSelectedPressActive(false);
         setHoveredArtifactId(null);
         setLocatingArtifactId(null);
+        restoreQueryReservoirSnapshotForContext(transitionContext);
       }
       setQueryReservoirTransitionPhase("idle");
       queryReservoirTransitionProgressRef.current = 0;
@@ -1734,6 +1860,7 @@ export function ReservoirScene() {
     queryActivityMode,
     queryReservoirTransitionContext,
     settleQueryReservoirContext,
+    restoreQueryReservoirSnapshotForContext,
   ]);
 
   useEffect(() => {
@@ -2520,6 +2647,7 @@ export function ReservoirScene() {
       return;
     }
 
+    persistQueryReservoirSnapshot();
     const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
       preparedDestination.nodes,
       preparedDestination.layoutState.nodeSizing,
@@ -2580,7 +2708,7 @@ export function ReservoirScene() {
       history: collectionHistory.slice(0, targetHistoryIndex + 1),
       spatialSelectionId: null,
     };
-    if (queryReservoirContext) restoreQueryReservoirSnapshot();
+    persistQueryReservoirSnapshot();
     requestCollection(targetCollectionId);
   }
 
@@ -2805,41 +2933,17 @@ export function ReservoirScene() {
     if (
       menuState !== "open" ||
       queryActivityRevision !== null ||
-      queryReservoirTransitionContext !== null ||
       filter === activeExploreFilter
     ) {
       return;
     }
 
-    if (
-      queryReservoirContext?.kind === "query" &&
-      queryReservoirTransitionContext === null
-    ) {
-      queryRevisionRef.current += 1;
-      setQueryReconciliation(null);
-      setQueryActivityMode("empty");
-      setRejectedExploreFilter(filter);
-      setQueryActivityRevision(queryRevisionRef.current);
-      return;
-    }
-
     const targetVisibleIds = getExploreNodeIds(activeReservoirNodes, filter);
-    const meaningfulResults = activeReservoirNodes.filter(
-      (node) => targetVisibleIds.has(node.id),
+    const currentVisibleIds = new Set(
+      queryReservoirContext?.kind === "query"
+        ? queryVisibleNodeIds
+        : getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
     );
-    if (filter !== "all" && meaningfulResults.length === 0) {
-      queryRevisionRef.current += 1;
-      setQueryReconciliation(null);
-      setQueryActivityMode("empty");
-      setRejectedExploreFilter(filter);
-      setQueryActivityRevision(queryRevisionRef.current);
-      setHoveredArtifactId(null);
-      setSelectedArtifactId(null);
-      setSelectedCollectionId(null);
-      setSelectedPressActive(false);
-      return;
-    }
-    const currentVisibleIds = new Set(queryVisibleNodeIds);
     const leaving = new Set(
       [...currentVisibleIds].filter((id) => !targetVisibleIds.has(id)),
     );
@@ -2850,10 +2954,17 @@ export function ReservoirScene() {
       [...targetVisibleIds].filter((id) => !currentVisibleIds.has(id)),
     );
 
+    if (targetVisibleIds.size === 0) {
+      queryRevisionRef.current += 1;
+      setQueryReconciliation(null);
+      setQueryActivityMode("empty");
+      setRejectedExploreFilter(filter);
+      setQueryActivityRevision(queryRevisionRef.current);
+      return;
+    }
+
     queryRevisionRef.current += 1;
-    setQueryVisibleNodeIds(
-      new Set([...currentVisibleIds, ...targetVisibleIds]),
-    );
+    setQueryVisibleNodeIds(targetVisibleIds);
     setQueryReconciliation({
       entering,
       leaving,
@@ -2864,10 +2975,20 @@ export function ReservoirScene() {
     setRejectedExploreFilter(null);
     setQueryActivityRevision(queryRevisionRef.current);
     setActiveExploreFilter(filter);
-    setHoveredArtifactId(null);
-    setSelectedArtifactId(null);
-    setSelectedCollectionId(null);
-    setSelectedPressActive(false);
+    setHoveredArtifactId((currentHoveredArtifactId) =>
+      currentHoveredArtifactId &&
+      targetVisibleIds.has(currentHoveredArtifactId)
+        ? currentHoveredArtifactId
+        : null,
+    );
+    const selectedNodeId = selectedArtifactId ?? selectedCollectionId;
+    const preserveSelection =
+      selectedNodeId !== null && targetVisibleIds.has(selectedNodeId);
+    if (!preserveSelection) {
+      setSelectedArtifactId(null);
+      setSelectedCollectionId(null);
+      setSelectedPressActive(false);
+    }
   }
 
   function requestQueryReservoirContext(
@@ -2880,14 +3001,30 @@ export function ReservoirScene() {
       return false;
     }
 
+    const sourceContext = queryReservoirContext ?? collectionReservoirContext;
+    const sourceVisibleIds =
+      sourceContext.kind === "query"
+        ? new Set(queryVisibleNodeIds)
+        : getExploreNodeIds(
+            getReservoirContextNodes(sourceContext),
+            activeExploreFilter,
+          );
     const preparedDestination = prepareReservoirLayoutState({
       context: destinationContext,
       mode: layoutOwnership.activeLayout.mode,
       surface: surfaceRef.current,
       camera: cameraRef.current,
+      placementPolicy:
+        destinationContext.kind === "query" &&
+        destinationContext.resultIds.length === 1
+          ? "canonical-focal-single-result"
+          : "normal",
     });
     if (!preparedDestination) return false;
-    if (preparedDestination.focalDiagnostics) {
+    if (
+      preparedDestination.focalDiagnostics &&
+      preparedDestination.layoutState.mode === "focused"
+    ) {
       recordLayoutFocalDiagnostics(preparedDestination.focalDiagnostics);
     }
     if (
@@ -2902,6 +3039,7 @@ export function ReservoirScene() {
       return false;
     }
 
+    persistQueryReservoirSnapshot();
     const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
       preparedDestination.nodes,
       preparedDestination.layoutState.nodeSizing,
@@ -2918,25 +3056,18 @@ export function ReservoirScene() {
     const targetVisibleIds = new Set(
       preparedDestination.nodes.map((node) => node.id),
     );
-    const sourceNodes = getReservoirContextNodes(settledReservoirContext);
-    const currentVisibleIds =
-      settledReservoirContext.kind === "query"
-        ? new Set(sourceNodes.map((node) => node.id))
-        : new Set(
-            getExploreNodeIds(sourceNodes, activeExploreFilter),
-          );
     queryRevisionRef.current += 1;
     setQueryReservoirTransitionContext(destinationContext);
-    setQueryVisibleNodeIds(currentVisibleIds);
+    setQueryVisibleNodeIds(sourceVisibleIds);
     setQueryReconciliation({
       entering: new Set(
-        [...targetVisibleIds].filter((id) => !currentVisibleIds.has(id)),
+        [...targetVisibleIds].filter((id) => !sourceVisibleIds.has(id)),
       ),
       leaving: new Set(
-        [...currentVisibleIds].filter((id) => !targetVisibleIds.has(id)),
+        [...sourceVisibleIds].filter((id) => !targetVisibleIds.has(id)),
       ),
       staying: new Set(
-        [...currentVisibleIds].filter((id) => targetVisibleIds.has(id)),
+        [...sourceVisibleIds].filter((id) => targetVisibleIds.has(id)),
       ),
       target: targetVisibleIds,
     });
@@ -2944,17 +3075,6 @@ export function ReservoirScene() {
     setRejectedExploreFilter(null);
     setQueryActivityRevision(queryRevisionRef.current);
     return true;
-  }
-
-  function restoreQueryReservoirSnapshot() {
-    const snapshot = queryReservoirSnapshotRef.current;
-    if (!snapshot) return;
-
-    setActiveExploreFilter(snapshot.activeExploreFilter);
-    setHoveredArtifactId(snapshot.hoveredArtifactId);
-    setSelectedArtifactId(snapshot.selectedArtifactId);
-    setSelectedCollectionId(snapshot.selectedCollectionId);
-    setSelectedPressActive(snapshot.selectedPressActive);
   }
 
   function selectDirectArtifact(directArtifactId: DirectArtifactId) {
@@ -2982,15 +3102,7 @@ export function ReservoirScene() {
       resultIds: [artifact.id],
       returnContext,
     };
-    queryReservoirSnapshotRef.current = {
-      activeExploreFilter,
-      hoveredArtifactId,
-      selectedArtifactId,
-      selectedCollectionId,
-      selectedPressActive,
-    };
     if (!requestQueryReservoirContext(targetContext)) {
-      queryReservoirSnapshotRef.current = null;
       return;
     }
     setSelectedCollectionId(null);
@@ -3041,14 +3153,11 @@ export function ReservoirScene() {
         ancestors={visibleCollectionAncestors}
         depth={collectionHistory.length - 1}
         disabled={inputLocked}
-        queryActive={
-          queryReservoirContext !== null ||
-          queryReservoirTransitionContext !== null
-        }
+        showHome={showHomeNavigation}
+        showBack={showBackNavigation}
         onAncestorSelect={requestAncestorCollection}
         onBack={() => {
           if (queryReservoirContext?.kind === "query") {
-            restoreQueryReservoirSnapshot();
             if (queryReservoirContext.returnContext.kind === "collection") {
               pendingCollectionResolutionRef.current = {
                 history: collectionHistory,
@@ -3058,9 +3167,7 @@ export function ReservoirScene() {
                 queryReservoirContext.returnContext.collectionId,
               );
             } else {
-              requestQueryReservoirContext(
-                queryReservoirContext.returnContext,
-              );
+              requestQueryReservoirContext(queryReservoirContext.returnContext);
             }
             return;
           }
@@ -3072,7 +3179,6 @@ export function ReservoirScene() {
         onHome={() => {
           const homeCollectionId = collectionHistory[0]?.collectionId;
           if (homeCollectionId && queryReservoirContext) {
-            restoreQueryReservoirSnapshot();
             pendingCollectionResolutionRef.current = {
               history: [{ collectionId: homeCollectionId }],
               spatialSelectionId: null,
@@ -3200,6 +3306,31 @@ export function ReservoirScene() {
         renderedLayoutMode === "focused"
           ? "population-aware-seeded-cap-maximin"
           : "population-aware-seeded-maximin"
+      }
+      data-query-placement-policy={
+        resolvedLayoutState.placementPolicy ===
+        "canonical-focal-single-result"
+          ? "canonical-focal"
+          : "normal"
+      }
+      data-query-result-count={
+        resolvedLayoutState.queryPlacementDiagnostics
+          ? String(resolvedLayoutState.queryPlacementDiagnostics.resultCount)
+          : ""
+      }
+      data-query-canonical-focal-direction={
+        resolvedLayoutState.queryPlacementDiagnostics?.canonicalFocalDirection
+          ? resolvedLayoutState.queryPlacementDiagnostics.canonicalFocalDirection
+              .map((value) => value.toFixed(6))
+              .join("/")
+          : ""
+      }
+      data-query-canonical-focal-error-degrees={
+        resolvedLayoutState.queryPlacementDiagnostics
+          ? resolvedLayoutState.queryPlacementDiagnostics.canonicalFocalErrorDegrees.toFixed(
+              6,
+            )
+          : ""
       }
       data-layout-mode-view-reset-progress={layoutModeViewResetProgressRef.current.toFixed(
         6,
