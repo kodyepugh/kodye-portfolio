@@ -402,6 +402,7 @@ export function ArtifactNode({
       1,
     );
     if (selected && diagnosticsRef.current) {
+      const continuationTraversalAllowed = continuationCueEnabled;
       diagnosticsRef.current.dataset.continuationCueActive = String(
         selectionFrame.continuationCueActive,
       );
@@ -425,7 +426,9 @@ export function ArtifactNode({
       ).toFixed(6);
       diagnosticsRef.current.dataset.selectedOpeningReactionProgress =
         openingReactionProgress.toFixed(6);
-      diagnosticsRef.current.dataset.continuationTraversalAllowed = "true";
+      diagnosticsRef.current.dataset.continuationTraversalAllowed = String(
+        continuationTraversalAllowed,
+      );
     }
     material.color
       .copy(artifactColor)

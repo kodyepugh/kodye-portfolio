@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- The validation runner installs a small CommonJS TypeScript loader before importing the typed registry. */
 const fs = require("node:fs");
 const path = require("node:path");
+const Module = require("node:module");
 const ts = require("typescript");
+const THREE = require("three");
 
 require.extensions[".ts"] = function loadTypeScript(module, filename) {
   const source = fs.readFileSync(filename, "utf8");
@@ -18,6 +20,25 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const projectRoot = path.resolve(__dirname, "..");
+const originalResolveFilename = Module._resolveFilename;
+Module._resolveFilename = function resolveRepositoryAliases(
+  request,
+  parent,
+  isMain,
+  options,
+) {
+  if (request.startsWith("@/")) {
+    return originalResolveFilename.call(
+      this,
+      path.join(projectRoot, request.slice(2)),
+      parent,
+      isMain,
+      options,
+    );
+  }
+
+  return originalResolveFilename.call(this, request, parent, isMain, options);
+};
 const { ARTIFACT_IDS } = require(path.join(
   projectRoot,
   "content/digital-reservoir/artifacts.ts",
@@ -41,7 +62,12 @@ const {
   adaptResourceToReservoirContentNode,
   getReservoirContentNodes,
   getReservoirNodeSizingFamily,
+  getReservoirCollectionNodeById,
 } = require(path.join(projectRoot, "lib/content/reservoir-adapter.ts"));
+const { getReservoirAdaptiveZoom } = require(path.join(
+  projectRoot,
+  "lib/reservoir/zoom.ts",
+));
 const { getReservoirResourceSelectionAction } = require(path.join(
   projectRoot,
   "lib/reservoir/resource-selection.ts",
@@ -82,6 +108,26 @@ const syntheticPublishedResource = {
 const syntheticReservoirNode = adaptResourceToReservoirContentNode(
   syntheticPublishedResource,
 );
+const syntheticCollectionNode = getReservoirCollectionNodeById(ROOT_COLLECTION_ID);
+const testCamera = (() => {
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(0, 0, 10);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+  return camera;
+})();
+const testZoom = (nodes, artifactDiameter = 2, collectionDiameter = 4) =>
+  getReservoirAdaptiveZoom({
+    camera: testCamera,
+    viewportHeight: 1000,
+    reservoirCenter: new THREE.Vector3(0, 0, 0),
+    baseScale: 1,
+    nodes,
+    artifactDiameter,
+    collectionDiameter,
+    cameraNear: 0.1,
+  });
 const allPersistentCollectionNodes = contentRegistry.collections.flatMap(
   (collection) => getReservoirContentNodes(collection.id),
 );
@@ -194,6 +240,45 @@ const checks = [
     "non-artifact query node uses inspectable-resource sizing",
     getReservoirNodeSizingFamily(syntheticReservoirNode) ===
       "inspectable-resource",
+  ],
+  [
+    "artifact-only zoom input reports artifact",
+    testZoom([
+      adaptResourceToReservoirContentNode(getArtifactById(ARTIFACT_IDS.about)),
+    ]).smallestNodeKind === "artifact",
+  ],
+  [
+    "non-artifact resource-only zoom input reports resource",
+    testZoom([syntheticReservoirNode]).smallestNodeKind === "resource",
+  ],
+  [
+    "collection-only zoom input reports collection",
+    testZoom([syntheticCollectionNode]).smallestNodeKind === "collection",
+  ],
+  [
+    "mixed artifact and collection zoom input reports artifact",
+    testZoom(
+      [
+        adaptResourceToReservoirContentNode(
+          getArtifactById(ARTIFACT_IDS.about),
+        ),
+        syntheticCollectionNode,
+      ],
+      2,
+      4,
+    ).smallestNodeKind === "artifact",
+  ],
+  [
+    "mixed resource and collection zoom input reports resource",
+    testZoom([syntheticReservoirNode, syntheticCollectionNode], 2, 4)
+      .smallestNodeKind === "resource",
+  ],
+  [
+    "artifact and resource share inspectable-resource sizing",
+    testZoom([
+      adaptResourceToReservoirContentNode(getArtifactById(ARTIFACT_IDS.about)),
+    ]).smallestNodeWorldDiameter ===
+      testZoom([syntheticReservoirNode]).smallestNodeWorldDiameter,
   ],
   [
     "non-artifact second selection defers Resource inspection",

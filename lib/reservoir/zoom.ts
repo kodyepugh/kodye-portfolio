@@ -28,7 +28,7 @@ export type ReservoirAdaptiveZoom = {
   absoluteMaximum: number;
   activeMaximum: number;
   targetReachable: boolean;
-  smallestNodeKind: "artifact" | "collection" | null;
+  smallestNodeKind: "artifact" | "resource" | "collection" | null;
   smallestNodeWorldDiameter: number;
   projectedNodePixelsAtBaseline: number;
   projectedNodePixelsAtActiveMaximum: number;
@@ -37,15 +37,41 @@ export type ReservoirAdaptiveZoom = {
 const SOLVE_ITERATIONS = 24;
 const EPSILON = 1e-6;
 
-function getPresentKind(
+type ReservoirNodeSizingFamily = "inspectable-resource" | "collection";
+
+function getPresentSizingFamily(
   nodes: readonly ReservoirContentNode[],
-  kind: "artifact" | "collection",
+  kind: ReservoirNodeSizingFamily,
 ) {
   return nodes.some((node) =>
-    kind === "artifact"
+    kind === "inspectable-resource"
       ? isReservoirInspectableResourceNode(node)
       : node.kind === kind,
   );
+}
+
+function getSmallestNodeSizingFamily(
+  nodes: readonly ReservoirContentNode[],
+  artifactDiameter: number,
+  collectionDiameter: number,
+): ReservoirNodeSizingFamily | null {
+  const hasInspectableResources = getPresentSizingFamily(
+    nodes,
+    "inspectable-resource",
+  );
+  const hasCollections = getPresentSizingFamily(nodes, "collection");
+
+  if (!hasInspectableResources && !hasCollections) {
+    return null;
+  }
+
+  if (hasInspectableResources && hasCollections) {
+    return artifactDiameter <= collectionDiameter
+      ? "inspectable-resource"
+      : "collection";
+  }
+
+  return hasInspectableResources ? "inspectable-resource" : "collection";
 }
 
 function getWorldPositionAtCanonicalFront(
@@ -91,18 +117,22 @@ export function getReservoirAdaptiveZoom({
   baselineMaximum?: number;
   absoluteMaximum?: number;
 }): ReservoirAdaptiveZoom {
-  const hasArtifacts = getPresentKind(nodes, "artifact");
-  const hasCollections = getPresentKind(nodes, "collection");
+  const smallestNodeSizingFamily = getSmallestNodeSizingFamily(
+    nodes,
+    artifactDiameter,
+    collectionDiameter,
+  );
   const smallestNodeKind =
-    hasArtifacts && hasCollections
-      ? artifactDiameter <= collectionDiameter
-        ? "artifact"
-        : "collection"
-      : hasArtifacts
-        ? "artifact"
-        : hasCollections
-          ? "collection"
-          : null;
+    smallestNodeSizingFamily === null
+      ? null
+      : smallestNodeSizingFamily === "collection"
+        ? "collection"
+        : nodes.find(isReservoirInspectableResourceNode)?.kind ?? null;
+  const hasInspectableResources = getPresentSizingFamily(
+    nodes,
+    "inspectable-resource",
+  );
+  const hasCollections = getPresentSizingFamily(nodes, "collection");
 
   if (
     smallestNodeKind === null ||
@@ -124,10 +154,12 @@ export function getReservoirAdaptiveZoom({
   }
 
   const smallestDiameter =
-    smallestNodeKind === "artifact" ? artifactDiameter : collectionDiameter;
+    smallestNodeSizingFamily === "inspectable-resource"
+      ? artifactDiameter
+      : collectionDiameter;
   const smallestRadius = smallestDiameter / 2;
   const largestPresentRadius = Math.max(
-    hasArtifacts ? artifactDiameter / 2 : 0,
+    hasInspectableResources ? artifactDiameter / 2 : 0,
     hasCollections ? collectionDiameter / 2 : 0,
   );
   const cameraSpaceScratch = new THREE.Vector3();
