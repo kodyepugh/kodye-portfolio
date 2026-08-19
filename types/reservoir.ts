@@ -2,6 +2,17 @@ export type ExploreLens = "work" | "self" | "world" | "inquiry";
 export type ActiveExploreFilter = "all" | "collections" | ExploreLens;
 export type DirectArtifactId = "about" | "resume" | "contact";
 
+export type ReservoirContext =
+  | {
+      kind: "collection";
+      collectionId: string;
+    }
+  | {
+      kind: "query";
+      resultIds: string[];
+      returnContext: ReservoirContext;
+    };
+
 export type ReservoirArtifact = {
   kind: "artifact";
   id: string;

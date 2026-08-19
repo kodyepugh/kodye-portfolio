@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { RESERVOIR_THEME } from "./theme";
+import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
 
 export const RESERVOIR_NODE_MESH_ENGAGEMENT_DELAY_MS = 75;
 export const RESERVOIR_NODE_PRESS_DOWN_DURATION =
@@ -115,6 +117,14 @@ function moveToward(current: number, target: number, step: number) {
   if (current < target) return Math.min(current + step, target);
   if (current > target) return Math.max(current - step, target);
   return current;
+}
+
+export function getNodeSelectionHighlightColor(node: ReservoirContentNode) {
+  if (node.kind === "collection") {
+    return new THREE.Color(RESERVOIR_THEME.inspection);
+  }
+
+  return new THREE.Color(node.categoryColor ?? RESERVOIR_THEME.inspection);
 }
 
 function getContinuationEnvelope(progress: number) {

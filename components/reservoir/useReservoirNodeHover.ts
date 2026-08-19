@@ -13,8 +13,9 @@ export function useReservoirNodeHover(
     () => () => {
       if (hoverExitTimeout.current) clearTimeout(hoverExitTimeout.current);
       hoverTargets.current.clear();
+      onHoverChange(nodeId, false);
     },
-    [],
+    [nodeId, onHoverChange],
   );
 
   function beginHover(target: string) {
@@ -37,5 +38,18 @@ export function useReservoirNodeHover(
     }, HOVER_EXIT_GRACE_MS);
   }
 
-  return { beginHover, endHover };
+  function clearHover() {
+    if (hoverExitTimeout.current) {
+      clearTimeout(hoverExitTimeout.current);
+      hoverExitTimeout.current = null;
+    }
+    if (hoverTargets.current.size === 0) {
+      onHoverChange(nodeId, false);
+      return;
+    }
+    hoverTargets.current.clear();
+    onHoverChange(nodeId, false);
+  }
+
+  return { beginHover, clearHover, endHover };
 }

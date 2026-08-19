@@ -11,6 +11,8 @@ type CollectionNavigationProps = {
   ancestors: readonly CollectionAncestor[];
   depth: number;
   disabled: boolean;
+  showHome: boolean;
+  showBack: boolean;
   onAncestorSelect: (collectionId: string) => void;
   onBack: () => void;
   onHome: () => void;
@@ -20,6 +22,8 @@ export function CollectionNavigation({
   ancestors,
   depth,
   disabled,
+  showHome,
+  showBack,
   onAncestorSelect,
   onBack,
   onHome,
@@ -33,7 +37,7 @@ export function CollectionNavigation({
     viewport.scrollLeft = viewport.scrollWidth - viewport.clientWidth;
   }, [ancestors]);
 
-  if (depth === 0) return null;
+  if (!showHome && !showBack && ancestors.length === 0) return null;
 
   return (
     <>
@@ -79,16 +83,18 @@ export function CollectionNavigation({
         aria-label="Collection navigation"
         data-collection-navigation-depth={depth}
       >
-        <button
-          type="button"
-          className="collection-navigation__control"
-          aria-label="Return to Home collection"
-          disabled={disabled}
-          onClick={onHome}
-        >
-          Home
-        </button>
-        {depth >= 2 ? (
+        {showHome ? (
+          <button
+            type="button"
+            className="collection-navigation__control"
+            aria-label="Return to Home collection"
+            disabled={disabled}
+            onClick={onHome}
+          >
+            Home
+          </button>
+        ) : null}
+        {showBack ? (
           <button
             type="button"
             className="collection-navigation__control"

@@ -46,6 +46,7 @@ type CollectionSphereProps = {
   surfaceOnBeforeCompile?: THREE.MeshStandardMaterial["onBeforeCompile"];
   surfaceProgramCacheKey?: () => string;
   onPointerEnter?: (event: ThreeEvent<PointerEvent>) => void;
+  onPointerMove?: (event: ThreeEvent<PointerEvent>) => void;
   onPointerLeave?: (event: ThreeEvent<PointerEvent>) => void;
 };
 
@@ -70,6 +71,7 @@ export function CollectionSphere({
   surfaceOnBeforeCompile,
   surfaceProgramCacheKey,
   onPointerEnter,
+  onPointerMove,
   onPointerLeave,
 }: CollectionSphereProps) {
   const active = state === "active";
@@ -143,6 +145,7 @@ export function CollectionSphere({
         }
         userData={surfaceUserData}
         onPointerEnter={onPointerEnter}
+        onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
       >
         <meshStandardMaterial

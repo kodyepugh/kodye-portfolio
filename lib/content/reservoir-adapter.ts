@@ -76,6 +76,52 @@ export function getReservoirContentNodes(
   });
 }
 
+export function getReservoirContentNodeBySemanticId(
+  nodeId: string,
+): ReservoirContentNode | null {
+  const artifact = getArtifactById(nodeId);
+  if (artifact?.published === true) {
+    return {
+      kind: "artifact",
+      id: artifact.id,
+      title: artifact.title,
+      subtitle: artifact.subtitle,
+      type: artifact.type,
+      typeLabel: getTypeLabel(artifact.type),
+      icon: artifact.icon,
+      category: artifact.category,
+      categoryColor: artifact.categoryColor,
+      date: artifact.date,
+      medium: artifact.medium,
+      format: artifact.format,
+    };
+  }
+
+  const collection = getCollectionById(nodeId);
+  if (collection?.published === true) {
+    return {
+      kind: "collection",
+      id: collection.id,
+      title: collection.title,
+      subtitle: collection.subtitle,
+      icon: collection.icon,
+      category: collection.category,
+      categoryColor: collection.categoryColor,
+    };
+  }
+
+  return null;
+}
+
+export function getReservoirContentNodesBySemanticIds(
+  nodeIds: readonly string[],
+): ReservoirContentNode[] {
+  return nodeIds.flatMap((nodeId) => {
+    const node = getReservoirContentNodeBySemanticId(nodeId);
+    return node ? [node] : [];
+  });
+}
+
 export function getReservoirContentNodeById(
   collectionId: string,
   nodeId: string,

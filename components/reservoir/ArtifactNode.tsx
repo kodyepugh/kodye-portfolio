@@ -1,5 +1,6 @@
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { ThreeEvent } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import type { ReservoirFrame } from "@/lib/reservoir/frame";
@@ -7,7 +8,11 @@ import {
   RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
 } from "@/lib/reservoir/opening";
 import type { ReservoirDirection } from "@/lib/reservoir/layout";
-import { getCollectionChildEmergenceProgress } from "@/lib/reservoir/collection-entry";
+import {
+  getCollectionNodeTransitionOffset,
+  getCollectionNodeTransitionProgress,
+} from "@/lib/reservoir/collection-entry";
+import type { CollectionNodeTransitionPhase } from "@/lib/reservoir/collection-entry";
 import {
   RESERVOIR_RENDER_ORDER,
   RESERVOIR_THEME,
@@ -24,7 +29,6 @@ import {
 } from "@/lib/reservoir/node";
 import {
   advanceReservoirNodeSelection,
-  addSelectedNodeSurfaceGradient,
   createReservoirNodeSelectionState,
   RESERVOIR_NODE_CONTINUATION_RING_INNER_RADIUS_RATIO,
   RESERVOIR_NODE_CONTINUATION_RING_OUTER_RADIUS_RATIO,
@@ -34,8 +38,12 @@ import {
   RESERVOIR_NODE_SELECTED_RADIAL_RATIO,
   RESERVOIR_NODE_REDUCED_MOTION_WHITE_MIX,
 } from "@/lib/reservoir/selection";
-import type { ReservoirSelectedSurfaceUniforms } from "@/lib/reservoir/selection";
 import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import {
+  RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY,
+  type ReservoirNodePointerVisibilityResolver,
+  type ReservoirPointerCandidateSource,
+} from "@/lib/reservoir/pointer";
 import { ArtifactLabel } from "./ArtifactLabel";
 import { useReservoirNodeHover } from "./useReservoirNodeHover";
 
@@ -50,6 +58,7 @@ type ArtifactNodeProps = {
   isDragging: boolean;
   selectedPressActive: boolean;
   surfaced: boolean;
+  interactionEnabled: boolean;
   continuationCueEnabled: boolean;
   interactionRevisionRef: MutableRefObject<number>;
   diagnosticsRef: RefObject<HTMLDivElement | null>;
@@ -64,10 +73,15 @@ type ArtifactNodeProps = {
   emergenceProgressRef?: MutableRefObject<number>;
   emergenceOrder?: number;
   emergenceChildCount?: number;
+  collectionTransitionPhase?: CollectionNodeTransitionPhase | null;
+  collectionTransitionProgressRef?: MutableRefObject<number>;
+  collectionTransitionOrder?: number;
+  collectionTransitionChildCount?: number;
   sphereRef: RefObject<THREE.Group | null>;
   reservoirFrame: ReservoirFrame;
   renderedZoomRef: MutableRefObject<number>;
   onHoverChange: (artifactId: string, hovered: boolean) => void;
+  resolvePointerVisibility: ReservoirNodePointerVisibilityResolver;
 };
 
 const ORB_RESTING_RADIAL_OFFSET = 0;
@@ -85,6 +99,7 @@ export function ArtifactNode({
   isDragging,
   selectedPressActive,
   surfaced,
+  interactionEnabled,
   continuationCueEnabled,
   interactionRevisionRef,
   diagnosticsRef,
@@ -99,18 +114,23 @@ export function ArtifactNode({
   emergenceProgressRef,
   emergenceOrder = 0,
   emergenceChildCount = 1,
+  collectionTransitionPhase = null,
+  collectionTransitionProgressRef,
+  collectionTransitionOrder = 0,
+  collectionTransitionChildCount = 1,
   sphereRef,
   reservoirFrame,
   renderedZoomRef,
   onHoverChange,
+  resolvePointerVisibility,
 }: ArtifactNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
-  const visualOrbRef = useRef<THREE.Mesh | null>(null);
+  const visualOrbRef = useRef<THREE.Group | null>(null);
   const orbMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
   const continuationRingRef = useRef<THREE.Mesh | null>(null);
   const continuationRingMaterialRef =
     useRef<THREE.MeshBasicMaterial | null>(null);
-  const { beginHover, endHover } = useReservoirNodeHover(
+  const { beginHover, clearHover, endHover } = useReservoirNodeHover(
     artifact.id,
     onHoverChange,
   );
@@ -135,45 +155,17 @@ export function ArtifactNode({
     }),
   );
   const previousInteractionRevision = useRef(-1);
-  const filterRadialOffset = useRef(
-    surfaced
-      ? 0
-      : nodeRadius *
-          RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
-  );
+  const initialFilterRadialOffset = surfaced
+    ? 0
+    : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
+  const filterRadialOffset = useRef(initialFilterRadialOffset);
+  const lastRenderedRadialOffset = useRef(initialFilterRadialOffset);
+  const collectionDepartureStartOffset = useRef(initialFilterRadialOffset);
+  const previousCollectionTransitionPhase = useRef<
+    CollectionNodeTransitionPhase | null
+  >(null);
   const orbSelectedRadialOffset =
     nodeRadius * RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
-  const orbShaderUniforms = useRef<ReservoirSelectedSurfaceUniforms>({
-    nodeContactDirection: {
-      value: placement.normal.clone().negate(),
-    },
-    nodeSelectedWhite: {
-      value: new THREE.Color(RESERVOIR_THEME.inspection),
-    },
-    nodeSelectedReveal: {
-      value: selected && meshEngaged ? 1 : 0,
-    },
-  });
-  const configureOrbMaterial = useCallback(
-    (
-      shader: Parameters<
-        THREE.MeshStandardMaterial["onBeforeCompile"]
-      >[0],
-    ) => {
-      addSelectedNodeSurfaceGradient(shader, orbShaderUniforms.current);
-    },
-    [],
-  );
-  const getOrbProgramCacheKey = useCallback(
-    () => "reservoir-orb-white-reveal-gradient-v3",
-    [],
-  );
-
-  useEffect(() => {
-    orbShaderUniforms.current.nodeContactDirection.value
-      .copy(placement.normal)
-      .negate();
-  }, [placement]);
 
   useEffect(() => {
     selectionState.current = createReservoirNodeSelectionState({
@@ -188,6 +180,70 @@ export function ArtifactNode({
       ? 0
       : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
   }, [nodeRadius, surfaced]);
+
+  useLayoutEffect(() => {
+    const visualOrb = visualOrbRef.current;
+    if (
+      !visualOrb ||
+      !placement ||
+      collectionTransitionPhase !== "arrival" ||
+      !collectionTransitionProgressRef
+    ) {
+      return;
+    }
+
+    visualOrb.position.copy(placement.normal).multiplyScalar(
+      getCollectionNodeTransitionOffset({
+        nodeRadius,
+        progress: getCollectionNodeTransitionProgress(
+          collectionTransitionProgressRef.current,
+          "arrival",
+          collectionTransitionOrder,
+          collectionTransitionChildCount,
+        ),
+        phase: "arrival",
+        settledOffset: ORB_RESTING_RADIAL_OFFSET,
+        reducedMotion: openingReducedMotion,
+      }),
+    );
+  }, [
+    collectionTransitionChildCount,
+    collectionTransitionOrder,
+    collectionTransitionPhase,
+    collectionTransitionProgressRef,
+    nodeRadius,
+    openingReducedMotion,
+    placement,
+  ]);
+
+  useEffect(() => {
+    if (!surfaced || !interactionEnabled) {
+      clearHover();
+    }
+  }, [clearHover, interactionEnabled, surfaced]);
+
+  function updatePointerHover(
+    event: ThreeEvent<PointerEvent>,
+    target: string,
+    source: ReservoirPointerCandidateSource,
+  ) {
+    if (
+      !surfaced ||
+      !interactionEnabled ||
+      !resolvePointerVisibility({
+        distance: event.distance,
+        id: artifact.id,
+        kind: "artifact",
+        ray: event.ray,
+        source,
+      })
+    ) {
+      clearHover();
+      return;
+    }
+
+    beginHover(target);
+  }
 
   useFrame((_, delta) => {
     const visualOrb = visualOrbRef.current;
@@ -232,8 +288,6 @@ export function ArtifactNode({
       hoverTarget,
       delta / RESERVOIR_NODE_HOVER_TRANSITION_DURATION,
     );
-    orbShaderUniforms.current.nodeSelectedReveal.value =
-      selectionFrame.selectedReveal;
 
     const interactionChanged =
       previousInteractionRevision.current !== interactionRevisionRef.current;
@@ -241,9 +295,9 @@ export function ArtifactNode({
       previousInteractionRevision.current = interactionRevisionRef.current;
     }
 
+    let openingReactionProgress = 0;
     if (continuationRing && continuationRingMaterial) {
-      const ringVisible =
-        selectionFrame.ringVisible && !opening && !restoring;
+      const ringVisible = selectionFrame.ringVisible && !opening && !restoring;
       continuationRing.visible = ringVisible;
       continuationRing.position
         .copy(placement.normal)
@@ -258,11 +312,33 @@ export function ArtifactNode({
       selectionFrame.radialOffset +
       selectionFrame.continuationOffset +
       filterRadialOffset.current;
-    let openingReactionProgress = 0;
 
-    if (emerging && emergenceProgressRef) {
-      const emergenceProgress = getCollectionChildEmergenceProgress(
+    if (collectionTransitionPhase && collectionTransitionProgressRef) {
+      if (
+        collectionTransitionPhase === "departure" &&
+        previousCollectionTransitionPhase.current !== "departure"
+      ) {
+        collectionDepartureStartOffset.current = lastRenderedRadialOffset.current;
+      }
+      const transitionProgress = getCollectionNodeTransitionProgress(
+        collectionTransitionProgressRef.current,
+        collectionTransitionPhase,
+        collectionTransitionOrder,
+        collectionTransitionChildCount,
+      );
+      renderedRadialOffset = getCollectionNodeTransitionOffset({
+        nodeRadius,
+        progress: transitionProgress,
+        phase: collectionTransitionPhase,
+        startOffset: collectionDepartureStartOffset.current,
+        settledOffset: ORB_RESTING_RADIAL_OFFSET,
+        reducedMotion: openingReducedMotion,
+      });
+      openingReactionProgress = transitionProgress;
+    } else if (emerging && emergenceProgressRef) {
+      const emergenceProgress = getCollectionNodeTransitionProgress(
         emergenceProgressRef.current,
+        "arrival",
         emergenceOrder,
         emergenceChildCount,
       );
@@ -275,7 +351,7 @@ export function ArtifactNode({
       openingReactionProgress = 1 - emergenceProgress;
     }
 
-    if (opening) {
+    if (opening && !collectionTransitionPhase) {
       const startOffset = openingSelected
         ? orbSelectedRadialOffset
         : filterRadialOffset.current;
@@ -291,7 +367,7 @@ export function ArtifactNode({
       openingReactionProgress = reaction.progress;
     }
 
-    if (restoring) {
+    if (restoring && !collectionTransitionPhase) {
       const restorationProgress = restorationProgressRef.current;
       const restoredOffset = openingSelected
         ? orbSelectedRadialOffset
@@ -312,6 +388,8 @@ export function ArtifactNode({
     visualOrb.userData.currentRadialOffset = renderedRadialOffset;
     visualOrb.userData.openingReactionProgress = openingReactionProgress;
     visualOrb.userData.filterSurfaced = surfaced;
+    lastRenderedRadialOffset.current = renderedRadialOffset;
+    previousCollectionTransitionPhase.current = collectionTransitionPhase;
     const hoverWhiteMix = selected
       ? RESERVOIR_NODE_SELECTED_HOVER_WHITE_MIX
       : RESERVOIR_NODE_HOVER_WHITE_MIX;
@@ -395,37 +473,56 @@ export function ArtifactNode({
           side={THREE.DoubleSide}
         />
       </mesh>
-      <mesh
+      <group
         ref={visualOrbRef}
         userData={{ artifactId: artifact.id }}
         renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
-        onPointerEnter={() => surfaced && beginHover("orb")}
-        onPointerLeave={() => endHover("orb")}
       >
-        <sphereGeometry args={[nodeRadius, 18, 14]} />
-        <meshStandardMaterial
-          ref={orbMaterialRef}
-          color={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
-          emissive={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
-          emissiveIntensity={RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY}
-          roughness={0.82}
-          onBeforeCompile={configureOrbMaterial}
-          customProgramCacheKey={getOrbProgramCacheKey}
-        />
-      </mesh>
-      <mesh
-        userData={{ artifactId: artifact.id }}
-        onPointerEnter={() => surfaced && beginHover("orb-hit-area")}
-        onPointerLeave={() => endHover("orb-hit-area")}
-      >
-        <sphereGeometry args={[nodeRadius * 2.15, 12, 10]} />
-        <meshBasicMaterial
-          transparent
-          opacity={0}
-          depthWrite={false}
-          colorWrite={false}
-        />
-      </mesh>
+        <mesh
+          renderOrder={RESERVOIR_RENDER_ORDER.artifactNode}
+          userData={{
+            artifactId: artifact.id,
+            [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "visible-mesh",
+          }}
+          onPointerEnter={(event) =>
+            updatePointerHover(event, "orb", "visible-mesh")
+          }
+          onPointerMove={(event) =>
+            updatePointerHover(event, "orb", "visible-mesh")
+          }
+          onPointerLeave={() => endHover("orb")}
+        >
+          <sphereGeometry args={[nodeRadius, 18, 14]} />
+          <meshStandardMaterial
+            ref={orbMaterialRef}
+            color={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
+            emissive={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
+            emissiveIntensity={RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY}
+            roughness={0.82}
+          />
+        </mesh>
+        <mesh
+          userData={{
+            artifactId: artifact.id,
+            [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "hit-area",
+          }}
+          onPointerEnter={(event) =>
+            updatePointerHover(event, "orb-hit-area", "hit-area")
+          }
+          onPointerMove={(event) =>
+            updatePointerHover(event, "orb-hit-area", "hit-area")
+          }
+          onPointerLeave={() => endHover("orb-hit-area")}
+        >
+          <sphereGeometry args={[nodeRadius * 1.28, 12, 10]} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthWrite={false}
+            colorWrite={false}
+          />
+        </mesh>
+      </group>
       <ArtifactLabel
         artifact={artifact}
         nodeRef={nodeRef}
@@ -436,7 +533,9 @@ export function ArtifactNode({
         selectionActive={selectionActive || !surfaced}
         hovered={hovered}
         nodeRadius={nodeRadius}
-        onPointerEnter={() => surfaced && beginHover("label")}
+        onPointerEnter={() =>
+          surfaced && interactionEnabled && beginHover("label")
+        }
         onPointerLeave={() => endHover("label")}
       />
     </group>

@@ -17,14 +17,16 @@ import type {
 } from "react";
 import * as THREE from "three";
 import { ROOT_COLLECTION_ID } from "@/content/digital-reservoir/collections";
-import { getReservoirContentNodes, type ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import {
+  getReservoirContentNodes,
+  getReservoirContentNodesBySemanticIds,
+  type ReservoirContentNode,
+} from "@/lib/content/reservoir-adapter";
 import {
   getArtifactById,
   getCollectionById,
-  getPublishedArtifactCollections,
 } from "@/lib/content/selectors";
 import {
-  RESERVOIR_BASE_ROTATION,
   RESERVOIR_RADIUS,
 } from "@/lib/reservoir/geometry";
 import {
@@ -32,7 +34,10 @@ import {
   generateReservoirLayout,
   getReservoirDirectionAngularDistance,
   getReservoirFocusedCapRadius,
+  getReservoirLayoutSphericalCentroid,
   getReservoirLayoutDiagnostics,
+  isReservoirDirectionWithinAngularTolerance,
+  RESERVOIR_FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES,
 } from "@/lib/reservoir/layout";
 import type {
   ReservoirInitialComposition,
@@ -45,11 +50,15 @@ import {
   getReservoirNodeSizingTargets,
   RESERVOIR_NODE_SIZING_REFERENCE_POPULATION,
 } from "@/lib/reservoir/node-sizing";
-import { RESERVOIR_LABEL_LEVEL } from "@/lib/reservoir/label";
 import {
-  getReservoirNodePlacement,
-} from "@/lib/reservoir/node";
-import { RESERVOIR_NODE_SELECTED_RADIAL_RATIO } from "@/lib/reservoir/selection";
+  RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY,
+  resolveReservoirNodePointerCandidate,
+  type ReservoirNodePointerVisibilityResolver,
+  type ReservoirPointerCandidate,
+  type ReservoirPointerCandidateSource,
+  type ReservoirPointerResolution,
+} from "@/lib/reservoir/pointer";
+import { RESERVOIR_LABEL_LEVEL } from "@/lib/reservoir/label";
 import {
   getCollectionReconstitutionDuration,
   getCollectionReconstitutionFrame,
@@ -81,6 +90,7 @@ import type {
   ActiveExploreFilter,
   DirectArtifactId,
 } from "@/types/reservoir";
+import type { ReservoirContext } from "@/types/reservoir";
 import type { Collection } from "@/types/content";
 import { AtmosphereContent } from "./AtmosphereContent";
 import { ArtifactWindow } from "./ArtifactWindow";
@@ -105,8 +115,6 @@ const RESERVOIR_PINCH_ZOOM_RATE = 0.0045;
 const MAX_WHEEL_DELTA = 120;
 const DRAG_SENSITIVITY = 0.0042;
 const NODE_CLICK_MAX_TRAVEL = 6;
-const DIRECT_LOCATE_DURATION = 0.86;
-const DIRECT_LOCATE_REDUCED_MOTION_DURATION = 0.2;
 const FOOTER_TRIGGER_OVERSCAN = 28;
 const LAYOUT_MODE_SWITCH_DURATION = 0.62;
 
@@ -149,11 +157,15 @@ type QueryReconciliation = {
 
 type QueryActivityMode = "success" | "empty";
 
-type DirectLocateSafeZone = {
-  bottom: number;
-  left: number;
-  right: number;
-  top: number;
+type ReservoirLayoutPlacementPolicy =
+  | "normal"
+  | "canonical-focal-single-result";
+
+type QueryPlacementDiagnostics = {
+  policy: ReservoirLayoutPlacementPolicy;
+  resultCount: number;
+  canonicalFocalDirection: ReservoirDirection | null;
+  canonicalFocalErrorDegrees: number;
 };
 
 const SEMANTIC_EXPLORE_LENSES = new Map<string, readonly ActiveExploreFilter[]>([
@@ -174,6 +186,53 @@ const DIRECT_ARTIFACT_TARGETS = new Map<Exclude<DirectArtifactId, "contact">, st
   ["about", "artifact-about"],
   ["resume", "artifact-resume"],
 ]);
+
+type QueryReservoirSelectionSnapshot = {
+  hoveredArtifactId: string | null;
+  selectedArtifactId: string | null;
+  selectedCollectionId: string | null;
+  selectedPressActive: boolean;
+};
+
+function getReservoirContextCollectionId(context: ReservoirContext) {
+  if (context.kind === "collection") return context.collectionId;
+  return getReservoirContextCollectionId(context.returnContext);
+}
+
+function getReservoirContextSeed(context: ReservoirContext) {
+  return context.kind === "collection"
+    ? context.collectionId
+    : `query:${context.resultIds.join(",")}|return=${getReservoirContextKey(context.returnContext)}`;
+}
+
+function getReservoirContextKey(context: ReservoirContext): string {
+  if (context.kind === "collection") {
+    return `collection:${context.collectionId}`;
+  }
+
+  return `query:${context.resultIds.join(",")}|return=${getReservoirContextKey(context.returnContext)}`;
+}
+
+function getReservoirContextNodes(context: ReservoirContext) {
+  return context.kind === "collection"
+    ? getReservoirContentNodes(context.collectionId)
+    : getReservoirContentNodesBySemanticIds(context.resultIds);
+}
+
+function getReservoirLayoutPlacementPolicy(
+  context: ReservoirContext,
+): ReservoirLayoutPlacementPolicy {
+  return context.kind === "query" && context.resultIds.length === 1
+    ? "canonical-focal-single-result"
+    : "normal";
+}
+
+function canNavigateBackFromQueryContext(
+  context: Extract<ReservoirContext, { kind: "query" }>,
+) {
+  if (context.returnContext.kind === "query") return true;
+  return context.returnContext.collectionId !== ROOT_COLLECTION_ID;
+}
 
 function getExploreNodeIds(
   nodes: readonly ReservoirContentNode[],
@@ -251,6 +310,7 @@ type PendingCollectionResolution = {
 };
 
 type CollectionTransitionPoseSnapshot = {
+  sphereQuaternion: QuaternionTuple;
   zoomLevel: number;
 };
 
@@ -259,12 +319,25 @@ type RotationDiagnostics = {
   quaternion: [number, number, number, number];
 };
 
-type RenderedLayoutSnapshot = {
-  collectionId: string;
+type ReservoirLayoutState = {
+  contextKey: string;
   mode: ReservoirLayoutMode;
   directions: ReservoirLayout;
-  quaternion: QuaternionTuple;
   nodeSizing: ReturnType<typeof getReservoirNodeSizingSnapshot>;
+  focusedDirection: ReservoirDirection | null;
+  placementPolicy: ReservoirLayoutPlacementPolicy;
+  queryPlacementDiagnostics: QueryPlacementDiagnostics | null;
+};
+
+type ReservoirTransitionPlan = {
+  kind: "layout-mode" | "collection" | "query";
+  source: ReservoirLayoutState;
+  destination: ReservoirLayoutState;
+};
+
+type ReservoirLayoutOwnership = {
+  activeLayout: ReservoirLayoutState;
+  transitionPlan: ReservoirTransitionPlan | null;
 };
 
 type LayoutModeFocalDiagnostics = {
@@ -280,6 +353,14 @@ type LayoutModeFocalDiagnostics = {
   roundTripAngleDegrees: number;
   roundTripFrontDot: number;
   roundTripUpDot: number;
+  focusedLayoutCentroidLocal: ReservoirDirection | null;
+  focusedLayoutCentroidWorld: ReservoirDirection | null;
+  focusedLayoutCentroidErrorDegrees: number;
+  focusedLayoutCentroidWorldErrorDegrees: number;
+  focusedLayoutCentroidFrontAngleDegrees: number;
+  focusedLayoutCentroidFrontDot: number;
+  focusedLayoutCentroidUpDot: number;
+  focusedLayoutCentroidAssertionsPassed: boolean;
   assertionsPassed: boolean;
 };
 
@@ -334,6 +415,28 @@ function toDirectionTuple(direction: THREE.Vector3): ReservoirDirection {
 
 function formatDirectionTuple(direction: ReservoirDirection, precision = 6) {
   return direction.map((value) => value.toFixed(precision)).join(",");
+}
+
+function recordReservoirPointerDiagnostics(
+  element: HTMLDivElement | null,
+  resolution: ReservoirPointerResolution,
+) {
+  if (!element) return;
+
+  element.dataset.pointerCandidateNodeId = resolution.candidate?.id ?? "";
+  element.dataset.pointerCandidateSource = resolution.candidate?.source ?? "";
+  element.dataset.pointerCandidateDistance =
+    resolution.candidate?.distance.toFixed(9) ?? "";
+  element.dataset.pointerReservoirSurfaceDistance =
+    resolution.surfaceDistance?.toFixed(9) ?? "";
+  element.dataset.pointerReservoirSurfaceHit = String(
+    resolution.surfaceDistance !== null,
+  );
+  element.dataset.pointerCandidateOccluded = String(
+    resolution.candidateOccluded,
+  );
+  element.dataset.pointerCandidateAccepted = String(resolution.accepted);
+  element.dataset.pointerDistanceTolerance = resolution.tolerance.toFixed(9);
 }
 
 function getRuntimeFocalDiagnostics(
@@ -418,10 +521,227 @@ function getRuntimeFocalDiagnostics(
     roundTripAngleDegrees,
     roundTripFrontDot,
     roundTripUpDot,
+    focusedLayoutCentroidLocal: null,
+    focusedLayoutCentroidWorld: null,
+    focusedLayoutCentroidErrorDegrees: 0,
+    focusedLayoutCentroidWorldErrorDegrees: 0,
+    focusedLayoutCentroidFrontAngleDegrees: 0,
+    focusedLayoutCentroidFrontDot: 0,
+    focusedLayoutCentroidUpDot: 0,
+    focusedLayoutCentroidAssertionsPassed: true,
     assertionsPassed:
       Math.abs(roundTripAngleDegrees - 15) < 0.05 &&
       roundTripFrontDot > 0 &&
       roundTripUpDot > 0,
+  };
+}
+
+function addFocusedLayoutFocalDiagnostics(
+  focalDiagnostics: LayoutModeFocalDiagnostics,
+  layout: ReservoirLayout,
+): LayoutModeFocalDiagnostics {
+  const focusedLayoutCentroidLocal = getReservoirLayoutSphericalCentroid(
+    layout,
+  );
+  if (!focusedLayoutCentroidLocal) {
+    return {
+      ...focalDiagnostics,
+      focusedLayoutCentroidLocal: null,
+      focusedLayoutCentroidWorld: null,
+      focusedLayoutCentroidErrorDegrees: 0,
+      focusedLayoutCentroidWorldErrorDegrees: 0,
+      focusedLayoutCentroidFrontAngleDegrees: 0,
+      focusedLayoutCentroidFrontDot: 0,
+      focusedLayoutCentroidUpDot: 0,
+      focusedLayoutCentroidAssertionsPassed: true,
+    };
+  }
+
+  const reservoirWorldQuaternion = new THREE.Quaternion().fromArray(
+    focalDiagnostics.reservoirWorldQuaternion,
+  );
+  const focusedLayoutCentroidWorld = toDirectionTuple(
+    new THREE.Vector3(...focusedLayoutCentroidLocal)
+      .applyQuaternion(reservoirWorldQuaternion)
+      .normalize(),
+  );
+  const focusedLayoutCentroidErrorDegrees = THREE.MathUtils.radToDeg(
+    getReservoirDirectionAngularDistance(
+      focusedLayoutCentroidLocal,
+      focalDiagnostics.targetLocal,
+    ),
+  );
+  const focusedLayoutCentroidWorldErrorDegrees = THREE.MathUtils.radToDeg(
+    getReservoirDirectionAngularDistance(
+      focusedLayoutCentroidWorld,
+      focalDiagnostics.targetWorld,
+    ),
+  );
+  const focusedLayoutCentroidFrontAngleDegrees = THREE.MathUtils.radToDeg(
+    getReservoirDirectionAngularDistance(
+      focusedLayoutCentroidWorld,
+      focalDiagnostics.frontWorld,
+    ),
+  );
+  const focusedLayoutCentroidFrontDot = focusedLayoutCentroidWorld.reduce(
+    (sum, value, index) => sum + value * focalDiagnostics.frontWorld[index],
+    0,
+  );
+  const focusedLayoutCentroidUpDot = focusedLayoutCentroidWorld.reduce(
+    (sum, value, index) =>
+      sum + value * focalDiagnostics.upTangentWorld[index],
+    0,
+  );
+  const focusedLayoutCentroidAssertionsPassed =
+    isReservoirDirectionWithinAngularTolerance(
+      focusedLayoutCentroidLocal,
+      focalDiagnostics.targetLocal,
+      RESERVOIR_FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES,
+    ) &&
+    isReservoirDirectionWithinAngularTolerance(
+      focusedLayoutCentroidWorld,
+      focalDiagnostics.targetWorld,
+      RESERVOIR_FOCUSED_LAYOUT_CENTROID_TOLERANCE_DEGREES,
+    ) &&
+    Math.abs(focusedLayoutCentroidFrontAngleDegrees - 15) < 0.05 &&
+    focusedLayoutCentroidFrontDot > 0 &&
+    focusedLayoutCentroidUpDot > 0;
+
+  return {
+    ...focalDiagnostics,
+    focusedLayoutCentroidLocal,
+    focusedLayoutCentroidWorld,
+    focusedLayoutCentroidErrorDegrees,
+    focusedLayoutCentroidWorldErrorDegrees,
+    focusedLayoutCentroidFrontAngleDegrees,
+    focusedLayoutCentroidFrontDot,
+    focusedLayoutCentroidUpDot,
+    focusedLayoutCentroidAssertionsPassed,
+    assertionsPassed:
+      focalDiagnostics.assertionsPassed && focusedLayoutCentroidAssertionsPassed,
+  };
+}
+
+type PreparedReservoirLayoutState = {
+  layoutState: ReservoirLayoutState;
+  nodes: readonly ReservoirContentNode[];
+  focalDiagnostics: LayoutModeFocalDiagnostics | null;
+  queryPlacementDiagnostics: QueryPlacementDiagnostics | null;
+};
+
+function prepareReservoirLayoutState({
+  context,
+  mode,
+  surface,
+  camera,
+}: {
+  context: ReservoirContext;
+  mode: ReservoirLayoutMode;
+  surface: THREE.Object3D | null;
+  camera: THREE.Camera | null;
+}): PreparedReservoirLayoutState | null {
+  const nodes = getReservoirContextNodes(context);
+  const nodeSizingTargets = getReservoirNodeSizingTargets(nodes.length);
+  const placementPolicy = getReservoirLayoutPlacementPolicy(context);
+  const nodeDiameters = getReservoirNodeDiameters(
+    nodes,
+    nodeSizingTargets.desiredArtifactDiameter,
+    nodeSizingTargets.desiredCollectionDiameter,
+  );
+
+  let focusedDirection: ReservoirDirection | null = null;
+  let focalDiagnostics: LayoutModeFocalDiagnostics | null = null;
+  let queryPlacementDiagnostics: QueryPlacementDiagnostics | null = null;
+  const canonicalSingleResultPlacement =
+    context.kind === "query" &&
+    context.resultIds.length === 1 &&
+    placementPolicy === "canonical-focal-single-result";
+  if (mode === "focused" || canonicalSingleResultPlacement) {
+    if (!surface || !camera) return null;
+    focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
+    focusedDirection =
+      mode === "focused" ? focalDiagnostics.targetLocal : null;
+    if (canonicalSingleResultPlacement) {
+      queryPlacementDiagnostics = {
+        policy: placementPolicy,
+        resultCount: nodes.length,
+        canonicalFocalDirection: focalDiagnostics.targetLocal,
+        canonicalFocalErrorDegrees: 0,
+      };
+    }
+  }
+
+  const directions = generateReservoirLayout(nodes, {
+    seed: getReservoirContextSeed(context),
+    mode:
+      canonicalSingleResultPlacement || mode === "focused"
+        ? "focused"
+        : mode,
+    focusedDirection: canonicalSingleResultPlacement
+      ? focalDiagnostics?.targetLocal ?? undefined
+      : mode === "focused"
+        ? focusedDirection ?? undefined
+        : undefined,
+    minimumNodeDiameter:
+      mode === "focused"
+        ? Math.max(
+            nodeSizingTargets.desiredArtifactDiameter,
+            nodeSizingTargets.desiredCollectionDiameter,
+          )
+        : undefined,
+    nodeDiameters: mode === "focused" ? nodeDiameters : undefined,
+  });
+  if (focalDiagnostics) {
+    focalDiagnostics = addFocusedLayoutFocalDiagnostics(
+      focalDiagnostics,
+      directions,
+    );
+    if (queryPlacementDiagnostics) {
+      const firstDirection = directions.values().next().value as
+        | ReservoirDirection
+        | undefined;
+      queryPlacementDiagnostics = {
+        ...queryPlacementDiagnostics,
+        canonicalFocalErrorDegrees: firstDirection
+          ? THREE.MathUtils.radToDeg(
+              getReservoirDirectionAngularDistance(
+                firstDirection,
+                queryPlacementDiagnostics.canonicalFocalDirection ?? [
+                  0, 1, 0,
+                ],
+              ),
+            )
+          : 0,
+      };
+    }
+  }
+
+  return {
+    layoutState: {
+      contextKey: getReservoirContextKey(context),
+      mode,
+      directions,
+      nodeSizing: getReservoirNodeSizingSnapshot(
+        directions,
+        nodes.length,
+        nodeDiameters,
+      ),
+      focusedDirection,
+      placementPolicy,
+      queryPlacementDiagnostics,
+    },
+    nodes,
+    focalDiagnostics,
+    queryPlacementDiagnostics,
+  };
+}
+
+function captureReservoirLayoutState(
+  layoutState: ReservoirLayoutState,
+): ReservoirLayoutState {
+  return {
+    ...layoutState,
+    directions: new Map(layoutState.directions),
   };
 }
 
@@ -513,65 +833,50 @@ function ReservoirCameraBridge({
 
 type ReservoirOrientationProps = {
   children: ReactNode;
-  collectionId: string;
   composition: ReservoirInitialComposition;
   diagnosticsRef: MutableRefObject<HTMLDivElement | null>;
   layoutMode: ReservoirLayoutMode;
   layoutModeTransitionState: ReservoirLayoutTransitionState;
   onOrientationApplied: (diagnostics: RotationDiagnostics) => void;
-  orientationStoreRef: MutableRefObject<Map<string, QuaternionTuple>>;
   rotationRef: MutableRefObject<THREE.Group | null>;
 };
 
 function ReservoirOrientation({
   children,
-  collectionId,
   composition,
   diagnosticsRef,
   layoutMode,
   layoutModeTransitionState,
   onOrientationApplied,
-  orientationStoreRef,
   rotationRef,
 }: ReservoirOrientationProps) {
   const groupRef = useRef<THREE.Group | null>(null);
+  const initialOrientationAppliedRef = useRef(false);
 
   useLayoutEffect(() => {
     const group = groupRef.current;
     if (!group) return;
 
-    if (layoutModeTransitionState !== "idle") {
+    if (
+      initialOrientationAppliedRef.current ||
+      layoutModeTransitionState !== "idle" ||
+      layoutMode === "focused"
+    ) {
       rotationRef.current = group;
       return;
     }
 
-    if (layoutMode === "focused") {
-      rotationRef.current = group;
-      return;
-    }
-
-    const preservedOrientation =
-      orientationStoreRef.current.get(collectionId);
-    const orientation =
-      preservedOrientation ??
-      ([...composition.quaternion] as QuaternionTuple);
-    group.quaternion.set(...orientation).normalize();
+    group.quaternion.set(...composition.quaternion).normalize();
     group.updateMatrixWorld();
     rotationRef.current = group;
-    orientationStoreRef.current.set(
-      collectionId,
-      toQuaternionTuple(group.quaternion),
-    );
+    initialOrientationAppliedRef.current = true;
     const diagnostics = getRotationDiagnostics(group.quaternion);
     onOrientationApplied(diagnostics);
 
     if (diagnosticsRef.current) {
-      diagnosticsRef.current.dataset.initialOrientationCollectionId =
-        collectionId;
       diagnosticsRef.current.dataset.initialOrientationLayoutMode =
         layoutMode;
-      diagnosticsRef.current.dataset.initialOrientationSource =
-        preservedOrientation ? "preserved" : "generated";
+      diagnosticsRef.current.dataset.initialOrientationSource = "generated";
       diagnosticsRef.current.dataset.initialOrientationQuaternion =
         composition.quaternion
           .map((value) => value.toFixed(6))
@@ -596,13 +901,11 @@ function ReservoirOrientation({
         .join(",");
     }
   }, [
-    collectionId,
     composition,
     diagnosticsRef,
     layoutMode,
     layoutModeTransitionState,
     onOrientationApplied,
-    orientationStoreRef,
     rotationRef,
   ]);
 
@@ -630,7 +933,7 @@ export function ReservoirScene() {
     height: 1000,
     controlPlaneHeight: 120,
   });
-  const [cameraRevision, setCameraRevision] = useState(0);
+  const [, setCameraRevision] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [activeExploreFilter, setActiveExploreFilter] =
     useState<ActiveExploreFilter>("all");
@@ -653,6 +956,27 @@ export function ReservoirScene() {
     useState<ReservoirLayoutTransitionState>("idle");
   const [layoutModeFocalDiagnostics, setLayoutModeFocalDiagnostics] =
     useState<LayoutModeFocalDiagnostics | null>(null);
+  const [layoutOwnership, setLayoutOwnership] =
+    useState<ReservoirLayoutOwnership>(() => {
+      const initialContext: ReservoirContext = {
+        kind: "collection",
+        collectionId: ROOT_COLLECTION_ID,
+      };
+      const preparedLayout = prepareReservoirLayoutState({
+        context: initialContext,
+        mode: "distributed",
+        surface: null,
+        camera: null,
+      });
+      if (!preparedLayout) {
+        throw new Error("Unable to prepare the initial reservoir layout.");
+      }
+
+      return {
+        activeLayout: preparedLayout.layoutState,
+        transitionPlan: null,
+      };
+    });
   const [queryVisibleNodeIds, setQueryVisibleNodeIds] = useState<
     ReadonlySet<string>
   >(
@@ -663,6 +987,13 @@ export function ReservoirScene() {
   );
   const [queryReconciliation, setQueryReconciliation] =
     useState<QueryReconciliation | null>(null);
+  const queryReconciliationRef = useRef<QueryReconciliation | null>(null);
+  const [queryReservoirContext, setQueryReservoirContext] =
+    useState<ReservoirContext | null>(null);
+  const [queryReservoirTransitionContext, setQueryReservoirTransitionContext] =
+    useState<ReservoirContext | null>(null);
+  const [queryReservoirTransitionPhase, setQueryReservoirTransitionPhase] =
+    useState<CollectionReconstitutionPhase>("idle");
   const [locatingArtifactId, setLocatingArtifactId] = useState<string | null>(
     null,
   );
@@ -703,22 +1034,43 @@ export function ReservoirScene() {
   const atmosphereRef = useRef<HTMLElement | null>(null);
   const drag = useRef<DragState | null>(null);
   const queryRevisionRef = useRef(0);
+  const activeExploreFilterRef = useRef(activeExploreFilter);
+  const hoveredArtifactIdRef = useRef(hoveredArtifactId);
+  const selectedArtifactIdRef = useRef(selectedArtifactId);
+  const selectedCollectionIdRef = useRef(selectedCollectionId);
+  const selectedPressActiveRef = useRef(selectedPressActive);
   const layoutModeTransitionProgressRef = useRef(0);
   const layoutModeTransitionElapsedRef = useRef(0);
   const layoutModeViewResetProgressRef = useRef(0);
   const layoutModeTransitionPulseRef = useRef(0);
-  const layoutModeTransitionFocusedDirectionRef = useRef<
-    ReservoirDirection | null
-  >(null);
-  const layoutModeSourceSnapshotRef = useRef<RenderedLayoutSnapshot | null>(
-    null,
-  );
-  const layoutModeDestinationSnapshotRef =
-    useRef<RenderedLayoutSnapshot | null>(null);
-  const directLocateStartQuaternionRef = useRef(new THREE.Quaternion());
-  const directLocateTargetQuaternionRef = useRef(new THREE.Quaternion());
   const layoutModeResetStartZoomRef = useRef(RESERVOIR_ZOOM_DEFAULT);
   const layoutModeResetTargetZoomRef = useRef(RESERVOIR_ZOOM_DEFAULT);
+  const queryReservoirTransitionProgressRef = useRef(0);
+  const queryReservoirTransitionPhaseRef =
+    useRef<CollectionReconstitutionPhase>("idle");
+  const reservoirExploreFilterByContextKeyRef = useRef(
+    new Map<string, ActiveExploreFilter>(),
+  );
+  const queryReservoirSnapshotByContextKeyRef = useRef(
+    new Map<string, QueryReservoirSelectionSnapshot>(),
+  );
+  const restoreReservoirFilterForContext = useCallback(
+    (context: ReservoirContext) => {
+      const contextKey = getReservoirContextKey(context);
+      const restoredFilter =
+        reservoirExploreFilterByContextKeyRef.current.get(contextKey) ?? "all";
+      reservoirExploreFilterByContextKeyRef.current.set(
+        contextKey,
+        restoredFilter,
+      );
+      setActiveExploreFilter(restoredFilter);
+      setQueryVisibleNodeIds(
+        getExploreNodeIds(getReservoirContextNodes(context), restoredFilter),
+      );
+      return restoredFilter;
+    },
+    [],
+  );
   const reservoirTransformRef = useRef<THREE.Group | null>(null);
   const sphereRotationRef = useRef<THREE.Group | null>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
@@ -734,27 +1086,18 @@ export function ReservoirScene() {
   const interactionRevisionRef = useRef(0);
   const openingElapsedRef = useRef(0);
   const collectionReconstitutionProgressRef = useRef(0);
-  const collectionReconstitutionElapsedRef = useRef(0);
   const collectionEmergenceProgressRef = useRef(1);
   const pendingCollectionResolutionRef =
     useRef<PendingCollectionResolution | null>(null);
   const collectionTransitionPoseSnapshotRef =
     useRef<CollectionTransitionPoseSnapshot | null>(null);
-  const collectionTransitionSourceSnapshotRef =
-    useRef<RenderedLayoutSnapshot | null>(null);
-  const collectionTransitionDestinationSnapshotRef =
-    useRef<RenderedLayoutSnapshot | null>(null);
-  const pendingDirectArtifactIdRef = useRef<string | null>(null);
-  const pendingDirectCollectionIdRef = useRef<string | null>(null);
-  const collectionOrientationRef = useRef(
-    new Map<string, QuaternionTuple>(),
-  );
   const restorationElapsedRef = useRef(0);
   const restorationProgressRef = useRef(0);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const surfaceRef = useRef<THREE.Mesh | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const pointerVisibilityRaycaster = useMemo(() => new THREE.Raycaster(), []);
   const pointerNdc = useMemo(() => new THREE.Vector2(), []);
   const cameraWorldQuaternion = useMemo(() => new THREE.Quaternion(), []);
   const cameraRight = useMemo(() => new THREE.Vector3(), []);
@@ -771,6 +1114,55 @@ export function ReservoirScene() {
   const handleCameraReady = useCallback(() => {
     setCameraRevision((revision) => revision + 1);
   }, []);
+  const resolvePointerVisibility = useCallback<
+    ReservoirNodePointerVisibilityResolver
+  >(
+    ({ ray, ...candidate }) => {
+      const surface = surfaceRef.current;
+      if (!surface) return false;
+
+      surface.updateWorldMatrix(true, false);
+      pointerVisibilityRaycaster.ray.copy(ray);
+      pointerVisibilityRaycaster.near = 0;
+      pointerVisibilityRaycaster.far = Number.POSITIVE_INFINITY;
+      const surfaceDistance =
+        pointerVisibilityRaycaster.intersectObject(surface, false)[0]
+          ?.distance ?? null;
+      const resolution = resolveReservoirNodePointerCandidate({
+        candidates: [candidate],
+        surfaceDistance,
+      });
+      recordReservoirPointerDiagnostics(interaction.current, resolution);
+      return resolution.accepted;
+    },
+    [pointerVisibilityRaycaster],
+  );
+
+  function beginReservoirTransitionPlan(plan: ReservoirTransitionPlan) {
+    if (layoutOwnership.transitionPlan) return false;
+
+    const nextOwnership = {
+      ...layoutOwnership,
+      transitionPlan: plan,
+    };
+    setLayoutOwnership(nextOwnership);
+    return true;
+  }
+
+  const promoteReservoirTransitionDestination = useCallback(
+    (kind: ReservoirTransitionPlan["kind"]) => {
+      setLayoutOwnership((currentOwnership) => {
+        const plan = currentOwnership.transitionPlan;
+        if (!plan || plan.kind !== kind) return currentOwnership;
+
+        return {
+          activeLayout: plan.destination,
+          transitionPlan: null,
+        };
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     const element = interaction.current;
@@ -916,7 +1308,34 @@ export function ReservoirScene() {
     () => new THREE.Vector3(0, centerWorldY, 0),
     [centerWorldY],
   );
-  const renderedActiveCollectionId = collectionNavigation.activeCollectionId;
+  const collectionReservoirContext = useMemo<ReservoirContext>(
+    () => ({
+      kind: "collection",
+      collectionId: collectionNavigation.activeCollectionId,
+    }),
+    [collectionNavigation.activeCollectionId],
+  );
+  const settledReservoirContext =
+    queryReservoirContext ?? collectionReservoirContext;
+  const renderedReservoirContext = useMemo(() => {
+    if (!queryReservoirTransitionContext) return settledReservoirContext;
+    if (queryReservoirTransitionPhase === "deactivating") {
+      return settledReservoirContext;
+    }
+
+    return queryReservoirContext ?? queryReservoirTransitionContext;
+  }, [
+    queryReservoirContext,
+    queryReservoirTransitionContext,
+    queryReservoirTransitionPhase,
+    settledReservoirContext,
+  ]);
+  const renderedActiveCollectionId = getReservoirContextCollectionId(
+    renderedReservoirContext,
+  );
+  const renderedReservoirSeed = getReservoirContextSeed(
+    renderedReservoirContext,
+  );
   const activeCollection = (
     getCollectionById(renderedActiveCollectionId) ??
     getCollectionById(ROOT_COLLECTION_ID)
@@ -932,8 +1351,8 @@ export function ReservoirScene() {
     [collectionHistory],
   );
   const activeReservoirNodes = useMemo(
-    () => getReservoirContentNodes(renderedActiveCollectionId),
-    [renderedActiveCollectionId],
+    () => getReservoirContextNodes(renderedReservoirContext),
+    [renderedReservoirContext],
   );
   const activeReservoirArtifacts = useMemo(
     () =>
@@ -954,120 +1373,54 @@ export function ReservoirScene() {
   const activeReservoirNodeSizingTargets = getReservoirNodeSizingTargets(
     activeReservoirNodes.length,
   );
-  const {
-    desiredArtifactDiameter: activeReservoirDesiredArtifactDiameter,
-    desiredCollectionDiameter: activeReservoirDesiredCollectionDiameter,
-  } = activeReservoirNodeSizingTargets;
-  const activeReservoirNodeDiameters = useMemo(
-    () =>
-      getReservoirNodeDiameters(
-        activeReservoirNodes,
-        activeReservoirDesiredArtifactDiameter,
-        activeReservoirDesiredCollectionDiameter,
-      ),
-    [
-      activeReservoirNodes,
-      activeReservoirDesiredArtifactDiameter,
-      activeReservoirDesiredCollectionDiameter,
-    ],
-  );
-  const focusedLayoutDirection =
-    layoutModeTransitionFocusedDirectionRef.current;
-  const layoutModeSourceSnapshot = layoutModeSourceSnapshotRef.current;
-  const layoutModeDestinationSnapshot =
-    layoutModeDestinationSnapshotRef.current;
-  const collectionTransitionSourceSnapshot =
-    collectionTransitionSourceSnapshotRef.current;
-  const collectionTransitionDestinationSnapshot =
-    collectionTransitionDestinationSnapshotRef.current;
-  const activeReservoirLayoutSnapshot = useMemo(
-    () => {
-      if (
-        layoutModeTransitionState !== "idle" &&
-        layoutModeSourceSnapshot?.collectionId === renderedActiveCollectionId &&
-        layoutModeSourceSnapshot.mode === renderedLayoutMode
-      ) {
-        return layoutModeSourceSnapshot;
-      }
+  const transitionPlan = layoutOwnership.transitionPlan;
+  const activeLayoutSource = transitionPlan
+    ? transitionPlan.kind === "layout-mode"
+      ? layoutModeTransitionState === "sinking"
+        ? "transition-source"
+        : "transition-destination"
+      : transitionPlan.kind === "collection"
+        ? collectionNavigation.transitionPhase === "deactivating"
+          ? "transition-source"
+          : "transition-destination"
+        : queryReservoirTransitionPhase === "deactivating"
+          ? "transition-source"
+          : "transition-destination"
+    : "settled";
+  const resolvedLayoutState = useMemo(() => {
+    if (!transitionPlan) return layoutOwnership.activeLayout;
 
-      if (
-        layoutModeDestinationSnapshot?.collectionId ===
-          renderedActiveCollectionId &&
-        layoutModeDestinationSnapshot.mode === renderedLayoutMode
-      ) {
-        return layoutModeDestinationSnapshot;
-      }
+    if (transitionPlan.kind === "layout-mode") {
+      return layoutModeTransitionState === "sinking"
+        ? transitionPlan.source
+        : transitionPlan.destination;
+    }
 
-      if (
-        collectionTransitionSourceSnapshot?.collectionId ===
-          renderedActiveCollectionId &&
-        collectionNavigation.transitionPhase === "deactivating"
-      ) {
-        return collectionTransitionSourceSnapshot;
-      }
+    if (transitionPlan.kind === "collection") {
+      return collectionNavigation.transitionPhase === "deactivating"
+        ? transitionPlan.source
+        : transitionPlan.destination;
+    }
 
-      if (
-        collectionTransitionDestinationSnapshot?.collectionId ===
-        renderedActiveCollectionId
-      ) {
-        return collectionTransitionDestinationSnapshot;
-      }
-
-      const directions = generateReservoirLayout(activeReservoirNodes, {
-        seed: renderedActiveCollectionId,
-        mode: renderedLayoutMode,
-        focusedDirection:
-          renderedLayoutMode === "focused"
-            ? focusedLayoutDirection ?? undefined
-            : undefined,
-        minimumNodeDiameter:
-          renderedLayoutMode === "focused"
-            ? Math.max(
-                activeReservoirDesiredArtifactDiameter,
-                activeReservoirDesiredCollectionDiameter,
-              )
-            : undefined,
-        nodeDiameters:
-          renderedLayoutMode === "focused"
-            ? activeReservoirNodeDiameters
-            : undefined,
-      });
-      return {
-        collectionId: renderedActiveCollectionId,
-        mode: renderedLayoutMode,
-        directions,
-        quaternion: ([0, 0, 0, 1] as QuaternionTuple),
-        nodeSizing: getReservoirNodeSizingSnapshot(
-          directions,
-          activeReservoirNodes.length,
-          activeReservoirNodeDiameters,
-        ),
-      };
-    },
-    [
-      activeReservoirNodes,
-      activeReservoirDesiredArtifactDiameter,
-      activeReservoirDesiredCollectionDiameter,
-      activeReservoirNodeDiameters,
-      collectionNavigation.transitionPhase,
-      collectionTransitionDestinationSnapshot,
-      collectionTransitionSourceSnapshot,
-      focusedLayoutDirection,
-      layoutModeDestinationSnapshot,
-      layoutModeSourceSnapshot,
-      layoutModeTransitionState,
-      renderedActiveCollectionId,
-      renderedLayoutMode,
-    ],
-  );
-  const activeReservoirLayout = activeReservoirLayoutSnapshot.directions;
-  const activeNodeSizing = activeReservoirLayoutSnapshot.nodeSizing;
+    return queryReservoirTransitionPhase === "deactivating"
+      ? transitionPlan.source
+      : transitionPlan.destination;
+  }, [
+    collectionNavigation.transitionPhase,
+    layoutModeTransitionState,
+    layoutOwnership.activeLayout,
+    queryReservoirTransitionPhase,
+    transitionPlan,
+  ]);
+  const focusedLayoutDirection = resolvedLayoutState.focusedDirection;
+  const activeReservoirLayout = resolvedLayoutState.directions;
+  const activeNodeSizing = resolvedLayoutState.nodeSizing;
   const activeInitialComposition = useMemo(
     () =>
       generateReservoirInitialComposition(activeReservoirLayout, {
-        seed: renderedActiveCollectionId,
+        seed: renderedReservoirSeed,
       }),
-    [activeReservoirLayout, renderedActiveCollectionId],
+    [activeReservoirLayout, renderedReservoirSeed],
   );
   const activeReservoirLayoutDiagnostics = useMemo(
     () => getReservoirLayoutDiagnostics(activeReservoirLayout),
@@ -1086,7 +1439,7 @@ export function ReservoirScene() {
     fallbackCamera.updateProjectionMatrix();
     fallbackCamera.updateMatrixWorld();
     return fallbackCamera;
-  }, [cameraRevision, viewportFrame.height, viewportFrame.width]);
+  }, [viewportFrame.height, viewportFrame.width]);
   const focusedLayoutCapRadius = useMemo(
     () => getReservoirFocusedCapRadius(activeReservoirNodes.length),
     [activeReservoirNodes.length],
@@ -1094,7 +1447,7 @@ export function ReservoirScene() {
   const focusedLayoutFocalDirection = focusedLayoutDirection;
   const activeAdaptiveZoom = useMemo<ReservoirAdaptiveZoom>(() => {
     const camera = adaptiveZoomCamera;
-    if (!camera || cameraRevision < 0) {
+    if (!camera) {
       return {
         baselineMaximum: RESERVOIR_ZOOM_BASELINE_MAX,
         requiredZoom: RESERVOIR_ZOOM_BASELINE_MAX,
@@ -1125,7 +1478,6 @@ export function ReservoirScene() {
     activeReservoirNodes,
     baseScale,
     adaptiveZoomCamera,
-    cameraRevision,
     reservoirCenter,
     viewportFrame.height,
   ]);
@@ -1167,10 +1519,40 @@ export function ReservoirScene() {
     }
   }, [reservoirZoomMaximum, setReservoirZoom]);
 
-  const surfacedNodeIds = useMemo(
-    () => getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
-    [activeExploreFilter, activeReservoirNodes],
-  );
+  const surfacedNodeIds = useMemo(() => {
+    if (queryReservoirContext || queryReservoirTransitionContext) {
+      return queryVisibleNodeIds;
+    }
+    return getExploreNodeIds(activeReservoirNodes, activeExploreFilter);
+  }, [
+    activeExploreFilter,
+    activeReservoirNodes,
+    queryVisibleNodeIds,
+    queryReservoirContext,
+    queryReservoirTransitionContext,
+  ]);
+  const surfacedNodeIdsRef = useRef(surfacedNodeIds);
+  useEffect(() => {
+    surfacedNodeIdsRef.current = surfacedNodeIds;
+  }, [surfacedNodeIds]);
+  useEffect(() => {
+    activeExploreFilterRef.current = activeExploreFilter;
+  }, [activeExploreFilter]);
+  useEffect(() => {
+    hoveredArtifactIdRef.current = hoveredArtifactId;
+  }, [hoveredArtifactId]);
+  useEffect(() => {
+    selectedArtifactIdRef.current = selectedArtifactId;
+  }, [selectedArtifactId]);
+  useEffect(() => {
+    selectedCollectionIdRef.current = selectedCollectionId;
+  }, [selectedCollectionId]);
+  useEffect(() => {
+    selectedPressActiveRef.current = selectedPressActive;
+  }, [selectedPressActive]);
+  useEffect(() => {
+    queryReconciliationRef.current = queryReconciliation;
+  }, [queryReconciliation]);
   const reservoirNodeDiagnostics = useMemo(
     () => getReservoirNodeDiagnostics(activeReservoirNodes),
     [activeReservoirNodes],
@@ -1220,7 +1602,8 @@ export function ReservoirScene() {
           ? "closing"
           : null;
   const collectionContextTransition =
-    transitionState === "reconstitutingCollection";
+    transitionState === "reconstitutingCollection" ||
+    queryReservoirTransitionPhase !== "idle";
   const queryTransitionActive = queryActivityRevision !== null;
   const menuActive = menuState !== "closed";
   const footerVisible = footerState !== "closed";
@@ -1238,75 +1621,14 @@ export function ReservoirScene() {
     inputLocked || collectionNavigation.transitionPhase !== "idle";
   const secondaryControlsDimmed =
     collectionContextTransition || layoutModeTransitionActive;
-
-  useEffect(() => {
-    if (
-      transitionState !== "locatingArtifact" ||
-      !locatingArtifactId
-    ) {
-      return;
-    }
-
-    let duration = reducedMotion
-      ? DIRECT_LOCATE_REDUCED_MOTION_DURATION
-      : DIRECT_LOCATE_DURATION;
-    const artifactId = locatingArtifactId;
-    let startTime = performance.now();
-    let correctionCount = 0;
-    let animationFrameId = 0;
-
-    function updateDirectLocate(now: number) {
-      const sphere = sphereRotationRef.current;
-      if (!sphere) return;
-      const progress = clamp((now - startTime) / (duration * 1000), 0, 1);
-      const easedProgress = smoothstep(progress);
-      sphere.quaternion
-        .copy(directLocateStartQuaternionRef.current)
-        .slerp(directLocateTargetQuaternionRef.current, easedProgress)
-        .normalize();
-      const diagnostics = getRotationDiagnostics(sphere.quaternion);
-      setRotationDiagnostics(diagnostics);
-
-      if (interaction.current) {
-        interaction.current.dataset.directLocateArtifact = artifactId;
-        interaction.current.dataset.directLocateProgress = progress.toFixed(6);
-        interaction.current.dataset.renderedRotation =
-          `${diagnostics.euler[0].toFixed(3)},${diagnostics.euler[1].toFixed(3)}`;
-        interaction.current.dataset.renderedQuaternion = diagnostics.quaternion
-          .map((value) => value.toFixed(6))
-          .join(",");
-      }
-
-      if (progress < 1) {
-        animationFrameId = requestAnimationFrame(updateDirectLocate);
-        return;
-      }
-
-      if (!isDirectArtifactSafelyFramed(artifactId)) {
-        if (prepareDirectLocateTarget(artifactId)) {
-          correctionCount += 1;
-          startTime = now;
-          duration = reducedMotion ? 0.12 : 0.32;
-          if (interaction.current) {
-            interaction.current.dataset.directLocateCorrections =
-              String(correctionCount);
-          }
-          animationFrameId = requestAnimationFrame(updateDirectLocate);
-        }
-        return;
-      }
-
-      setLocatingArtifactId(null);
-      beginArtifactOpening(artifactId, true);
-    }
-
-    animationFrameId = requestAnimationFrame(updateDirectLocate);
-    return () => cancelAnimationFrame(animationFrameId);
-    // The opening command must use the exact render that established this
-    // locate phase; adding the render-local command as a dependency would
-    // restart the quaternion timeline on every state update.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locatingArtifactId, reducedMotion, transitionState]);
+  const navigationContext =
+    queryReservoirContext ?? queryReservoirTransitionContext;
+  const showHomeNavigation =
+    navigationContext?.kind === "query" || collectionHistory.length > 1;
+  const showBackNavigation =
+    navigationContext?.kind === "query"
+      ? canNavigateBackFromQueryContext(navigationContext)
+      : collectionHistory.length >= 3;
 
   useEffect(() => {
     if (
@@ -1355,10 +1677,8 @@ export function ReservoirScene() {
     const destinationCollectionId = requestedDestinationCollectionId;
 
     const duration = getCollectionReconstitutionDuration(reducedMotion);
-    const openingDuration = getOpeningDuration(reducedMotion);
     const startTime = performance.now();
     let handoffCommitted = false;
-    let reactivationReported = false;
     let animationFrameId = 0;
 
     function updateCollectionReconstitution(now: number) {
@@ -1369,39 +1689,24 @@ export function ReservoirScene() {
       );
       const frame = getCollectionReconstitutionFrame(progress);
       collectionReconstitutionProgressRef.current = progress;
-      collectionReconstitutionElapsedRef.current =
-        openingDuration * frame.deactivationProgress;
       collectionEmergenceProgressRef.current = frame.emergenceProgress;
 
       if (!handoffCommitted && progress >= 0.5) {
         handoffCommitted = true;
         const resolution = pendingCollectionResolutionRef.current;
-        setQueryVisibleNodeIds(
-          new Set(
-            getReservoirContentNodes(destinationCollectionId).map(
-              (node) => node.id,
-            ),
-          ),
-        );
+        setQueryReservoirContext(null);
+        setQueryReservoirTransitionContext(null);
+        restoreReservoirFilterForContext({
+          kind: "collection",
+          collectionId: destinationCollectionId,
+        });
         setQueryReconciliation(null);
         setQueryActivityRevision(null);
         setQueryActivityMode(null);
         setRejectedExploreFilter(null);
-        setActiveExploreFilter("all");
         if (resolution) setCollectionHistory(resolution.history);
         setSelectedArtifactId(null);
         setSelectedCollectionId(null);
-        setCollectionNavigation({
-          activeCollectionId: destinationCollectionId,
-          destinationCollectionId,
-          transitionPhase: "handoff",
-        });
-      } else if (
-        handoffCommitted &&
-        !reactivationReported &&
-        progress > 0.5
-      ) {
-        reactivationReported = true;
         setCollectionNavigation({
           activeCollectionId: destinationCollectionId,
           destinationCollectionId,
@@ -1426,7 +1731,7 @@ export function ReservoirScene() {
           String(handoffCommitted);
         interaction.current.dataset.collectionCameraWrites = "none";
         interaction.current.dataset.collectionOrientationWrites =
-          "initial-or-preserved-at-handoff";
+          "preserve-current-quaternion";
       }
 
       if (progress < 1) {
@@ -1439,25 +1744,20 @@ export function ReservoirScene() {
       const snapshot = collectionTransitionPoseSnapshotRef.current;
       const sphereQuaternion = sphereRotationRef.current?.quaternion;
       if (interaction.current && snapshot && sphereQuaternion) {
-        const expectedOrientation = collectionOrientationRef.current.get(
-          destinationCollectionId,
-        );
         interaction.current.dataset.collectionSphereQuaternionError =
-          expectedOrientation
-            ? sphereQuaternion
-                .angleTo(new THREE.Quaternion(...expectedOrientation))
-                .toFixed(9)
-            : "0.000000000";
+          sphereQuaternion
+            .angleTo(new THREE.Quaternion(...snapshot.sphereQuaternion))
+            .toFixed(9);
         interaction.current.dataset.collectionZoomLevelError = Math.abs(
           zoomLevelRef.current - snapshot.zoomLevel,
         ).toFixed(9);
       }
 
       collectionReconstitutionProgressRef.current = 1;
-      collectionReconstitutionElapsedRef.current = 0;
       collectionEmergenceProgressRef.current = 1;
       pendingCollectionResolutionRef.current = null;
       collectionTransitionPoseSnapshotRef.current = null;
+      promoteReservoirTransitionDestination("collection");
       setSelectedSpatialDestinationId(null);
       setCollectionActivityRevision(null);
       setCollectionNavigation({
@@ -1472,8 +1772,179 @@ export function ReservoirScene() {
     return () => cancelAnimationFrame(animationFrameId);
   }, [
     collectionNavigation.destinationCollectionId,
+    promoteReservoirTransitionDestination,
     reducedMotion,
+    restoreReservoirFilterForContext,
     transitionState,
+  ]);
+
+  useEffect(() => {
+    queryReservoirTransitionPhaseRef.current =
+      queryReservoirTransitionPhase;
+  }, [queryReservoirTransitionPhase]);
+
+  function persistReservoirPresentationForCurrentContext() {
+    const currentContext = queryReservoirContext ?? collectionReservoirContext;
+    const contextKey = getReservoirContextKey(currentContext);
+
+    reservoirExploreFilterByContextKeyRef.current.set(
+      contextKey,
+      activeExploreFilterRef.current,
+    );
+    if (currentContext.kind !== "query") {
+      return;
+    }
+
+    queryReservoirSnapshotByContextKeyRef.current.set(contextKey, {
+      hoveredArtifactId: hoveredArtifactIdRef.current,
+      selectedArtifactId: selectedArtifactIdRef.current,
+      selectedCollectionId: selectedCollectionIdRef.current,
+      selectedPressActive: selectedPressActiveRef.current,
+    });
+  }
+
+  const restoreQueryReservoirSnapshotForContext = useCallback(
+    (context: ReservoirContext) => {
+      if (context.kind !== "query") return;
+
+      const snapshot = queryReservoirSnapshotByContextKeyRef.current.get(
+        getReservoirContextKey(context),
+      );
+      if (!snapshot) return;
+
+      setHoveredArtifactId(snapshot.hoveredArtifactId);
+      if (
+        snapshot.selectedArtifactId !== null ||
+        snapshot.selectedCollectionId !== null
+      ) {
+        setSelectedArtifactId(snapshot.selectedArtifactId);
+        setSelectedCollectionId(snapshot.selectedCollectionId);
+      }
+      setSelectedPressActive(snapshot.selectedPressActive);
+    },
+    [],
+  );
+
+  const settleQueryReservoirContext = useCallback((context: ReservoirContext) => {
+    setQueryReservoirContext(context.kind === "query" ? context : null);
+    setQueryReservoirTransitionContext(null);
+    restoreReservoirFilterForContext(context);
+    setQueryReconciliation(null);
+    setQueryActivityRevision(null);
+    setQueryActivityMode(null);
+    setRejectedExploreFilter(null);
+  }, [restoreReservoirFilterForContext]);
+
+  const completeQueryTransition = useCallback(() => {
+    const transitionContext = queryReservoirTransitionContext;
+    if (transitionContext) {
+      promoteReservoirTransitionDestination("query");
+      settleQueryReservoirContext(transitionContext);
+      if (transitionContext.kind === "query") {
+        const autoSelectedArtifactId =
+          transitionContext.resultIds[0] ?? null;
+        setSelectedArtifactId(autoSelectedArtifactId);
+        setSelectedCollectionId(null);
+        setSelectedPressActive(false);
+        setHoveredArtifactId(null);
+        setLocatingArtifactId(null);
+        restoreQueryReservoirSnapshotForContext(transitionContext);
+      }
+      setQueryReservoirTransitionPhase("idle");
+      queryReservoirTransitionProgressRef.current = 0;
+    } else if (queryActivityMode === "success") {
+      setQueryVisibleNodeIds(
+        new Set(
+          queryReconciliationRef.current?.target ??
+            surfacedNodeIdsRef.current,
+        ),
+      );
+    }
+    setQueryReconciliation(null);
+    setQueryActivityRevision(null);
+    setQueryActivityMode(null);
+    setRejectedExploreFilter(null);
+    setLocatingArtifactId(null);
+    if (transitionContext === null) {
+      setQueryReservoirTransitionPhase("idle");
+      queryReservoirTransitionProgressRef.current = 0;
+    }
+  }, [
+    promoteReservoirTransitionDestination,
+    queryActivityMode,
+    queryReservoirTransitionContext,
+    settleQueryReservoirContext,
+    restoreQueryReservoirSnapshotForContext,
+  ]);
+
+  useEffect(() => {
+    if (
+      queryReservoirTransitionPhaseRef.current !== "deactivating" ||
+      !queryReservoirTransitionContext
+    ) {
+      return;
+    }
+
+    const duration = getCollectionReconstitutionDuration(reducedMotion);
+    const startTime = performance.now();
+    let handoffCommitted = false;
+    let animationFrameId = 0;
+
+    function updateQueryReconstitution(now: number) {
+      const progress = clamp(
+        (now - startTime) / 1000 / Math.max(duration, Number.EPSILON),
+        0,
+        1,
+      );
+      const frame = getCollectionReconstitutionFrame(progress);
+      queryReservoirTransitionProgressRef.current = progress;
+
+      if (!handoffCommitted && progress >= 0.5) {
+        handoffCommitted = true;
+        const destinationContext = queryReservoirTransitionContext;
+        if (!destinationContext) {
+          return;
+        }
+        setQueryReservoirContext(destinationContext);
+        setQueryReservoirTransitionPhase("reactivating");
+        restoreReservoirFilterForContext(destinationContext);
+      }
+
+      if (interaction.current) {
+        interaction.current.dataset.queryReservoirTransitionPhase =
+          handoffCommitted ? "reactivating" : "deactivating";
+        interaction.current.dataset.queryReservoirTransitionProgress =
+          progress.toFixed(6);
+        interaction.current.dataset.queryReservoirTransitionHandoffCommitted =
+          String(handoffCommitted);
+        interaction.current.dataset.queryReservoirTransitionTwinkleEnvelope =
+          frame.twinkleEnvelope.toFixed(6);
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(updateQueryReconstitution);
+        return;
+      }
+
+      queryReservoirTransitionProgressRef.current = 1;
+      completeQueryTransition();
+      if (interaction.current) {
+        interaction.current.dataset.queryReservoirTransitionPhase = "idle";
+        interaction.current.dataset.queryReservoirTransitionProgress = "1.000000";
+        interaction.current.dataset.queryReservoirTransitionHandoffCommitted =
+          String(handoffCommitted);
+        interaction.current.dataset.queryReservoirTransitionTwinkleEnvelope =
+          frame.twinkleEnvelope.toFixed(6);
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(updateQueryReconstitution);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [
+    completeQueryTransition,
+    queryReservoirTransitionContext,
+    reducedMotion,
+    restoreReservoirFilterForContext,
   ]);
 
   useEffect(() => {
@@ -1586,6 +2057,7 @@ export function ReservoirScene() {
       layoutModeTransitionProgressRef.current = 0;
       layoutModeTransitionElapsedRef.current = 0;
       layoutModeTransitionPulseRef.current = 0;
+      promoteReservoirTransitionDestination("layout-mode");
       setLayoutModeTransitionState("idle");
       if (interaction.current) {
         interaction.current.dataset.layoutModeTransitionPhase = "idle";
@@ -1596,7 +2068,11 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateEmerging);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [layoutModeTransitionState, reducedMotion]);
+  }, [
+    layoutModeTransitionState,
+    promoteReservoirTransitionDestination,
+    reducedMotion,
+  ]);
 
   useEffect(() => {
     if (!layoutModeTransitionActive) {
@@ -1956,35 +2432,48 @@ export function ReservoirScene() {
     raycaster.setFromCamera(pointerNdc, camera);
 
     const surfaceDistance =
-      raycaster.intersectObject(surface, false)[0]?.distance ??
-      Number.POSITIVE_INFINITY;
-    const nodeHit = raycaster
+      raycaster.intersectObject(surface, false)[0]?.distance ?? null;
+    const candidates = raycaster
       .intersectObjects(scene.children, true)
-      .find((hit) => {
+      .flatMap<ReservoirPointerCandidate>((hit) => {
         const artifactId = hit.object.userData.artifactId;
         const collectionId = hit.object.userData.collectionId;
-        const hitRadius =
-          typeof collectionId === "string"
-            ? activeNodeSizing.collectionRadius
-            : activeNodeSizing.artifactRadius;
+        const source = hit.object.userData[
+          RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY
+        ];
+        const kind =
+          typeof artifactId === "string"
+            ? "artifact"
+            : typeof collectionId === "string"
+              ? "collection"
+              : null;
+        const id = kind === "artifact" ? artifactId : collectionId;
 
-        const nodeId =
-          typeof artifactId === "string" ? artifactId : collectionId;
-        return (
-          typeof nodeId === "string" &&
-          surfacedNodeIds.has(nodeId) &&
-          hit.distance <= surfaceDistance + hitRadius
-        );
+        if (
+          kind === null ||
+          typeof id !== "string" ||
+          !surfacedNodeIds.has(id) ||
+          (source !== "visible-mesh" && source !== "hit-area")
+        ) {
+          return [];
+        }
+
+        return [{
+          distance: hit.distance,
+          id,
+          kind,
+          source: source as ReservoirPointerCandidateSource,
+        }];
       });
-    const artifactId = nodeHit?.object.userData.artifactId;
-    if (typeof artifactId === "string") {
-      return { kind: "artifact", id: artifactId };
-    }
-    const collectionId = nodeHit?.object.userData.collectionId;
-    if (typeof collectionId === "string") {
-      return { kind: "collection", id: collectionId };
-    }
-    return null;
+    const resolution = resolveReservoirNodePointerCandidate({
+      candidates,
+      surfaceDistance,
+    });
+    recordReservoirPointerDiagnostics(interaction.current, resolution);
+
+    return resolution.candidate && resolution.accepted
+      ? { kind: resolution.candidate.kind, id: resolution.candidate.id }
+      : null;
   }
 
   function capturePreservedReservoirState(
@@ -2000,15 +2489,43 @@ export function ReservoirScene() {
     };
   }
 
-  function preserveDistributedOrientation(collectionId: string) {
-    if (renderedLayoutMode !== "distributed") return;
-    const sphere = sphereRotationRef.current;
-    if (!sphere) return;
+  function recordLayoutFocalDiagnostics(
+    focalDiagnostics: LayoutModeFocalDiagnostics,
+  ) {
+    setLayoutModeFocalDiagnostics(focalDiagnostics);
+    if (!interaction.current) return;
 
-    collectionOrientationRef.current.set(
-      collectionId,
-      toQuaternionTuple(sphere.quaternion),
+    interaction.current.dataset.layoutModeFocalAssertions = String(
+      focalDiagnostics.assertionsPassed,
     );
+    interaction.current.dataset.layoutModeReservoirWorldPosition =
+      focalDiagnostics.reservoirWorldPosition
+        .map((value) => value.toFixed(6))
+        .join(",");
+    interaction.current.dataset.layoutModeReservoirWorldQuaternion =
+      focalDiagnostics.reservoirWorldQuaternion
+        .map((value) => value.toFixed(6))
+        .join(",");
+    interaction.current.dataset.layoutModeFrontWorld = formatDirectionTuple(
+      focalDiagnostics.frontWorld,
+    );
+    interaction.current.dataset.layoutModeUpTangentWorld =
+      formatDirectionTuple(focalDiagnostics.upTangentWorld);
+    interaction.current.dataset.layoutModeTargetWorld = formatDirectionTuple(
+      focalDiagnostics.targetWorld,
+    );
+    interaction.current.dataset.layoutModeTargetLocal = formatDirectionTuple(
+      focalDiagnostics.targetLocal,
+    );
+    interaction.current.dataset.layoutModeRoundTripWorld = formatDirectionTuple(
+      focalDiagnostics.roundTripWorld,
+    );
+    interaction.current.dataset.layoutModeRoundTripAngleDegrees =
+      focalDiagnostics.roundTripAngleDegrees.toFixed(6);
+    interaction.current.dataset.layoutModeRoundTripFrontDot =
+      focalDiagnostics.roundTripFrontDot.toFixed(6);
+    interaction.current.dataset.layoutModeRoundTripUpDot =
+      focalDiagnostics.roundTripUpDot.toFixed(6);
   }
 
   function requestLayoutMode(nextLayoutMode: ReservoirLayoutMode) {
@@ -2024,110 +2541,35 @@ export function ReservoirScene() {
       return;
     }
 
-    const sphere = sphereRotationRef.current;
-    const surface = surfaceRef.current;
-    const camera = cameraRef.current;
-    const currentQuaternion = sphere
-      ? toQuaternionTuple(sphere.quaternion)
-      : ([0, 0, 0, 1] as QuaternionTuple);
-
-    layoutModeSourceSnapshotRef.current = {
-      collectionId: renderedActiveCollectionId,
-      mode: renderedLayoutMode,
-      directions: new Map(activeReservoirLayout),
-      quaternion: currentQuaternion,
-      nodeSizing: activeNodeSizing,
-    };
-
-    let destinationFocusedDirection =
-      layoutModeTransitionFocusedDirectionRef.current;
-    if (nextLayoutMode === "focused") {
-      if (!surface || !camera) return;
-      const focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
-      setLayoutModeFocalDiagnostics(focalDiagnostics);
-      if (interaction.current) {
-        interaction.current.dataset.layoutModeFocalAssertions = String(
-          focalDiagnostics.assertionsPassed,
-        );
-        interaction.current.dataset.layoutModeReservoirWorldPosition =
-          focalDiagnostics.reservoirWorldPosition
-            .map((value) => value.toFixed(6))
-            .join(",");
-        interaction.current.dataset.layoutModeReservoirWorldQuaternion =
-          focalDiagnostics.reservoirWorldQuaternion
-            .map((value) => value.toFixed(6))
-            .join(",");
-        interaction.current.dataset.layoutModeFrontWorld = formatDirectionTuple(
-          focalDiagnostics.frontWorld,
-        );
-        interaction.current.dataset.layoutModeUpTangentWorld =
-          formatDirectionTuple(focalDiagnostics.upTangentWorld);
-        interaction.current.dataset.layoutModeTargetWorld =
-          formatDirectionTuple(focalDiagnostics.targetWorld);
-        interaction.current.dataset.layoutModeTargetLocal =
-          formatDirectionTuple(focalDiagnostics.targetLocal);
-        interaction.current.dataset.layoutModeRoundTripWorld =
-          formatDirectionTuple(focalDiagnostics.roundTripWorld);
-        interaction.current.dataset.layoutModeRoundTripAngleDegrees =
-          focalDiagnostics.roundTripAngleDegrees.toFixed(6);
-        interaction.current.dataset.layoutModeRoundTripFrontDot =
-          focalDiagnostics.roundTripFrontDot.toFixed(6);
-        interaction.current.dataset.layoutModeRoundTripUpDot =
-          focalDiagnostics.roundTripUpDot.toFixed(6);
-      }
-      if (!focalDiagnostics.assertionsPassed) {
-        console.error(
-          "Reservoir focal-position assertions failed",
-          focalDiagnostics,
-        );
-        layoutModeSourceSnapshotRef.current = null;
-        return;
-      }
-      destinationFocusedDirection = focalDiagnostics.targetLocal;
-      layoutModeTransitionFocusedDirectionRef.current =
-        destinationFocusedDirection;
+    const preparedDestination = prepareReservoirLayoutState({
+      context: settledReservoirContext,
+      mode: nextLayoutMode,
+      surface: surfaceRef.current,
+      camera: cameraRef.current,
+    });
+    if (!preparedDestination) return;
+    if (preparedDestination.focalDiagnostics) {
+      recordLayoutFocalDiagnostics(preparedDestination.focalDiagnostics);
+    }
+    if (
+      !beginReservoirTransitionPlan({
+        kind: "layout-mode",
+        source: captureReservoirLayoutState(
+          layoutOwnership.activeLayout,
+        ),
+        destination: preparedDestination.layoutState,
+      })
+    ) {
+      return;
     }
 
-    const destinationLayout = generateReservoirLayout(activeReservoirNodes, {
-      seed: renderedActiveCollectionId,
-      mode: nextLayoutMode,
-      focusedDirection:
-        nextLayoutMode === "focused"
-          ? destinationFocusedDirection ?? undefined
-          : undefined,
-      minimumNodeDiameter:
-        nextLayoutMode === "focused"
-        ? Math.max(
-              activeReservoirDesiredArtifactDiameter,
-              activeReservoirDesiredCollectionDiameter,
-            )
-          : undefined,
-      nodeDiameters:
-        nextLayoutMode === "focused"
-          ? activeReservoirNodeDiameters
-          : undefined,
-    });
-    const destinationNodeSizing = getReservoirNodeSizingSnapshot(
-      destinationLayout,
-      activeReservoirNodes.length,
-      activeReservoirNodeDiameters,
-    );
-    layoutModeDestinationSnapshotRef.current = {
-      collectionId: renderedActiveCollectionId,
-      mode: nextLayoutMode,
-      directions: destinationLayout,
-      quaternion: currentQuaternion,
-      nodeSizing: destinationNodeSizing,
-    };
-    collectionOrientationRef.current.set(
-      collectionNavigation.activeCollectionId,
-      currentQuaternion,
-    );
     layoutModeResetStartZoomRef.current = zoomLevelRef.current;
     layoutModeResetTargetZoomRef.current = clampReservoirZoom(
       RESERVOIR_ZOOM_DEFAULT,
-      getAdaptiveZoomForSnapshot(activeReservoirNodes, destinationNodeSizing)
-        .activeMaximum,
+      getAdaptiveZoomForSnapshot(
+        preparedDestination.nodes,
+        preparedDestination.layoutState.nodeSizing,
+      ).activeMaximum,
     );
     layoutModeViewResetProgressRef.current = 0;
     layoutModeTransitionPulseRef.current = 0;
@@ -2178,9 +2620,14 @@ export function ReservoirScene() {
     destinationCollectionId: string,
     allowDuringMenuOpen = false,
   ) {
+    const destinationContext: ReservoirContext = {
+      kind: "collection",
+      collectionId: destinationCollectionId,
+    };
     if (
       (!allowDuringMenuOpen && inputLocked) ||
-      destinationCollectionId === collectionNavigation.activeCollectionId ||
+      getReservoirContextKey(destinationContext) ===
+        layoutOwnership.activeLayout.contextKey ||
       getCollectionById(destinationCollectionId)?.published !== true
     ) {
       return;
@@ -2189,80 +2636,47 @@ export function ReservoirScene() {
     const resolution = pendingCollectionResolutionRef.current;
     if (!resolution) return;
 
-    const sphere = sphereRotationRef.current;
-    const currentQuaternion = sphere
-      ? toQuaternionTuple(sphere.quaternion)
-      : ([0, 0, 0, 1] as QuaternionTuple);
-    collectionTransitionSourceSnapshotRef.current = {
-      collectionId: renderedActiveCollectionId,
-      mode: renderedLayoutMode,
-      directions: new Map(activeReservoirLayout),
-      quaternion: currentQuaternion,
-      nodeSizing: activeNodeSizing,
-    };
-    const destinationNodes = getReservoirContentNodes(destinationCollectionId);
-    const destinationNodeSizingTargets = getReservoirNodeSizingTargets(
-      destinationNodes.length,
-    );
-    const destinationNodeDiameters = getReservoirNodeDiameters(
-      destinationNodes,
-      destinationNodeSizingTargets.desiredArtifactDiameter,
-      destinationNodeSizingTargets.desiredCollectionDiameter,
-    );
-    const destinationLayout = generateReservoirLayout(destinationNodes, {
-      seed: destinationCollectionId,
-      mode: renderedLayoutMode,
-      focusedDirection:
-        renderedLayoutMode === "focused"
-          ? focusedLayoutDirection ?? undefined
-          : undefined,
-      minimumNodeDiameter:
-        renderedLayoutMode === "focused"
-          ? Math.max(
-              destinationNodeSizingTargets.desiredArtifactDiameter,
-              destinationNodeSizingTargets.desiredCollectionDiameter,
-            )
-          : undefined,
-      nodeDiameters:
-        renderedLayoutMode === "focused"
-          ? destinationNodeDiameters
-          : undefined,
+    const preparedDestination = prepareReservoirLayoutState({
+      context: destinationContext,
+      mode: layoutOwnership.activeLayout.mode,
+      surface: surfaceRef.current,
+      camera: cameraRef.current,
     });
-    const destinationNodeSizing = getReservoirNodeSizingSnapshot(
-      destinationLayout,
-      destinationNodes.length,
-      destinationNodeDiameters,
-    );
+    if (!preparedDestination) return;
+    if (preparedDestination.focalDiagnostics) {
+      recordLayoutFocalDiagnostics(preparedDestination.focalDiagnostics);
+    }
+    if (
+      !beginReservoirTransitionPlan({
+        kind: "collection",
+        source: captureReservoirLayoutState(
+          layoutOwnership.activeLayout,
+        ),
+        destination: preparedDestination.layoutState,
+      })
+    ) {
+      return;
+    }
+
+    persistReservoirPresentationForCurrentContext();
     const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
-      destinationNodes,
-      destinationNodeSizing,
+      preparedDestination.nodes,
+      preparedDestination.layoutState.nodeSizing,
     );
     const destinationZoom = clampReservoirZoom(
       zoomLevelRef.current,
       destinationAdaptiveZoom.activeMaximum,
     );
+
     zoomLevelRef.current = destinationZoom;
     setZoomLevel(destinationZoom);
-    collectionTransitionDestinationSnapshotRef.current = {
-      collectionId: destinationCollectionId,
-      mode: renderedLayoutMode,
-      directions: destinationLayout,
-      quaternion: currentQuaternion,
-      nodeSizing: destinationNodeSizing,
-    };
-    collectionOrientationRef.current.set(
-      collectionNavigation.activeCollectionId,
-      currentQuaternion,
-    );
-    collectionOrientationRef.current.set(
-      destinationCollectionId,
-      currentQuaternion,
-    );
     collectionTransitionPoseSnapshotRef.current = {
+      sphereQuaternion: sphereRotationRef.current
+        ? toQuaternionTuple(sphereRotationRef.current.quaternion)
+        : [0, 0, 0, 1],
       zoomLevel: destinationZoom,
     };
     collectionReconstitutionProgressRef.current = 0;
-    collectionReconstitutionElapsedRef.current = 0;
     collectionEmergenceProgressRef.current = 0;
     queryRevisionRef.current += 1;
     setCollectionActivityRevision(queryRevisionRef.current);
@@ -2305,6 +2719,7 @@ export function ReservoirScene() {
       history: collectionHistory.slice(0, targetHistoryIndex + 1),
       spatialSelectionId: null,
     };
+    persistReservoirPresentationForCurrentContext();
     requestCollection(targetCollectionId);
   }
 
@@ -2361,10 +2776,6 @@ export function ReservoirScene() {
     setIsDragging(false);
     setSelectedPressActive(false);
     interactionRevisionRef.current += 1;
-    const renderedSphere = sphereRotationRef.current;
-    if (renderedSphere) {
-      preserveDistributedOrientation(collectionNavigation.activeCollectionId);
-    }
     if (
       allowSelection &&
       completedDrag.maxTravelSquared <= NODE_CLICK_MAX_TRAVEL ** 2
@@ -2539,22 +2950,11 @@ export function ReservoirScene() {
     }
 
     const targetVisibleIds = getExploreNodeIds(activeReservoirNodes, filter);
-    const meaningfulResults = activeReservoirNodes.filter(
-      (node) => targetVisibleIds.has(node.id),
+    const currentVisibleIds = new Set(
+      queryReservoirContext?.kind === "query"
+        ? queryVisibleNodeIds
+        : getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
     );
-    if (filter !== "all" && meaningfulResults.length === 0) {
-      queryRevisionRef.current += 1;
-      setQueryReconciliation(null);
-      setQueryActivityMode("empty");
-      setRejectedExploreFilter(filter);
-      setQueryActivityRevision(queryRevisionRef.current);
-      setHoveredArtifactId(null);
-      setSelectedArtifactId(null);
-      setSelectedCollectionId(null);
-      setSelectedPressActive(false);
-      return;
-    }
-    const currentVisibleIds = new Set(queryVisibleNodeIds);
     const leaving = new Set(
       [...currentVisibleIds].filter((id) => !targetVisibleIds.has(id)),
     );
@@ -2565,10 +2965,17 @@ export function ReservoirScene() {
       [...targetVisibleIds].filter((id) => !currentVisibleIds.has(id)),
     );
 
+    if (targetVisibleIds.size === 0) {
+      queryRevisionRef.current += 1;
+      setQueryReconciliation(null);
+      setQueryActivityMode("empty");
+      setRejectedExploreFilter(filter);
+      setQueryActivityRevision(queryRevisionRef.current);
+      return;
+    }
+
     queryRevisionRef.current += 1;
-    setQueryVisibleNodeIds(
-      new Set([...currentVisibleIds, ...targetVisibleIds]),
-    );
+    setQueryVisibleNodeIds(targetVisibleIds);
     setQueryReconciliation({
       entering,
       leaving,
@@ -2579,199 +2986,105 @@ export function ReservoirScene() {
     setRejectedExploreFilter(null);
     setQueryActivityRevision(queryRevisionRef.current);
     setActiveExploreFilter(filter);
-    setHoveredArtifactId(null);
-    setSelectedArtifactId(null);
-    setSelectedCollectionId(null);
-    setSelectedPressActive(false);
-  }
-
-  function completeQueryTransition() {
-    if (queryActivityMode === "success") {
-      setQueryVisibleNodeIds(
-        new Set(queryReconciliation?.target ?? surfacedNodeIds),
-      );
-    }
-    setQueryReconciliation(null);
-    setQueryActivityRevision(null);
-    setQueryActivityMode(null);
-    setRejectedExploreFilter(null);
-  }
-
-  const getDirectLocateSafeZone = useCallback(
-    (): DirectLocateSafeZone | null => {
-    const element = interaction.current;
-    if (!element) return null;
-    const bounds = element.getBoundingClientRect();
-    const horizontalInset = Math.max(
-      reservoirFrame.safeZones.left,
-      clamp(bounds.width * 0.08, 32, 112),
+    setHoveredArtifactId((currentHoveredArtifactId) =>
+      currentHoveredArtifactId &&
+      targetVisibleIds.has(currentHoveredArtifactId)
+        ? currentHoveredArtifactId
+        : null,
     );
-
-    return {
-      top: bounds.top + reservoirFrame.safeZones.top,
-      right: bounds.right - horizontalInset,
-      bottom: bounds.bottom - reservoirFrame.safeZones.bottom,
-      left: bounds.left + horizontalInset,
-    };
-    },
-    [reservoirFrame],
-  );
-
-  const projectDirectArtifact = useCallback(
-    (artifactId: string, sphereQuaternion: THREE.Quaternion) => {
-    const camera = cameraRef.current;
-    const element = interaction.current;
-    const artifact = getArtifactById(artifactId);
-    const direction =
-      artifact?.published === true
-        ? activeReservoirLayout.get(artifact.id)
-        : null;
-    const placement = direction
-      ? getReservoirNodePlacement(direction, activeNodeSizing.artifactRadius)
-      : null;
-    if (!camera || !element || !placement) return null;
-
-    camera.updateMatrixWorld();
-    const baseQuaternion = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(...RESERVOIR_BASE_ROTATION),
-    );
-    const selectedOffset =
-      activeNodeSizing.artifactRadius * RESERVOIR_NODE_SELECTED_RADIAL_RATIO;
-    const worldPosition = placement.normal
-      .clone()
-      .multiplyScalar(
-        RESERVOIR_RADIUS +
-          activeNodeSizing.artifactRadius * 0.04 +
-          selectedOffset,
-      )
-      .applyQuaternion(baseQuaternion)
-      .applyQuaternion(sphereQuaternion)
-      .multiplyScalar(renderedScaleRef.current)
-      .add(reservoirCenter);
-    const projected = worldPosition.clone().project(camera);
-    const bounds = element.getBoundingClientRect();
-
-    return {
-      x: bounds.left + ((projected.x + 1) / 2) * bounds.width,
-      y: bounds.top + ((1 - projected.y) / 2) * bounds.height,
-    };
-    },
-    [activeNodeSizing.artifactRadius, activeReservoirLayout, reservoirCenter],
-  );
-
-  function isDirectArtifactSafelyFramed(artifactId: string) {
-    const sphere = sphereRotationRef.current;
-    const safeZone = getDirectLocateSafeZone();
-    if (!sphere || !safeZone) return false;
-    const projected = projectDirectArtifact(artifactId, sphere.quaternion);
-    if (!projected) return false;
-    const framed =
-      projected.x >= safeZone.left &&
-      projected.x <= safeZone.right &&
-      projected.y >= safeZone.top &&
-      projected.y <= safeZone.bottom;
-
-    if (interaction.current) {
-      interaction.current.dataset.directLocateProjectedScreen =
-        `${projected.x.toFixed(3)},${projected.y.toFixed(3)}`;
-      interaction.current.dataset.directLocateSafeZone = [
-        safeZone.left,
-        safeZone.top,
-        safeZone.right,
-        safeZone.bottom,
-      ]
-        .map((value) => value.toFixed(3))
-        .join(",");
-      interaction.current.dataset.directLocateFramed = String(framed);
+    const selectedNodeId = selectedArtifactId ?? selectedCollectionId;
+    const preserveSelection =
+      selectedNodeId !== null && targetVisibleIds.has(selectedNodeId);
+    if (!preserveSelection) {
+      setSelectedArtifactId(null);
+      setSelectedCollectionId(null);
+      setSelectedPressActive(false);
     }
-    return framed;
   }
 
-  const prepareDirectLocateTarget = useCallback((artifactId: string) => {
-    const sphere = sphereRotationRef.current;
-    const camera = cameraRef.current;
-    const element = interaction.current;
-    const safeZone = getDirectLocateSafeZone();
-    const artifact = getArtifactById(artifactId);
-    const direction =
-      artifact?.published === true
-        ? activeReservoirLayout.get(artifact.id)
-        : null;
-    const placement = direction
-      ? getReservoirNodePlacement(direction, activeNodeSizing.artifactRadius)
-      : null;
-    if (!sphere || !camera || !element || !safeZone || !placement) {
+  function requestQueryReservoirContext(
+    destinationContext: ReservoirContext,
+  ) {
+    if (
+      queryActivityRevision !== null ||
+      layoutOwnership.transitionPlan
+    ) {
       return false;
     }
 
-    camera.updateMatrixWorld();
-    const bounds = element.getBoundingClientRect();
-    const targetScreen = {
-      x: THREE.MathUtils.lerp(safeZone.left, safeZone.right, 0.68),
-      y: THREE.MathUtils.lerp(safeZone.top, safeZone.bottom, 0.54),
-    };
-    const targetNdc = new THREE.Vector3(
-      ((targetScreen.x - bounds.left) / bounds.width) * 2 - 1,
-      -((targetScreen.y - bounds.top) / bounds.height) * 2 + 1,
-      0.5,
-    );
-    const cameraOrigin = camera.getWorldPosition(new THREE.Vector3());
-    const targetRay = new THREE.Ray(
-      cameraOrigin,
-      targetNdc.unproject(camera).sub(cameraOrigin).normalize(),
-    );
-    const targetIntersection = targetRay.intersectSphere(
-      new THREE.Sphere(
-        reservoirCenter,
-        RESERVOIR_RADIUS * renderedScaleRef.current,
-      ),
-      new THREE.Vector3(),
-    );
-    if (!targetIntersection) return false;
-
-    const startQuaternion = sphere.quaternion.clone().normalize();
-    const baseQuaternion = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(...RESERVOIR_BASE_ROTATION),
-    );
-    const currentNodeDirection = placement.normal
-      .clone()
-      .applyQuaternion(baseQuaternion)
-      .applyQuaternion(startQuaternion)
-      .normalize();
-    const inspectionDirection = targetIntersection
-      .sub(reservoirCenter)
-      .normalize();
-    const locateDelta = new THREE.Quaternion().setFromUnitVectors(
-      currentNodeDirection,
-      inspectionDirection,
-    );
-    directLocateStartQuaternionRef.current.copy(startQuaternion);
-    directLocateTargetQuaternionRef.current
-      .copy(locateDelta)
-      .multiply(startQuaternion)
-      .normalize();
-
-    const projectedTarget = projectDirectArtifact(
-      artifactId,
-      directLocateTargetQuaternionRef.current,
-    );
-    if (interaction.current && projectedTarget) {
-      interaction.current.dataset.directLocatePlannedScreen =
-        `${projectedTarget.x.toFixed(3)},${projectedTarget.y.toFixed(3)}`;
+    const sourceContext = queryReservoirContext ?? collectionReservoirContext;
+    const sourceVisibleIds =
+      sourceContext.kind === "query"
+        ? new Set(queryVisibleNodeIds)
+        : getExploreNodeIds(
+            getReservoirContextNodes(sourceContext),
+            activeExploreFilter,
+          );
+    const preparedDestination = prepareReservoirLayoutState({
+      context: destinationContext,
+      mode: layoutOwnership.activeLayout.mode,
+      surface: surfaceRef.current,
+      camera: cameraRef.current,
+    });
+    if (!preparedDestination) return false;
+    if (
+      preparedDestination.focalDiagnostics &&
+      preparedDestination.layoutState.mode === "focused"
+    ) {
+      recordLayoutFocalDiagnostics(preparedDestination.focalDiagnostics);
     }
-    return Boolean(projectedTarget);
-  }, [
-    activeNodeSizing.artifactRadius,
-    activeReservoirLayout,
-    getDirectLocateSafeZone,
-    projectDirectArtifact,
-    reservoirCenter,
-  ]);
+    if (
+      !beginReservoirTransitionPlan({
+        kind: "query",
+        source: captureReservoirLayoutState(
+          layoutOwnership.activeLayout,
+        ),
+        destination: preparedDestination.layoutState,
+      })
+    ) {
+      return false;
+    }
+
+    persistReservoirPresentationForCurrentContext();
+    const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
+      preparedDestination.nodes,
+      preparedDestination.layoutState.nodeSizing,
+    );
+    const destinationZoom = clampReservoirZoom(
+      zoomLevelRef.current,
+      destinationAdaptiveZoom.activeMaximum,
+    );
+    zoomLevelRef.current = destinationZoom;
+    setZoomLevel(destinationZoom);
+    queryReservoirTransitionProgressRef.current = 0;
+    setQueryReservoirTransitionPhase("deactivating");
+
+    const targetVisibleIds = new Set(
+      preparedDestination.nodes.map((node) => node.id),
+    );
+    queryRevisionRef.current += 1;
+    setQueryReservoirTransitionContext(destinationContext);
+    setQueryVisibleNodeIds(sourceVisibleIds);
+    setQueryReconciliation({
+      entering: new Set(
+        [...targetVisibleIds].filter((id) => !sourceVisibleIds.has(id)),
+      ),
+      leaving: new Set(
+        [...sourceVisibleIds].filter((id) => !targetVisibleIds.has(id)),
+      ),
+      staying: new Set(
+        [...sourceVisibleIds].filter((id) => targetVisibleIds.has(id)),
+      ),
+      target: targetVisibleIds,
+    });
+    setQueryActivityMode("success");
+    setRejectedExploreFilter(null);
+    setQueryActivityRevision(queryRevisionRef.current);
+    return true;
+  }
 
   function selectDirectArtifact(directArtifactId: DirectArtifactId) {
     if (menuState !== "open" || queryActivityRevision !== null) return;
-    pendingDirectArtifactIdRef.current = null;
-    pendingDirectCollectionIdRef.current = null;
     if (directArtifactId === "contact") {
       if (interaction.current) {
         interaction.current.dataset.directContactAction = "ui-only";
@@ -2789,79 +3102,24 @@ export function ReservoirScene() {
     const artifact = artifactId ? getArtifactById(artifactId) : null;
     if (!artifact || artifact.published !== true) return;
 
-    const containingCollections = getPublishedArtifactCollections(artifact.id);
-    const targetCollection =
-      containingCollections.find(
-        (collection) => collection.id === collectionNavigation.activeCollectionId,
-      ) ?? containingCollections[0];
-    if (!targetCollection) return;
-
-    if (targetCollection.id === collectionNavigation.activeCollectionId) {
-      if (!prepareDirectLocateTarget(artifact.id)) return;
-
-      setSelectedCollectionId(null);
-      setSelectedArtifactId(artifact.id);
-      setHoveredArtifactId(null);
-      setSelectedPressActive(false);
-      setLocatingArtifactId(artifact.id);
-      setTransitionState("locatingArtifact");
-      setMenuState("closing");
-      return;
-    }
-
-    pendingDirectArtifactIdRef.current = artifact.id;
-    pendingDirectCollectionIdRef.current = targetCollection.id;
-    setSelectedArtifactId(null);
-    setSelectedCollectionId(null);
-    setHoveredArtifactId(null);
-    setSelectedPressActive(false);
-    pendingCollectionResolutionRef.current = {
-      history: [...collectionHistory, { collectionId: targetCollection.id }],
-      spatialSelectionId: artifact.id,
+    const returnContext = queryReservoirContext ?? collectionReservoirContext;
+    const targetContext: ReservoirContext = {
+      kind: "query",
+      resultIds: [artifact.id],
+      returnContext,
     };
-    requestCollection(targetCollection.id, true);
-    setMenuState("closing");
-  }
-
-  useEffect(() => {
-    const artifactId = pendingDirectArtifactIdRef.current;
-    const collectionId = pendingDirectCollectionIdRef.current;
-    if (
-      !artifactId ||
-      !collectionId ||
-      transitionState !== "idle" ||
-      collectionNavigation.activeCollectionId !== collectionId
-    ) {
+    if (!requestQueryReservoirContext(targetContext)) {
       return;
     }
-
-    const artifact = getArtifactById(artifactId);
-    if (!artifact || artifact.published !== true) {
-      pendingDirectArtifactIdRef.current = null;
-      pendingDirectCollectionIdRef.current = null;
-      return;
-    }
-
-    if (!prepareDirectLocateTarget(artifactId)) {
-      pendingDirectArtifactIdRef.current = null;
-      pendingDirectCollectionIdRef.current = null;
-      return;
-    }
-
-    pendingDirectArtifactIdRef.current = null;
-    pendingDirectCollectionIdRef.current = null;
     setSelectedCollectionId(null);
-    setSelectedArtifactId(artifact.id);
+    setSelectedArtifactId(null);
     setHoveredArtifactId(null);
     setSelectedPressActive(false);
     setLocatingArtifactId(artifact.id);
-    setTransitionState("locatingArtifact");
+    setTransitionState("idle");
+    pendingCollectionResolutionRef.current = null;
     setMenuState("closing");
-  }, [
-    collectionNavigation.activeCollectionId,
-    prepareDirectLocateTarget,
-    transitionState,
-  ]);
+  }
 
   return (
     <>
@@ -2901,8 +3159,24 @@ export function ReservoirScene() {
         ancestors={visibleCollectionAncestors}
         depth={collectionHistory.length - 1}
         disabled={inputLocked}
+        showHome={showHomeNavigation}
+        showBack={showBackNavigation}
         onAncestorSelect={requestAncestorCollection}
         onBack={() => {
+          if (queryReservoirContext?.kind === "query") {
+            if (queryReservoirContext.returnContext.kind === "collection") {
+              pendingCollectionResolutionRef.current = {
+                history: collectionHistory,
+                spatialSelectionId: null,
+              };
+              requestCollection(
+                queryReservoirContext.returnContext.collectionId,
+              );
+            } else {
+              requestQueryReservoirContext(queryReservoirContext.returnContext);
+            }
+            return;
+          }
           const previousCollectionId = collectionHistory.at(-2)?.collectionId;
           if (previousCollectionId) {
             requestAncestorCollection(previousCollectionId);
@@ -2910,7 +3184,13 @@ export function ReservoirScene() {
         }}
         onHome={() => {
           const homeCollectionId = collectionHistory[0]?.collectionId;
-          if (homeCollectionId) {
+          if (homeCollectionId && queryReservoirContext) {
+            pendingCollectionResolutionRef.current = {
+              history: [{ collectionId: homeCollectionId }],
+              spatialSelectionId: null,
+            };
+            requestCollection(homeCollectionId);
+          } else if (homeCollectionId) {
             requestAncestorCollection(homeCollectionId);
           }
         }}
@@ -2990,7 +3270,7 @@ export function ReservoirScene() {
           ? "continuous-sphere-cap"
           : "continuous-sphere-fibonacci"
       }
-      data-node-layout-seed={renderedActiveCollectionId}
+      data-node-layout-seed={renderedReservoirSeed}
       data-node-layout-count={activeReservoirLayout.size}
       data-node-layout-directions={activeReservoirLayoutDiagnostics.entries
         .map(([nodeId, direction]) =>
@@ -3032,6 +3312,31 @@ export function ReservoirScene() {
         renderedLayoutMode === "focused"
           ? "population-aware-seeded-cap-maximin"
           : "population-aware-seeded-maximin"
+      }
+      data-query-placement-policy={
+        resolvedLayoutState.placementPolicy ===
+        "canonical-focal-single-result"
+          ? "canonical-focal"
+          : "normal"
+      }
+      data-query-result-count={
+        resolvedLayoutState.queryPlacementDiagnostics
+          ? String(resolvedLayoutState.queryPlacementDiagnostics.resultCount)
+          : ""
+      }
+      data-query-canonical-focal-direction={
+        resolvedLayoutState.queryPlacementDiagnostics?.canonicalFocalDirection
+          ? resolvedLayoutState.queryPlacementDiagnostics.canonicalFocalDirection
+              .map((value) => value.toFixed(6))
+              .join("/")
+          : ""
+      }
+      data-query-canonical-focal-error-degrees={
+        resolvedLayoutState.queryPlacementDiagnostics
+          ? resolvedLayoutState.queryPlacementDiagnostics.canonicalFocalErrorDegrees.toFixed(
+              6,
+            )
+          : ""
       }
       data-layout-mode-view-reset-progress={layoutModeViewResetProgressRef.current.toFixed(
         6,
@@ -3076,6 +3381,32 @@ export function ReservoirScene() {
       data-layout-mode-focal-round-trip-up-dot={
         layoutModeFocalDiagnostics?.roundTripUpDot.toFixed(6) ?? ""
       }
+      data-layout-mode-focused-layout-centroid-error-degrees={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidErrorDegrees.toFixed(
+          6,
+        ) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-world-error-degrees={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidWorldErrorDegrees.toFixed(
+          6,
+        ) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-front-angle-degrees={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidFrontAngleDegrees.toFixed(
+          6,
+        ) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-front-dot={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidFrontDot.toFixed(6) ??
+        ""
+      }
+      data-layout-mode-focused-layout-centroid-up-dot={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidUpDot.toFixed(6) ?? ""
+      }
+      data-layout-mode-focused-layout-centroid-assertions={
+        layoutModeFocalDiagnostics?.focusedLayoutCentroidAssertionsPassed ??
+        false
+      }
       data-node-sizing-reference-population={
         RESERVOIR_NODE_SIZING_REFERENCE_POPULATION
       }
@@ -3110,6 +3441,17 @@ export function ReservoirScene() {
       data-node-sizing-minimum-angular-separation={activeNodeSizing.minimumAngularSeparation.toFixed(9)}
       data-node-sizing-minimum-surface-distance={activeNodeSizing.minimumSurfaceDistance.toFixed(9)}
       data-node-sizing-maximum-safe-diameter={activeNodeSizing.maximumSafeDiameter.toFixed(9)}
+      data-active-layout-source={activeLayoutSource}
+      data-active-layout-context-key={layoutOwnership.activeLayout.contextKey}
+      data-rendered-layout-context-key={resolvedLayoutState.contextKey}
+      data-transition-plan-active={transitionPlan !== null}
+      data-transition-kind={transitionPlan?.kind ?? ""}
+      data-transition-source-context-key={
+        transitionPlan?.source.contextKey ?? ""
+      }
+      data-transition-destination-context-key={
+        transitionPlan?.destination.contextKey ?? ""
+      }
       data-active-collection-id={collectionNavigation.activeCollectionId}
       data-rendered-active-collection-id={renderedActiveCollectionId}
       data-destination-collection-id={
@@ -3121,7 +3463,7 @@ export function ReservoirScene() {
       data-collection-transition-model="active-destination"
       data-collection-reservoir-count="1"
       data-collection-camera-choreography="none"
-      data-collection-orientation-choreography="initial-composition-at-handoff"
+      data-collection-orientation-choreography="preserve-current-quaternion"
       data-collection-history={collectionHistory
         .map((frame) => frame.collectionId)
         .join(",")}
@@ -3176,6 +3518,10 @@ export function ReservoirScene() {
       data-footer-visible={footerVisible}
       data-footer-transition-active={footerTransitionActive}
       data-active-explore-filter={activeExploreFilter}
+      data-query-reservoir-transition-phase={queryReservoirTransitionPhase}
+      data-query-reservoir-transition-progress={
+        queryReservoirTransitionProgressRef.current.toFixed(6)
+      }
       data-query-transition-active={queryTransitionActive}
       data-query-activity-revision={queryActivityRevision ?? ""}
       data-query-activity-mode={queryActivityMode ?? ""}
@@ -3276,13 +3622,11 @@ export function ReservoirScene() {
           renderedScaleRef={renderedScaleRef}
         >
           <ReservoirOrientation
-            collectionId={renderedActiveCollectionId}
             composition={activeInitialComposition}
             diagnosticsRef={interaction}
             layoutMode={renderedLayoutMode}
             layoutModeTransitionState={layoutModeTransitionState}
             onOrientationApplied={setRotationDiagnostics}
-            orientationStoreRef={collectionOrientationRef}
             rotationRef={sphereRotationRef}
           >
             <ReservoirSphere
@@ -3297,8 +3641,11 @@ export function ReservoirScene() {
               collectionReconstitutionProgressRef={
                 collectionReconstitutionProgressRef
               }
-              collectionReconstitutionElapsedRef={
-                collectionReconstitutionElapsedRef
+              queryReservoirTransitionPhase={
+                queryReservoirTransitionPhase
+              }
+              queryReservoirTransitionProgressRef={
+                queryReservoirTransitionProgressRef
               }
               layoutModeTransitionElapsedRef={
                 layoutModeTransitionElapsedRef
@@ -3317,6 +3664,7 @@ export function ReservoirScene() {
               selectedCollectionId={selectedCollectionId}
               hoveredArtifactId={hoveredArtifactId}
               interactionEnabled={!inputLocked}
+              resolvePointerVisibility={resolvePointerVisibility}
               isDragging={isDragging}
               reservoirFrame={reservoirFrame}
               renderedZoomRef={renderedZoomRef}
@@ -3338,10 +3686,8 @@ export function ReservoirScene() {
               restoring={restoring}
               restorationProgressRef={restorationProgressRef}
               emergingChildren={
-                collectionNavigation.transitionPhase === "handoff" ||
                 collectionNavigation.transitionPhase === "reactivating"
               }
-              emergenceProgressRef={collectionEmergenceProgressRef}
               onArtifactHoverChange={updateArtifactHover}
               queryActivityRevision={queryActivityRevision}
               queryActivityMode={queryActivityMode}

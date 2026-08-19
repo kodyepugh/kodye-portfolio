@@ -1,5 +1,13 @@
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ThreeEvent } from "@react-three/fiber";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import type { ReservoirFrame } from "@/lib/reservoir/frame";
@@ -11,8 +19,10 @@ import {
 } from "@/lib/reservoir/geometry";
 import type { ReservoirDirection } from "@/lib/reservoir/layout";
 import {
-  getCollectionChildEmergenceProgress,
+  getCollectionNodeTransitionOffset,
+  getCollectionNodeTransitionProgress,
 } from "@/lib/reservoir/collection-entry";
+import type { CollectionNodeTransitionPhase } from "@/lib/reservoir/collection-entry";
 import {
   getReservoirNodeOpeningReaction,
   getEmbeddedCollectionNodeQuaternion,
@@ -43,6 +53,11 @@ import {
   RESERVOIR_THEME,
 } from "@/lib/reservoir/theme";
 import type { ReservoirContentNode } from "@/lib/content/reservoir-adapter";
+import {
+  RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY,
+  type ReservoirNodePointerVisibilityResolver,
+  type ReservoirPointerCandidateSource,
+} from "@/lib/reservoir/pointer";
 import { ReservoirNodeLabel } from "./ArtifactLabel";
 import { CollectionSphere } from "./CollectionSphere";
 import { useReservoirNodeHover } from "./useReservoirNodeHover";
@@ -72,9 +87,14 @@ type CollectionNodeProps = {
   emergenceProgressRef?: MutableRefObject<number>;
   emergenceOrder?: number;
   emergenceChildCount?: number;
+  collectionTransitionPhase?: CollectionNodeTransitionPhase | null;
+  collectionTransitionProgressRef?: MutableRefObject<number>;
+  collectionTransitionOrder?: number;
+  collectionTransitionChildCount?: number;
   sphereRef: RefObject<THREE.Group | null>;
   reservoirFrame: ReservoirFrame;
   renderedZoomRef: MutableRefObject<number>;
+  resolvePointerVisibility: ReservoirNodePointerVisibilityResolver;
 };
 
 export const COLLECTION_GRID_DETAIL = 1;
@@ -104,9 +124,14 @@ export function CollectionNode({
   emergenceProgressRef,
   emergenceOrder = 0,
   emergenceChildCount = 1,
+  collectionTransitionPhase = null,
+  collectionTransitionProgressRef,
+  collectionTransitionOrder = 0,
+  collectionTransitionChildCount = 1,
   sphereRef,
   reservoirFrame,
   renderedZoomRef,
+  resolvePointerVisibility,
 }: CollectionNodeProps) {
   const nodeRef = useRef<THREE.Group | null>(null);
   const visualNodeRef = useRef<THREE.Group | null>(null);
@@ -122,7 +147,7 @@ export function CollectionNode({
   const updateHover = useCallback((_: string, nextHovered: boolean) => {
     setHovered(nextHovered);
   }, []);
-  const { beginHover, endHover } = useReservoirNodeHover(
+  const { beginHover, clearHover, endHover } = useReservoirNodeHover(
     collection.id,
     updateHover,
   );
@@ -168,12 +193,15 @@ export function CollectionNode({
     [],
   );
   const hoverProgress = useRef(hovered ? 1 : 0);
-  const filterRadialOffset = useRef(
-    surfaced
-      ? 0
-      : nodeRadius *
-          RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER,
-  );
+  const initialFilterRadialOffset = surfaced
+    ? 0
+    : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
+  const filterRadialOffset = useRef(initialFilterRadialOffset);
+  const lastRenderedRadialOffset = useRef(initialFilterRadialOffset);
+  const collectionDepartureStartOffset = useRef(initialFilterRadialOffset);
+  const previousCollectionTransitionPhase = useRef<
+    CollectionNodeTransitionPhase | null
+  >(null);
   const selectionState = useRef(
     createReservoirNodeSelectionState({
       meshEngaged,
@@ -236,6 +264,70 @@ export function CollectionNode({
       ? 0
       : nodeRadius * RESERVOIR_RECESSED_NODE_OFFSET_MULTIPLIER;
   }, [nodeRadius, surfaced]);
+
+  useLayoutEffect(() => {
+    const visualNode = visualNodeRef.current;
+    if (
+      !visualNode ||
+      !placement ||
+      collectionTransitionPhase !== "arrival" ||
+      !collectionTransitionProgressRef
+    ) {
+      return;
+    }
+
+    visualNode.position.copy(placement.normal).multiplyScalar(
+      getCollectionNodeTransitionOffset({
+        nodeRadius,
+        progress: getCollectionNodeTransitionProgress(
+          collectionTransitionProgressRef.current,
+          "arrival",
+          collectionTransitionOrder,
+          collectionTransitionChildCount,
+        ),
+        phase: "arrival",
+        settledOffset: 0,
+        reducedMotion: openingReducedMotion,
+      }),
+    );
+  }, [
+    collectionTransitionChildCount,
+    collectionTransitionOrder,
+    collectionTransitionPhase,
+    collectionTransitionProgressRef,
+    nodeRadius,
+    openingReducedMotion,
+    placement,
+  ]);
+
+  useEffect(() => {
+    if (!surfaced || !interactionEnabled) {
+      clearHover();
+    }
+  }, [clearHover, interactionEnabled, surfaced]);
+
+  function updatePointerHover(
+    event: ThreeEvent<PointerEvent>,
+    target: string,
+    source: ReservoirPointerCandidateSource,
+  ) {
+    if (
+      !surfaced ||
+      !interactionEnabled ||
+      !resolvePointerVisibility({
+        distance: event.distance,
+        id: collection.id,
+        kind: "collection",
+        ray: event.ray,
+        source,
+      })
+    ) {
+      clearHover();
+      return;
+    }
+
+    beginHover(target);
+  }
 
   useFrame((_, delta) => {
     const visualNode = visualNodeRef.current;
@@ -327,11 +419,11 @@ export function CollectionNode({
       resolvedGridMaterialRef.current.opacity = 0.34 * activeGridProgress;
     }
 
+    let openingReactionProgress = 0;
     const continuationRing = continuationRingRef.current;
     const continuationRingMaterial = continuationRingMaterialRef.current;
     if (continuationRing && continuationRingMaterial) {
-      const ringVisible =
-        selectionFrame.ringVisible && !opening && !restoring;
+      const ringVisible = selectionFrame.ringVisible && !opening && !restoring;
       continuationRing.visible = ringVisible;
       continuationRing.position
         .copy(placement.normal)
@@ -346,10 +438,33 @@ export function CollectionNode({
       selectionFrame.radialOffset +
       selectionFrame.continuationOffset +
       filterRadialOffset.current;
-    let openingReactionProgress = 0;
-    if (emerging && emergenceProgressRef) {
-      const emergenceProgress = getCollectionChildEmergenceProgress(
+    if (collectionTransitionPhase && collectionTransitionProgressRef) {
+      if (
+        collectionTransitionPhase === "departure" &&
+        previousCollectionTransitionPhase.current !== "departure"
+      ) {
+        // Preserve the selected node's exact presented offset on the first exit frame.
+        collectionDepartureStartOffset.current = lastRenderedRadialOffset.current;
+      }
+      const transitionProgress = getCollectionNodeTransitionProgress(
+        collectionTransitionProgressRef.current,
+        collectionTransitionPhase,
+        collectionTransitionOrder,
+        collectionTransitionChildCount,
+      );
+      renderedRadialOffset = getCollectionNodeTransitionOffset({
+        nodeRadius,
+        progress: transitionProgress,
+        phase: collectionTransitionPhase,
+        startOffset: collectionDepartureStartOffset.current,
+        settledOffset: 0,
+        reducedMotion: openingReducedMotion,
+      });
+      openingReactionProgress = transitionProgress;
+    } else if (emerging && emergenceProgressRef) {
+      const emergenceProgress = getCollectionNodeTransitionProgress(
         emergenceProgressRef.current,
+        "arrival",
         emergenceOrder,
         emergenceChildCount,
       );
@@ -361,7 +476,7 @@ export function CollectionNode({
       });
       openingReactionProgress = 1 - emergenceProgress;
     }
-    if (opening) {
+    if (opening && !collectionTransitionPhase) {
       const reaction = getReservoirNodeOpeningReaction({
         elapsed: openingElapsedRef.current,
         openingReactionDelay,
@@ -373,7 +488,7 @@ export function CollectionNode({
       renderedRadialOffset = reaction.radialOffset;
       openingReactionProgress = reaction.progress;
     }
-    if (restoring) {
+    if (restoring && !collectionTransitionPhase) {
       renderedRadialOffset = getReservoirNodeRestorationOffset({
         nodeRadius,
         progress: restorationProgressRef.current,
@@ -389,6 +504,8 @@ export function CollectionNode({
     visualNode.userData.currentRadialOffset = renderedRadialOffset;
     visualNode.userData.openingReactionProgress = openingReactionProgress;
     visualNode.userData.filterSurfaced = surfaced;
+    lastRenderedRadialOffset.current = renderedRadialOffset;
+    previousCollectionTransitionPhase.current = collectionTransitionPhase;
 
     if (diagnosticsRef.current) {
       diagnosticsRef.current.dataset.collectionHovered = String(
@@ -451,7 +568,7 @@ export function CollectionNode({
 
   if (!placement) return null;
 
-  const dormantInteractive = surfaced;
+  const dormantInteractive = surfaced && interactionEnabled;
 
   return (
     <group
@@ -501,28 +618,44 @@ export function CollectionNode({
           resolvedGridDetail={RESERVOIR_GRID_DETAIL}
           resolvedGridMaterialRef={resolvedGridMaterialRef}
           dormantGridContactDirection={selectedContactDirection}
-          surfaceUserData={{ collectionId: collection.id }}
+          surfaceUserData={{
+            collectionId: collection.id,
+            [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "visible-mesh",
+          }}
           surfaceOnBeforeCompile={configureSurfaceMaterial}
           surfaceProgramCacheKey={getSurfaceProgramCacheKey}
-          onPointerEnter={() => interactionEnabled && beginHover("orb")}
+          onPointerEnter={(event) =>
+            updatePointerHover(event, "orb", "visible-mesh")
+          }
+          onPointerMove={(event) =>
+            updatePointerHover(event, "orb", "visible-mesh")
+          }
           onPointerLeave={() => endHover("orb")}
         />
+        {dormantInteractive ? (
+          <mesh
+            userData={{
+              collectionId: collection.id,
+              [RESERVOIR_POINTER_CANDIDATE_SOURCE_KEY]: "hit-area",
+            }}
+            onPointerEnter={(event) =>
+              updatePointerHover(event, "orb-hit-area", "hit-area")
+            }
+            onPointerMove={(event) =>
+              updatePointerHover(event, "orb-hit-area", "hit-area")
+            }
+            onPointerLeave={() => endHover("orb-hit-area")}
+          >
+            <sphereGeometry args={[nodeRadius * 1.22, 12, 10]} />
+            <meshBasicMaterial
+              transparent
+              opacity={0}
+              depthWrite={false}
+              colorWrite={false}
+            />
+          </mesh>
+        ) : null}
       </group>
-      {dormantInteractive ? <mesh
-        userData={{ collectionId: collection.id }}
-        onPointerEnter={() => beginHover("orb-hit-area")}
-        onPointerLeave={() => endHover("orb-hit-area")}
-      >
-        <sphereGeometry
-          args={[nodeRadius * 2.15, 12, 10]}
-        />
-        <meshBasicMaterial
-          transparent
-          opacity={0}
-          depthWrite={false}
-          colorWrite={false}
-        />
-      </mesh> : null}
       {filterVisible ? <ReservoirNodeLabel
         content={labelContent}
         nodeRef={nodeRef}
@@ -534,7 +667,7 @@ export function CollectionNode({
         suppressed={labelsSuppressed || !surfaced}
         hovered={effectiveHovered}
         userData={{ collectionId: collection.id }}
-        onPointerEnter={() => beginHover("label")}
+        onPointerEnter={() => interactionEnabled && beginHover("label")}
         onPointerLeave={() => endHover("label")}
       /> : null}
     </group>

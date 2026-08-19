@@ -4,7 +4,7 @@ import type { MutableRefObject, RefObject } from "react";
 import * as THREE from "three";
 import {
   RESERVOIR_RADIUS,
-  RESERVOIR_SURFACE_DETAIL,
+  createReservoirGridLineGeometry,
 } from "@/lib/reservoir/geometry";
 import {
   RESERVOIR_RENDER_ORDER,
@@ -14,6 +14,7 @@ import {
   COLLECTION_RECONSTITUTION_TIMING,
   getCollectionReconstitutionFrame,
 } from "@/lib/reservoir/collection-entry";
+import { RESERVOIR_SURFACE_PATTERN } from "@/lib/reservoir/surface-material";
 
 const QUERY_ACTIVITY_DURATION = 0.92;
 const QUERY_ACTIVITY_REDUCED_MOTION_DURATION = 0.16;
@@ -24,8 +25,14 @@ const EMPTY_QUERY_RED = new THREE.Color("#b33a40");
 const EMPTY_QUERY_BASE_EMISSIVE = new THREE.Color(
   RESERVOIR_THEME.dormantCollection,
 );
+const QUERY_TWINKLE_QUANTIZATION = 10000;
+const QUERY_TWINKLE_LATITUDE_BINS = 6;
+const QUERY_TWINKLE_LONGITUDE_BINS = 12;
+const QUERY_TWINKLE_SAMPLE_RATIO = 0.3;
+const QUERY_TWINKLE_MIN_PER_SECTOR = 2;
+const QUERY_TWINKLE_MIN_COUNT = 360;
 
-const QUERY_FACE_VERTEX_SHADER = /* glsl */ `
+const QUERY_TWINKLE_VERTEX_SHADER = /* glsl */ `
   attribute float twinkleStart;
   attribute float twinkleDuration;
   attribute float twinkleIntensity;
@@ -35,17 +42,28 @@ const QUERY_FACE_VERTEX_SHADER = /* glsl */ `
   varying float vTwinkleDuration;
   varying float vTwinkleIntensity;
   varying float vTwinkleCandidate;
+  varying float vTwinkleFacing;
 
   void main() {
     vTwinkleStart = twinkleStart;
     vTwinkleDuration = twinkleDuration;
     vTwinkleIntensity = twinkleIntensity;
     vTwinkleCandidate = twinkleCandidate;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vec3 viewNormal = normalize(normalMatrix * normalize(position));
+    vec3 viewDirection = normalize(-mvPosition.xyz);
+    vTwinkleFacing = max(dot(viewNormal, viewDirection), 0.0);
+    float distanceScale = 3.2 / max(-mvPosition.z, 1.0);
+    gl_PointSize = clamp(
+      (1.8 + twinkleIntensity * 3.4) * distanceScale * 2.3,
+      2.2,
+      7.8
+    );
+    gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
-const QUERY_FACE_FRAGMENT_SHADER = /* glsl */ `
+const QUERY_TWINKLE_FRAGMENT_SHADER = /* glsl */ `
   uniform float queryProgress;
   uniform float querySeed;
   uniform float reducedMotion;
@@ -56,13 +74,18 @@ const QUERY_FACE_FRAGMENT_SHADER = /* glsl */ `
   varying float vTwinkleDuration;
   varying float vTwinkleIntensity;
   varying float vTwinkleCandidate;
+  varying float vTwinkleFacing;
 
   void main() {
+    vec2 pointOffset = gl_PointCoord - vec2(0.5);
+    float pointDistance = length(pointOffset);
+    float pointHalo = 1.0 - smoothstep(0.12, 0.5, pointDistance);
+    float pointCore = 1.0 - smoothstep(0.0, 0.18, pointDistance);
     float seededStart = fract(vTwinkleStart + querySeed * 0.173) * 0.70;
     float seededCandidate = fract(
       vTwinkleCandidate + querySeed * 0.317
     );
-    float candidate = step(0.58, seededCandidate);
+    float candidate = step(0.24, seededCandidate);
     float elapsed = queryProgress - seededStart;
     float rise = smoothstep(0.0, vTwinkleDuration * 0.26, elapsed);
     float fall = 1.0 - smoothstep(
@@ -78,7 +101,7 @@ const QUERY_FACE_FRAGMENT_SHADER = /* glsl */ `
       reducedEmphasis,
       step(0.5, reducedMotion)
     );
-    float sustainedCandidate = step(0.48, seededCandidate);
+    float sustainedCandidate = step(0.14, seededCandidate);
     float sustainedPhase = fract(
       queryProgress * (1.9 + vTwinkleDuration * 3.6) + seededStart
     );
@@ -104,8 +127,15 @@ const QUERY_FACE_FRAGMENT_SHADER = /* glsl */ `
       twinkleEnvelope,
       step(0.5, sustainedActivity)
     );
+    float facingEnvelope = smoothstep(0.0, 0.12, vTwinkleFacing);
     float alpha =
-      activity * activityEnvelope * vTwinkleIntensity * 0.22;
+      activity *
+      activityEnvelope *
+      facingEnvelope *
+      vTwinkleIntensity *
+      pointHalo *
+      mix(0.72, 1.0, pointCore) *
+      0.9;
     if (alpha < 0.002) discard;
     gl_FragColor = vec4(vec3(1.0), alpha);
   }
@@ -131,39 +161,127 @@ function seededUnit(value: number) {
   return (hash >>> 0) / 4294967296;
 }
 
-function createQueryFaceGeometry() {
-  const source = new THREE.IcosahedronGeometry(
-    RESERVOIR_RADIUS * 1.0024,
-    RESERVOIR_SURFACE_DETAIL,
+function hashQuantizedTwinklePosition(
+  quantizedX: number,
+  quantizedY: number,
+  quantizedZ: number,
+) {
+  let hash = quantizedX | 0;
+  hash = Math.imul(hash ^ (quantizedY | 0), 0x45d9f3b);
+  hash = Math.imul(hash ^ (quantizedZ | 0), 0x45d9f3b);
+  hash ^= hash >>> 16;
+  return hash >>> 0;
+}
+
+function getSphericalSector(position: THREE.Vector3) {
+  const direction = position.clone().normalize();
+  const latitude = Math.min(
+    Math.floor(((direction.y + 1) * 0.5) * QUERY_TWINKLE_LATITUDE_BINS),
+    QUERY_TWINKLE_LATITUDE_BINS - 1,
   );
-  const geometry = source.index ? source.toNonIndexed() : source;
-  if (geometry !== source) source.dispose();
-  const positions = geometry.getAttribute("position");
-  const starts = new Float32Array(positions.count);
-  const durations = new Float32Array(positions.count);
-  const intensities = new Float32Array(positions.count);
-  const candidates = new Float32Array(positions.count);
-  const faceCount = Math.floor(positions.count / 3);
+  const longitude = Math.min(
+    Math.floor(
+      ((Math.atan2(direction.z, direction.x) + Math.PI) / (Math.PI * 2)) *
+        QUERY_TWINKLE_LONGITUDE_BINS,
+    ),
+    QUERY_TWINKLE_LONGITUDE_BINS - 1,
+  );
+  return `${latitude}:${longitude}`;
+}
 
-  for (let faceIndex = 0; faceIndex < faceCount; faceIndex += 1) {
-    const start = seededUnit(faceIndex * 4 + 1);
-    const duration = 0.09 + seededUnit(faceIndex * 4 + 2) * 0.15;
-    const intensity = 0.58 + seededUnit(faceIndex * 4 + 3) * 0.42;
-    const candidate = seededUnit(faceIndex * 4 + 4);
+function getOctant(position: THREE.Vector3) {
+  return `${position.x >= 0 ? "+X" : "-X"}/${position.y >= 0 ? "+Y" : "-Y"}/${position.z >= 0 ? "+Z" : "-Z"}`;
+}
 
-    for (let corner = 0; corner < 3; corner += 1) {
-      const cornerAttributeIndex = faceIndex * 3 + corner;
-      starts[cornerAttributeIndex] = start;
-      durations[cornerAttributeIndex] = duration;
-      intensities[cornerAttributeIndex] = intensity;
-      candidates[cornerAttributeIndex] = candidate;
+type TwinkleVertex = {
+  key: string;
+  position: THREE.Vector3;
+  seed: number;
+};
+
+function createQueryTwinkleGeometry() {
+  const source = createReservoirGridLineGeometry(
+    RESERVOIR_RADIUS * 1.0018,
+    RESERVOIR_SURFACE_PATTERN.detail,
+    RESERVOIR_SURFACE_PATTERN.surfaceScale,
+  );
+  const positions = source.getAttribute("position");
+  const deduped = new Map<string, TwinkleVertex>();
+
+  for (let index = 0; index < positions.count; index += 1) {
+    const x = positions.getX(index);
+    const y = positions.getY(index);
+    const z = positions.getZ(index);
+    const quantizedX = Math.round(x * QUERY_TWINKLE_QUANTIZATION);
+    const quantizedY = Math.round(y * QUERY_TWINKLE_QUANTIZATION);
+    const quantizedZ = Math.round(z * QUERY_TWINKLE_QUANTIZATION);
+    const key = `${quantizedX}:${quantizedY}:${quantizedZ}`;
+    if (deduped.has(key)) continue;
+
+    deduped.set(key, {
+      key,
+      position: new THREE.Vector3(x, y, z),
+      seed: hashQuantizedTwinklePosition(
+        quantizedX,
+        quantizedY,
+        quantizedZ,
+      ),
+    });
+  }
+
+  const sectors = new Map<string, TwinkleVertex[]>();
+  for (const entry of deduped.values()) {
+    const sector = getSphericalSector(entry.position);
+    const entries = sectors.get(sector) ?? [];
+    entries.push(entry);
+    sectors.set(sector, entries);
+  }
+  const sampled = [...sectors.values()].flatMap((entries) => {
+    const targetCount = Math.min(
+      entries.length,
+      Math.max(
+        QUERY_TWINKLE_MIN_PER_SECTOR,
+        Math.ceil(entries.length * QUERY_TWINKLE_SAMPLE_RATIO),
+      ),
+    );
+    return entries
+      .sort((first, second) => first.seed - second.seed)
+      .slice(0, targetCount);
+  });
+  const sampledKeys = new Set(sampled.map((entry) => entry.key));
+
+  if (sampled.length < QUERY_TWINKLE_MIN_COUNT) {
+    for (const entry of [...deduped.values()].sort(
+      (first, second) => first.seed - second.seed,
+    )) {
+      if (sampled.length >= QUERY_TWINKLE_MIN_COUNT) break;
+      if (sampledKeys.has(entry.key)) continue;
+      sampled.push(entry);
+      sampledKeys.add(entry.key);
     }
   }
 
-  geometry.setAttribute(
-    "twinkleStart",
-    new THREE.BufferAttribute(starts, 1),
-  );
+  const geometry = new THREE.BufferGeometry();
+  const pointCount = sampled.length;
+  const pointPositions = new Float32Array(pointCount * 3);
+  const starts = new Float32Array(pointCount);
+  const durations = new Float32Array(pointCount);
+  const intensities = new Float32Array(pointCount);
+  const candidates = new Float32Array(pointCount);
+
+  for (let index = 0; index < pointCount; index += 1) {
+    const point = sampled[index];
+    pointPositions[index * 3] = point.position.x;
+    pointPositions[index * 3 + 1] = point.position.y;
+    pointPositions[index * 3 + 2] = point.position.z;
+    starts[index] = seededUnit(point.seed ^ 0x9e3779b9);
+    durations[index] = 0.05 + seededUnit(point.seed ^ 0x3c6ef372) * 0.1;
+    intensities[index] = 0.5 + seededUnit(point.seed ^ 0x1b873593) * 0.5;
+    candidates[index] = seededUnit(point.seed ^ 0x85ebca6b);
+  }
+
+  geometry.setAttribute("position", new THREE.BufferAttribute(pointPositions, 3));
+  geometry.setAttribute("twinkleStart", new THREE.BufferAttribute(starts, 1));
   geometry.setAttribute(
     "twinkleDuration",
     new THREE.BufferAttribute(durations, 1),
@@ -177,7 +295,18 @@ function createQueryFaceGeometry() {
     new THREE.BufferAttribute(candidates, 1),
   );
 
-  return { geometry, faceCount };
+  source.dispose();
+
+  const octantCounts = Object.fromEntries(
+    ["+X/+Y/+Z", "+X/+Y/-Z", "+X/-Y/+Z", "+X/-Y/-Z", "-X/+Y/+Z", "-X/+Y/-Z", "-X/-Y/+Z", "-X/-Y/-Z"].map(
+      (octant) => [octant, 0],
+    ),
+  ) as Record<string, number>;
+  for (const point of sampled) {
+    octantCounts[getOctant(point.position)] += 1;
+  }
+
+  return { geometry, twinkleCount: pointCount, octantCounts };
 }
 
 export function ReservoirQueryActivity({
@@ -189,7 +318,7 @@ export function ReservoirQueryActivity({
   surfaceMaterialRef,
   externalProgressRef,
 }: ReservoirQueryActivityProps) {
-  const preparedGeometry = useMemo(() => createQueryFaceGeometry(), []);
+  const preparedGeometry = useMemo(() => createQueryTwinkleGeometry(), []);
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const elapsedRef = useRef(0);
   const completedRef = useRef(true);
@@ -197,11 +326,11 @@ export function ReservoirQueryActivity({
   const activeModeRef = useRef<ReservoirQueryActivityMode | null>(null);
   const uniforms = useMemo(
     () => ({
-        queryProgress: { value: 0 },
-        querySeed: { value: 0 },
-        reducedMotion: { value: 0 },
-        sustainedActivity: { value: 0 },
-        twinkleEnvelope: { value: 1 },
+      queryProgress: { value: 0 },
+      querySeed: { value: 0 },
+      reducedMotion: { value: 0 },
+      sustainedActivity: { value: 0 },
+      twinkleEnvelope: { value: 1 },
     }),
     [],
   );
@@ -311,9 +440,13 @@ export function ReservoirQueryActivity({
       diagnosticsRef.current.dataset.queryMeshRevision = String(
         activeRevisionRef.current,
       );
-      diagnosticsRef.current.dataset.queryFacePool = "full-surface-mesh";
+      diagnosticsRef.current.dataset.queryFacePool =
+        "topology-vertex-twinkles";
       diagnosticsRef.current.dataset.queryFaceCount = String(
-        preparedGeometry.faceCount,
+        preparedGeometry.twinkleCount,
+      );
+      diagnosticsRef.current.dataset.queryTwinkleOctants = JSON.stringify(
+        preparedGeometry.octantCounts,
       );
       diagnosticsRef.current.dataset.queryWhiteTwinkleActive = String(
         activeMode === "success" && progress < 1,
@@ -371,20 +504,22 @@ export function ReservoirQueryActivity({
   });
 
   return (
-    <mesh
+    <points
       geometry={preparedGeometry.geometry}
       renderOrder={RESERVOIR_RENDER_ORDER.cursorFaceGlow}
+      frustumCulled={false}
     >
       <shaderMaterial
         ref={materialRef}
         uniforms={uniforms}
-        vertexShader={QUERY_FACE_VERTEX_SHADER}
-        fragmentShader={QUERY_FACE_FRAGMENT_SHADER}
+        vertexShader={QUERY_TWINKLE_VERTEX_SHADER}
+        fragmentShader={QUERY_TWINKLE_FRAGMENT_SHADER}
         transparent
+        depthTest
         depthWrite={false}
         toneMapped={false}
-        side={THREE.FrontSide}
+        blending={THREE.AdditiveBlending}
       />
-    </mesh>
+    </points>
   );
 }

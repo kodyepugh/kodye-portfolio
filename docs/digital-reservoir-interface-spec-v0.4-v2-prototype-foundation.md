@@ -1,7 +1,7 @@
 # Digital Reservoir
 ## Interface & Experience Specification
-**Version:** 0.4 — V2 Prototype Foundation
-**Status:** Foundational Design Specification / Living Document — V2 Prototype Architecture Established
+**Version:** 0.6 — Official Query Reservoir Closure Baseline
+**Status:** Foundational Design Specification / Living Document — Closure Baseline / L1 PASS / CLOSED
 **Established:** 2026
 **Project:** kodyepugh.com
 **Working concept:** *Digital Reservoir — A collection of all things Kodye Pugh*
@@ -49,6 +49,25 @@ These decisions should be tested through prototypes and may evolve.
 ### Open Decision
 
 An area intentionally left unresolved until visual, technical, or usability testing provides enough evidence to choose.
+
+## 0.1 Official Closure Baseline
+
+The Query Reservoir feature branch is formally closed for this development phase.
+
+This specification captures the approved implementation baseline and should not be read as authorization to reopen deprecated spatial or navigation models.
+
+The approved runtime contract is:
+
+- one authoritative `activeLayout` at rest;
+- one ephemeral `transitionPlan` during a transition, then `null` again on completion;
+- collection and query changes share the same exchange choreography: departure → semantic handoff → arrival;
+- semantic history is separate from geometry and must not depend on reusable historical geometry snapshots;
+- direct single-result Query Reservoirs use the canonical viewport-relative focal anchor regardless of global Distributed / Focused preference;
+- query ancestry is directional through `returnContext`, and `Back` follows that directed ancestry;
+- `Home` always returns to the root reservoir;
+- `Explore` filter state belongs to the reservoir context, so a new Query Reservoir starts at `All` unless its own context is being restored;
+- staying nodes remain stationary, leaving nodes sink, entering nodes emerge, and an empty target uses the red reservoir response rather than destroying state;
+- direct artifacts auto-select on arrival, but the artifact window still requires a second click to open.
 
 ---
 
@@ -180,7 +199,46 @@ Root
 
 ---
 
-## 2.3 Reservoir
+## 2.3 Query Reservoir
+
+Queries answer “show me what matches.”
+
+A Query Reservoir is an ephemeral result context created from a query result set.
+
+It is not a stored Collection entity and does not alter artifact membership.
+
+Query Reservoir exchange uses the same departure / handoff / arrival choreography as collection exchange, but the query context owns its own local presentation state.
+
+A Query Reservoir may contain:
+
+- 0 results;
+- 1 result;
+- N results.
+
+The temporary query result set itself becomes the active reservoir context and is rendered through the existing reservoir layout system.
+
+Direct artifact requests should resolve through a temporary Query Reservoir rather than routing to an arbitrary collection merely because that collection contains the requested artifact.
+
+When a direct Query Reservoir contains exactly one artifact, that artifact uses the canonical viewport-relative focal placement even if the user's global layout preference remains Distributed.
+
+Query filter state is context-local. A new Query Reservoir begins at `All` unless its own context is being restored from `returnContext` or Back navigation.
+
+The interface should preserve progressive disclosure:
+
+1. resolve matching artifact(s) / collection(s);
+2. create temporary Query Reservoir;
+3. render the result set using the existing reservoir layout system;
+4. allow the user to deliberately open the artifact.
+
+Back returns to the reservoir/context from which the query was issued. Home returns directly to the root Digital Reservoir.
+
+Back follows the immutable query ancestry chain expressed by `returnContext`; it does not rewrite the restored context to point forward toward the departed query.
+
+Query chains are directional and must not form reciprocal loops.
+
+---
+
+## 2.4 Reservoir
 
 A reservoir is the spatial representation of a collection.
 
@@ -202,7 +260,7 @@ The home sphere is simply the root instance of the same recursive system.
 
 ---
 
-## 2.4 Inspection Window
+## 2.5 Inspection Window
 
 Artifact content should not itself be forced into spatial 3D interaction.
 
@@ -226,7 +284,7 @@ This content layer may contain:
 
 ---
 
-## 2.5 Persistent Control Plane
+## 2.6 Persistent Control Plane
 
 The conventional website header is inverted.
 
@@ -1123,6 +1181,58 @@ Potential preserved state per collection:
 
 Exact persistence policy remains open, but V2 architecture should make it possible without restoring camera-path state.
 
+## 15.5 Query Reservoir Navigation
+
+Query and collection navigation are distinct.
+
+Collections answer “where am I?”
+Queries answer “show me what matches.”
+
+Query Reservoirs are ephemeral navigation state, not semantic collection records.
+
+Query ancestry is directional: each Query Reservoir may point back to the context that created it through `returnContext`.
+
+Direct single-result Query Reservoirs use the canonical focal anchor regardless of the active Distributed / Focused preference.
+
+Conceptually:
+
+```text
+query
+↓
+resolve matching artifact(s) / collection(s)
+↓
+create temporary Query Reservoir
+↓
+render only the result set using the existing reservoir layout system
+```
+
+For explicit direct artifact commands such as About or Resume, the intended Query Reservoir behavior is:
+
+```text
+direct artifact request
+↓
+Query Reservoir containing the requested artifact only
+↓
+artifact may emerge already selected
+↓
+artifact metadata appears in the atmosphere
+↓
+user may deliberately open the artifact
+```
+
+Query Reservoir recovery semantics:
+
+- Back returns to the reservoir/context from which the query was issued;
+- Home returns directly to the root reservoir and should become visibly apparent in the control plane while a Query Reservoir is active.
+
+Filter ownership remains local to the current reservoir context:
+
+- a fresh Query Reservoir starts at `All`;
+- restoring a query or collection context restores that context's own filter state;
+- Back restores the departed context rather than inheriting the destination context's filter.
+
+Do not treat query state as a permanent collection, and do not create a permanent blank-query node entity.
+
 # 16. Artifact Activation Sequence
 
 Artifact activation should be deliberately simple.
@@ -1597,9 +1707,43 @@ V2 separates semantic collection state, spherical orientation, zoom, node layout
 Conceptual state:
 
 ```typescript
+type ReservoirContext =
+  | {
+      kind: "collection"
+      collectionId: string
+    }
+  | {
+      kind: "query"
+      resultIds: string[]
+      returnContext: ReservoirContext
+    }
+
 interface ReservoirState {
+  activeLayout: {
+    context: ReservoirContext
+    mode: "distributed" | "focused"
+  }
+
+  transitionPlan: {
+    sourceContext: ReservoirContext
+    destinationContext: ReservoirContext
+    phase: "departure" | "handoff" | "arrival"
+  } | null
+
   currentCollectionId: string
   collectionHistory: string[]
+  reservoirContext: ReservoirContext
+
+  activeExploreFilterByContextKey: Record<string, ActiveExploreFilter>
+  queryReservoirSelectionSnapshotByContextKey: Record<
+    string,
+    {
+      hoveredArtifactId: string | null
+      selectedArtifactId: string | null
+      selectedCollectionId: string | null
+      selectedPressActive: boolean
+    }
+  >
 
   selectedArtifactId: string | null
   focusedNodeId: string | null
@@ -1633,10 +1777,19 @@ Exact implementation types may differ.
 
 Important architectural requirements:
 
+- activeLayout is authoritative at rest;
+- transitionPlan is ephemeral and clears after the destination becomes active;
 - orientation is independent of zoom;
 - zoom is independent of camera-path progress;
 - layout is independent of the reservoir's underlying render mesh;
 - collection identity is independent of physical transition geometry;
+- query context is independent from collection membership and is not stored as a collection record;
+- query context filter state is local to the context key, not global across all reservoirs;
+- single-result direct Query Reservoirs keep the canonical focal anchor regardless of the active global layout preference;
+- staying nodes remain stationary during exchange;
+- leaving nodes sink and entering nodes emerge;
+- failed filter requests return the red reservoir response rather than mutating the semantic model;
+- direct artifact Query Reservoirs auto-select on arrival, and the artifact window still requires a second click to open;
 - artifact-selected and artifact-open remain distinct states;
 - menu and footer remain independent states.
 
@@ -1648,6 +1801,14 @@ Primary states:
 HOME RESERVOIR
 │
 ├── NODE FOCUS
+│
+├── QUERY RESERVOIR
+│      ├── result set is ephemeral navigation state
+│      ├── returnContext is directional ancestry
+│      ├── Back follows returnContext
+│      ├── Home returns to root reservoir
+│      ├── direct artifact requests may emerge already selected
+│      └── a second selection opens the artifact window
 │
 ├── ARTIFACT SELECTED
 │      │
@@ -1680,6 +1841,8 @@ HOME RESERVOIR
 ```
 
 Deselecting an artifact from the selected state returns to the Home atmospheric state without changing sphere orientation or zoom.
+
+Query Reservoir filters remain context-local. A query that is not restoring its own context begins at `All`, and Back restores the departed context's own filter state rather than inheriting the destination filter.
 
 # 29. Motion Timing
 
@@ -2390,7 +2553,7 @@ The MVP should not attempt to prove every future feature.
 
 The completed V1 prototype validated the primary artifact interaction and earlier spatial experiments. V2 now authorizes a focused spatial-foundation overhaul.
 
-V2.5 is complete: the audited implementation already uses the semantic Active + Destination collection transition model in the persistent centered frame. Collection-node entry, Home, Back, ancestor/path selection, and direct collection requests resolve semantic destinations through the shared transition coordinator. Semantic navigation history is independent from geometry; the current rendered quaternion is preserved through collection transitions; current zoom is preserved when valid for the destination; and destination zoom is clamped before emergence when required. Per-collection orientation snapshots remain an implementation detail of the existing distributed-mode restoration behavior and are not a separate physical-slot history model.
+The approved implementation already uses one authoritative `activeLayout` and one ephemeral `transitionPlan` per exchange in the persistent centered frame. Collection-node entry, Home, Back, ancestor/path selection, and direct collection requests resolve semantic destinations through the shared transition coordinator. Query Reservoir ancestry is directional through `returnContext`; query filters are context-local; direct single-result Query Reservoirs retain canonical focal placement regardless of the global Distributed / Focused preference; staying nodes remain stationary while leaving and entering nodes reconcile through the same choreography; direct results auto-select on arrival; and a second click is still required to open artifact content. Semantic navigation history is independent from geometry, and the implementation does not rely on a persistent reusable geometry-snapshot hierarchy.
 
 ### V2 foundation implementation scope
 
@@ -2953,7 +3116,7 @@ V2 adds a spatial corollary:
 
 ## Version 0.3 / V2 Spatial Foundation — 2026-08-14
 
-The Digital Reservoir has completed its first interaction-development phase and is now entering a foundational spatial revision.
+The Digital Reservoir has completed this interaction-development phase, and the Query Reservoir branch is formally closed as the approved baseline for this prototype cycle.
 
 ### Preserved from V1
 
