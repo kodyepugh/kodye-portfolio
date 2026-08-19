@@ -58,6 +58,8 @@ type ReservoirSphereProps = {
   layoutModeTransitionState: "idle" | "sinking" | "orienting" | "emerging";
   collectionReconstitutionPhase: CollectionReconstitutionPhase;
   collectionReconstitutionProgressRef: MutableRefObject<number>;
+  queryReservoirTransitionPhase?: CollectionReconstitutionPhase;
+  queryReservoirTransitionProgressRef?: MutableRefObject<number>;
   layoutModeTransitionElapsedRef: MutableRefObject<number>;
   layoutModeTransitionProgressRef: MutableRefObject<number>;
   layoutModeTransitionPulseRef: MutableRefObject<number>;
@@ -87,7 +89,6 @@ type ReservoirSphereProps = {
   restoring: boolean;
   restorationProgressRef: MutableRefObject<number>;
   emergingChildren: boolean;
-  emergenceProgressRef: MutableRefObject<number>;
   onArtifactHoverChange: (artifactId: string, hovered: boolean) => void;
   resolvePointerVisibility: ReservoirNodePointerVisibilityResolver;
   queryActivityRevision?: number | null;
@@ -103,6 +104,8 @@ export function ReservoirSphere({
   layoutModeTransitionState,
   collectionReconstitutionPhase,
   collectionReconstitutionProgressRef,
+  queryReservoirTransitionPhase = "idle",
+  queryReservoirTransitionProgressRef,
   layoutModeTransitionElapsedRef,
   layoutModeTransitionProgressRef,
   layoutModeTransitionPulseRef,
@@ -132,7 +135,6 @@ export function ReservoirSphere({
   restoring,
   restorationProgressRef,
   emergingChildren,
-  emergenceProgressRef,
   onArtifactHoverChange,
   resolvePointerVisibility,
   queryActivityRevision = null,
@@ -182,10 +184,20 @@ export function ReservoirSphere({
   const meshEngagementTimeout = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const collectionReconstituting =
-    collectionReconstitutionPhase !== "idle";
-  const collectionDeactivating =
-    collectionReconstitutionPhase === "deactivating";
+  const reservoirExchangePhase =
+    collectionReconstitutionPhase !== "idle"
+      ? collectionReconstitutionPhase
+      : queryReservoirTransitionPhase;
+  const reservoirExchangeProgressRef =
+    collectionReconstitutionPhase !== "idle"
+      ? collectionReconstitutionProgressRef
+      : queryReservoirTransitionProgressRef ??
+        collectionReconstitutionProgressRef;
+  const reservoirExchangeActive = reservoirExchangePhase !== "idle";
+  const reservoirExchangeDeactivating =
+    reservoirExchangePhase === "deactivating";
+  const reservoirExchangeReactivating =
+    reservoirExchangePhase === "reactivating";
   const layoutModeSwitchSinking =
     layoutModeTransitionState === "sinking";
   const layoutModeSwitchEmerging =
@@ -325,10 +337,10 @@ export function ReservoirSphere({
           )
         : 0;
     const reconstitutionFrame = getCollectionReconstitutionFrame(
-      collectionReconstitutionProgressRef.current,
+      reservoirExchangeProgressRef.current,
     );
     const layoutTransitionPulse = layoutModeTransitionPulseRef.current;
-    const neutrality = collectionReconstituting
+    const neutrality = reservoirExchangeActive
       ? reconstitutionFrame.neutrality
       : 0;
     const selectionPresentation =
@@ -341,7 +353,7 @@ export function ReservoirSphere({
       : -1;
     const collectionHighlightRetreat =
       selectedMeshRetractionStarted &&
-      collectionDeactivating &&
+      reservoirExchangeDeactivating &&
       selectedNode?.kind === "collection" &&
       selectedCollectionIndex >= 0;
     if (selectedNodeId && selectedNode) {
@@ -353,7 +365,7 @@ export function ReservoirSphere({
     }
     const collectionHighlightProgress = collectionHighlightRetreat
       ? getCollectionNodeTransitionProgress(
-          collectionReconstitutionProgressRef.current,
+          reservoirExchangeProgressRef.current,
           "departure",
           selectedCollectionIndex,
           activeNodes.length,
@@ -439,7 +451,7 @@ export function ReservoirSphere({
       diagnosticsRef.current.dataset.collectionGreyReturnProgress =
         reconstitutionFrame.reactivationProgress.toFixed(6);
       diagnosticsRef.current.dataset.collectionPresentationState =
-        collectionReconstitutionPhase;
+        reservoirExchangePhase;
       diagnosticsRef.current.dataset.layoutModeTransitionPulse =
         layoutTransitionPulse.toFixed(6);
       diagnosticsRef.current.dataset.surfaceSelectedGlowReveal =
@@ -485,7 +497,9 @@ export function ReservoirSphere({
           externalProgressRef={
             collectionActivityRevision !== null
               ? collectionReconstitutionProgressRef
-              : undefined
+              : queryReservoirTransitionPhase !== "idle"
+                ? queryReservoirTransitionProgressRef
+                : undefined
           }
         />
       ) : null}
@@ -499,10 +513,10 @@ export function ReservoirSphere({
           filterSurfaced ||
           (node.kind === "artifact" && node.id === locatingArtifactId) ||
           (node.kind === "artifact" && node.id === openingArtifact?.id);
-        const reconstitutionSinking = collectionDeactivating;
-        const collectionNodeTransitionPhase = collectionDeactivating
+        const reconstitutionSinking = reservoirExchangeDeactivating;
+        const collectionNodeTransitionPhase = reservoirExchangeDeactivating
           ? "departure"
-          : emergingChildren
+          : reservoirExchangeReactivating
             ? "arrival"
             : null;
         const layoutTransitionSink = layoutModeSwitchSinking;
@@ -546,6 +560,7 @@ export function ReservoirSphere({
               reconstitutionSinking ||
               layoutTransitionSink ||
               layoutTransitionEmerging ||
+              reservoirExchangeReactivating ||
               emergingChildren
             }
             hovered={hoveredArtifactId === node.id}
@@ -567,12 +582,12 @@ export function ReservoirSphere({
             openingReducedMotion={openingReducedMotion}
             restoring={nodeRestoring}
             restorationProgressRef={nodeRestorationProgressRef}
-            emerging={emergingChildren}
-            emergenceProgressRef={emergenceProgressRef}
+            emerging={reservoirExchangeReactivating}
+            emergenceProgressRef={reservoirExchangeProgressRef}
             emergenceOrder={nodeIndex}
             emergenceChildCount={activeNodes.length}
             collectionTransitionPhase={collectionNodeTransitionPhase}
-            collectionTransitionProgressRef={collectionReconstitutionProgressRef}
+            collectionTransitionProgressRef={reservoirExchangeProgressRef}
             collectionTransitionOrder={nodeIndex}
             collectionTransitionChildCount={activeNodes.length}
             onHoverChange={onArtifactHoverChange}
@@ -590,6 +605,7 @@ export function ReservoirSphere({
               reconstitutionSinking ||
               layoutTransitionSink ||
               layoutTransitionEmerging ||
+              reservoirExchangeReactivating ||
               emergingChildren
             }
             interactionEnabled={interactionEnabled && surfaced}
@@ -614,12 +630,12 @@ export function ReservoirSphere({
             openingReducedMotion={openingReducedMotion}
             restoring={nodeRestoring}
             restorationProgressRef={nodeRestorationProgressRef}
-            emerging={emergingChildren}
-            emergenceProgressRef={emergenceProgressRef}
+            emerging={reservoirExchangeReactivating}
+            emergenceProgressRef={reservoirExchangeProgressRef}
             emergenceOrder={nodeIndex}
             emergenceChildCount={activeNodes.length}
             collectionTransitionPhase={collectionNodeTransitionPhase}
-            collectionTransitionProgressRef={collectionReconstitutionProgressRef}
+            collectionTransitionProgressRef={reservoirExchangeProgressRef}
             collectionTransitionOrder={nodeIndex}
             collectionTransitionChildCount={activeNodes.length}
             sphereRef={sphereRef}
