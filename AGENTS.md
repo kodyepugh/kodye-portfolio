@@ -37,5 +37,8 @@ It preserves the approved v0.6 Query Reservoir closure baseline while establishi
 For the active Bellabeat L2 implementation, also read:
 
 4. `docs/l2-bellabeat-manual-ingestion-manifest.md`
+5. `docs/l2-implementation-status.md`
+
+The implementation-status document records which L2-enabling architecture has already landed on `main`. Use it to avoid reimplementing completed registry or direct Resource Query Reservoir work merely because older gap language remains in the Bellabeat manifest.
 
 Do not build production ingestion, search, unassigned-resource inbox UI, or unrelated future inspection renderers unless the current task explicitly authorizes them.
