@@ -44,6 +44,7 @@ const { getReservoirContentNodes } = require(path.join(
 const {
   getArtifactById,
   getArtifactBySlug,
+  getArtifactStatusResources,
   getArtifactCollections,
   getAssetsForArtifact,
   getCollectionById,
@@ -52,7 +53,6 @@ const {
   getResourceByAddress,
   getResourceById,
   getResourceRepresentations,
-  getResourceStatusResources,
   getSupportingResourcesForResource,
   getSourceRecordsForArtifact,
   getSourceRecordsForAsset,
@@ -84,11 +84,10 @@ const checks = [
   [
     "resource address resolution works",
     getResourceById(ARTIFACT_IDS.brandSymbol)?.id === ARTIFACT_IDS.brandSymbol &&
-    getResourceByAddress("kodyepugh-symbol")?.id === ARTIFACT_IDS.brandSymbol &&
-      getCollectionByAddress("digital-reservoir")?.id ===
-        COLLECTION_IDS.root &&
-      resolveSemanticObjectAddress(ARTIFACT_IDS.brandSymbol)?.kind ===
-        "resource",
+      getResourceByAddress("kodyepugh-symbol")?.id === ARTIFACT_IDS.brandSymbol &&
+      getCollectionByAddress("digital-reservoir")?.id === COLLECTION_IDS.root &&
+      resolveSemanticObjectAddress(ARTIFACT_IDS.brandSymbol)?.kind === "resource" &&
+      resolveSemanticObjectAddress(COLLECTION_IDS.root)?.kind === "collection",
   ],
   [
     "artifact slug selector resolves canonical record",
@@ -97,7 +96,13 @@ const checks = [
   ],
   [
     "artifact status resources resolve",
-    getResourceStatusResources().every((resource) => resource.isArtifact === true),
+    getArtifactStatusResources().every((resource) => resource.isArtifact === true),
+  ],
+  [
+    "legacy artifact memberships are absent",
+    contentRegistry.memberships.every(
+      (membership) => membership.memberType !== "artifact",
+    ),
   ],
   [
     "one artifact belongs to multiple collections without duplication",

@@ -16,7 +16,24 @@ export const ARTIFACT_TYPES = [
 ] as const;
 
 export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
-export type ResourceType = ArtifactType;
+
+export const RESOURCE_TYPES = [
+  ...ARTIFACT_TYPES,
+  "report",
+  "chart",
+  "dataset",
+  "table",
+  "webpage",
+  "repository",
+  "audio",
+  "code",
+  "notebook",
+  "presentation",
+  "spreadsheet",
+  "text",
+] as const;
+
+export type ResourceType = (typeof RESOURCE_TYPES)[number];
 
 export const RESOURCE_INSPECTION_KINDS = [
   "structured-document",
@@ -174,20 +191,12 @@ export type ResourceMembership = MembershipBase & {
   memberId: string;
 };
 
-export type ArtifactMembership = MembershipBase & {
-  memberType: "artifact";
-  memberId: string;
-};
-
 export type CollectionMembership = MembershipBase & {
   memberType: "collection";
   memberId: string;
 };
 
-export type Membership =
-  | ResourceMembership
-  | ArtifactMembership
-  | CollectionMembership;
+export type Membership = ResourceMembership | CollectionMembership;
 
 export const ASSET_KINDS = [
   "image",

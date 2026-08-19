@@ -5,7 +5,6 @@ import {
 } from "./references";
 import type {
   Artifact,
-  ArtifactMembership,
   Collection,
   CollectionMembership,
   Resource,
@@ -47,7 +46,7 @@ const assetById = new Map(
 export type ResolvedCollectionMember =
   | {
       kind: "artifact";
-      membership: ResourceMembership | ArtifactMembership;
+      membership: ResourceMembership;
       artifact: Artifact;
     }
   | {
@@ -168,10 +167,6 @@ export function getCollectionMembers(
       continue;
     }
 
-    if (membership.memberType !== "resource" && membership.memberType !== "artifact") {
-      continue;
-    }
-
     const artifact = getArtifactById(membership.memberId);
     if (artifact) members.push({ kind: "artifact", membership, artifact });
   }
@@ -189,12 +184,7 @@ export function getPublishedCollectionMembers(collectionId: string) {
 
 export function getResourceCollections(resourceId: string) {
   return contentRegistry.memberships.flatMap((membership) => {
-    if (
-      membership.memberType !== "resource" &&
-      membership.memberType !== "artifact"
-    ) {
-      return [];
-    }
+    if (membership.memberType !== "resource") return [];
     if (membership.memberId !== resourceId) {
       return [];
     }

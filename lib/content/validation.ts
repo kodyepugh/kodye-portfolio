@@ -64,6 +64,35 @@ function reportCollectionCycles(
   for (const collection of registry.collections) visit(collection.id, []);
 }
 
+function reportSemanticAddressNamespace(
+  registry: ContentRegistry,
+  errors: string[],
+) {
+  const owners = new Map<string, string>();
+
+  const entries = [
+    ...registry.resources.flatMap((resource) => [
+      { token: resource.id, owner: `Resource ${resource.id} id` },
+      { token: resource.slug, owner: `Resource ${resource.id} slug` },
+    ]),
+    ...registry.collections.flatMap((collection) => [
+      { token: collection.id, owner: `Collection ${collection.id} id` },
+      { token: collection.slug, owner: `Collection ${collection.id} slug` },
+    ]),
+  ];
+
+  for (const { token, owner } of entries) {
+    const existingOwner = owners.get(token);
+    if (existingOwner) {
+      errors.push(
+        `Semantic address token ${token} is reused by ${existingOwner} and ${owner}`,
+      );
+      continue;
+    }
+    owners.set(token, owner);
+  }
+}
+
 export function validateContentRegistry(
   registry: ContentRegistry,
 ): ContentValidationResult {
@@ -111,16 +140,10 @@ export function validateContentRegistry(
     registry.sourceRecords.map((sourceRecord) => sourceRecord.id),
   );
 
-  const resourceIds = new Set(registry.resources.map((resource) => resource.id));
-  const resourceSlugs = new Set(
-    registry.resources.map((resource) => resource.slug),
-  );
   const collectionIds = new Set(
     registry.collections.map((collection) => collection.id),
   );
-  const collectionSlugs = new Set(
-    registry.collections.map((collection) => collection.slug),
-  );
+  const resourceIds = new Set(registry.resources.map((resource) => resource.id));
   const assetIds = new Set(registry.assets.map((asset) => asset.id));
   const membershipEdges = new Set<string>();
   const membershipOrders = new Set<string>();
@@ -128,31 +151,9 @@ export function validateContentRegistry(
   const supportOrders = new Set<string>();
   const representationIds = new Set<string>();
 
-  for (const collection of registry.collections) {
-    if (resourceIds.has(collection.id)) {
-      errors.push(
-        `Collection ${collection.id} conflicts with an existing resource ID`,
-      );
-    }
-    if (resourceSlugs.has(collection.slug)) {
-      errors.push(
-        `Collection ${collection.id} conflicts with an existing resource slug ${collection.slug}`,
-      );
-    }
-  }
+  reportSemanticAddressNamespace(registry, errors);
 
   for (const resource of registry.resources) {
-    if (collectionIds.has(resource.id)) {
-      errors.push(
-        `Resource ${resource.id} conflicts with an existing collection ID`,
-      );
-    }
-    if (collectionSlugs.has(resource.slug)) {
-      errors.push(
-        `Resource ${resource.id} conflicts with an existing collection slug ${resource.slug}`,
-      );
-    }
-
     for (const assetId of getArtifactContentAssetIds(resource.content)) {
       if (!assetIds.has(assetId)) {
         errors.push(`Resource ${resource.id} references unknown asset ${assetId}`);
@@ -182,21 +183,13 @@ export function validateContentRegistry(
   }
 
   for (const membership of registry.memberships) {
-    const memberType: string = membership.memberType;
     if (!collectionIds.has(membership.collectionId)) {
       errors.push(
         `Membership ${membership.id} has unknown collectionId ${membership.collectionId}`,
       );
     }
 
-    const isResourceMembership =
-      memberType === "resource" || memberType === "artifact";
-    if (memberType !== "collection" && !isResourceMembership) {
-      errors.push(`Membership ${membership.id} has unknown memberType ${memberType}`);
-      continue;
-    }
-
-    if (memberType === "collection") {
+    if (membership.memberType === "collection") {
       if (!collectionIds.has(membership.memberId)) {
         errors.push(
           `Membership ${membership.id} has unknown collection memberId ${membership.memberId}`,
@@ -220,9 +213,7 @@ export function validateContentRegistry(
       }
     }
 
-    const normalizedMemberType =
-      memberType === "artifact" ? "resource" : memberType;
-    const edge = `${membership.collectionId}:${normalizedMemberType}:${membership.memberId}`;
+    const edge = `${membership.collectionId}:${membership.memberType}:${membership.memberId}`;
     if (membershipEdges.has(edge)) {
       errors.push(`Duplicate membership relationship: ${edge}`);
     }

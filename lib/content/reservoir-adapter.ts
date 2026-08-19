@@ -1,5 +1,5 @@
 import { getArtifactById, getCollectionById, getPublishedCollectionMembers } from "./selectors";
-import type { ArtifactType } from "../../types/content";
+import type { ResourceType } from "../../types/content";
 
 export type ReservoirContentNode =
   | {
@@ -9,7 +9,7 @@ export type ReservoirContentNode =
       order?: number;
       title: string;
       subtitle?: string;
-      type: ArtifactType;
+      type: ResourceType;
       typeLabel: string;
       icon?: string;
       category?: string;
@@ -30,7 +30,7 @@ export type ReservoirContentNode =
       categoryColor?: string;
     };
 
-function getTypeLabel(type: ArtifactType) {
+function getTypeLabel(type: ResourceType) {
   return type
     .split("-")
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
