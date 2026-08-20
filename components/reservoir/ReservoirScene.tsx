@@ -2315,6 +2315,13 @@ export function ReservoirScene() {
     restorationElapsedRef.current = 0;
     restorationProgressRef.current = 0;
     if (interaction.current) {
+      interaction.current.dataset.inspectionCloseRequestCount = String(
+        Number(interaction.current.dataset.inspectionCloseRequestCount ?? 0) +
+          1,
+      );
+      interaction.current.dataset.inspectionCloseRequestSentAt = String(
+        performance.now(),
+      );
       interaction.current.dataset.inspectionExitIntent = pendingInspectionNavigationTargetRef.current
         ? "support-resource-navigation"
         : "close";
@@ -2327,6 +2334,18 @@ export function ReservoirScene() {
         : currentState,
     );
   }, []);
+
+  useEffect(() => {
+    if (!interaction.current) return;
+
+    interaction.current.dataset.inspectionCloseTransitionAccepted = String(
+      transitionState === "closingInspection",
+    );
+    if (transitionState === "closingInspection") {
+      interaction.current.dataset.inspectionCloseClosingPhaseEnteredAt =
+        String(performance.now());
+    }
+  }, [transitionState]);
 
   const requestInspectionNavigation = useCallback(
     (resourceId: string, returnFrame: InspectionReturnFrame) => {

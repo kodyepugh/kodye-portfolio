@@ -906,22 +906,25 @@ body.artifact-reading-mode .reservoir-study {
 
 .artifact-window {
   --artifact-window-inline-padding: clamp(20px, 6vw, 96px);
+  --artifact-window-top-padding: clamp(18px, 2.5vw, 38px);
+  position: relative;
   min-height: calc(190svh - var(--artifact-window-top));
-  padding: clamp(18px, 2.5vw, 38px) var(--artifact-window-inline-padding) 0;
+  padding: var(--artifact-window-top-padding)
+    var(--artifact-window-inline-padding) 0;
   background: var(--artifact-surface);
   border-top: 1px solid var(--artifact-border);
   box-shadow: 0 -18px 54px rgba(0, 0, 0, 0.36);
 }
 
 .artifact-window__close {
-  position: sticky;
-  top: var(--artifact-close-top);
-  z-index: 2;
+  position: absolute;
+  top: 0;
+  right: 0;
   display: grid;
   place-items: center;
   width: 44px;
   height: 44px;
-  margin-left: auto;
+  margin: 0;
   padding: 8px;
   color: var(--artifact-text-muted);
   background: transparent;
@@ -932,9 +935,19 @@ body.artifact-reading-mode .reservoir-study {
   font-weight: 400;
   line-height: 1;
   cursor: pointer;
+  pointer-events: auto;
   transition:
     color 140ms ease-out,
     background-color 140ms ease-out;
+}
+
+.inspection-window__chrome {
+  position: sticky;
+  top: var(--artifact-close-top);
+  z-index: 60;
+  width: 100%;
+  height: 0;
+  pointer-events: none;
 }
 
 .artifact-window__close:hover,
@@ -989,6 +1002,11 @@ body.artifact-reading-mode .reservoir-study {
     minmax(0, var(--inspection-primary-width))
     minmax(0, 1fr);
   gap: clamp(56px, 10svh, 112px);
+}
+
+.inspection-window[data-inspection-kind="image"]
+  .inspection-window__body-layout {
+  padding-top: 0;
 }
 
 .inspection-context-tray {
@@ -1222,22 +1240,16 @@ body.artifact-reading-mode .reservoir-study {
 .inspection-image {
   --inspection-landing-visible-height: max(
     0px,
-    calc(100svh - var(--artifact-window-top))
+    calc(100dvh - var(--artifact-window-top))
   );
+  --inspection-image-safe-bottom-gap: clamp(24px, 4svh, 56px);
   --inspection-image-stage-padding: clamp(18px, 3vw, 36px);
-  --inspection-image-stage-height: min(
-    720px,
-    max(
-      0px,
-      calc(
-          var(--inspection-landing-visible-height) -
-          var(--inspection-image-stage-padding) -
-          var(--inspection-image-stage-padding) -
-          clamp(18px, 2.5vw, 38px) -
-          44px -
-          clamp(46px, 8svh, 92px) -
-          clamp(24px, 4svh, 56px)
-      )
+  --inspection-image-stage-height: max(
+    0px,
+    calc(
+      var(--inspection-landing-visible-height) -
+        var(--artifact-window-top-padding) -
+        var(--inspection-image-safe-bottom-gap)
     )
   );
   display: grid;
@@ -1263,6 +1275,7 @@ body.artifact-reading-mode .reservoir-study {
 .inspection-image__stage {
   display: grid;
   place-items: center;
+  box-sizing: border-box;
   min-height: 0;
   height: var(--inspection-image-stage-height);
   padding: var(--inspection-image-stage-padding);
@@ -1287,14 +1300,14 @@ body.artifact-reading-mode .reservoir-study {
   height: 100%;
   max-width: 100%;
   max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .inspection-image__image {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 18px 38px rgba(0, 0, 0, 0.18));
 }

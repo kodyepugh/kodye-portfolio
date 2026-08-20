@@ -136,7 +136,9 @@ export function InspectionWindow({
   const postContentOffsetRef = useRef(0);
   const revealMeasurementsRef =
     useRef<InspectionRevealMeasurements>(INITIAL_REVEAL_MEASUREMENTS);
-  const closeStartedRef = useRef(false);
+  const closeClickCountRef = useRef(0);
+  const closeRequestCountRef = useRef(0);
+  const closeRequestPendingRef = useRef(false);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const closeIntentRef = useRef<InspectionWindowProps["exitIntent"]>(exitIntent);
   const readingStateRestoredRef = useRef(false);
@@ -192,11 +194,51 @@ export function InspectionWindow({
   }, [exitIntent]);
 
   const beginClose = useCallback(() => {
-    if (phase !== "reading" || closeStartedRef.current) return;
-    closeStartedRef.current = true;
+    const stage = stageRef.current;
+    if (phase !== "reading") return;
+    closeRequestCountRef.current += 1;
+    closeRequestPendingRef.current = true;
+    if (stage) {
+      stage.dataset.inspectionCloseRequestSentAt = String(performance.now());
+      stage.dataset.inspectionCloseTransitionAccepted = "pending";
+    }
     setCloseScrollY(window.scrollY);
     onClose();
   }, [onClose, phase]);
+
+  const markClosePointer = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.dataset.inspectionClosePointerCount = String(
+      Number(stage.dataset.inspectionClosePointerCount ?? 0) + 1,
+    );
+    stage.dataset.inspectionClosePointerReceivedAt = String(performance.now());
+  }, []);
+
+  const markCloseClick = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    closeClickCountRef.current += 1;
+    stage.dataset.inspectionCloseClickCount = String(
+      closeClickCountRef.current,
+    );
+    stage.dataset.inspectionCloseClickReceivedAt = String(performance.now());
+  }, []);
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !closeRequestPendingRef.current) return;
+
+    if (phase === "closing") {
+      closeRequestPendingRef.current = false;
+      stage.dataset.inspectionCloseTransitionAccepted = "true";
+      stage.dataset.inspectionCloseClosingPhaseEnteredAt = String(
+        performance.now(),
+      );
+    } else if (phase === "reading") {
+      stage.dataset.inspectionCloseTransitionAccepted = "pending";
+    }
+  }, [phase]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -550,18 +592,28 @@ export function InspectionWindow({
             <h1 id={titleId} className="sr-only">
               {resource.title}
             </h1>
-            <button
-              ref={closeButtonRef}
-              className="artifact-window__close inspection-window__close"
-              type="button"
-              disabled={phase !== "reading"}
-              onClick={beginClose}
-              aria-label="Close inspection"
-              title="Close inspection"
-            >
-              <span aria-hidden="true">×</span>
-              <span className="sr-only">Close inspection</span>
-            </button>
+            <div className="inspection-window__chrome">
+              <button
+                ref={closeButtonRef}
+                className="artifact-window__close inspection-window__close"
+                type="button"
+                disabled={phase !== "reading"}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  markClosePointer();
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  markCloseClick();
+                  beginClose();
+                }}
+                aria-label="Close inspection"
+                title="Close inspection"
+              >
+                <span aria-hidden="true">×</span>
+                <span className="sr-only">Close inspection</span>
+              </button>
+            </div>
 
             <div
               id={bodyId}
