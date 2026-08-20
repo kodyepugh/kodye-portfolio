@@ -26,6 +26,7 @@ export function ArtifactWindow({
 }: ArtifactWindowProps) {
   return (
     <InspectionWindow
+      exitIntent="close"
       resource={artifact}
       onNavigateToResource={onNavigateToResource ?? (() => {})}
       {...props}

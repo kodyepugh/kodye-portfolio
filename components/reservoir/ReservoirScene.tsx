@@ -1106,6 +1106,8 @@ export function ReservoirScene() {
     useRef<CollectionTransitionPoseSnapshot | null>(null);
   const restorationElapsedRef = useRef(0);
   const restorationProgressRef = useRef(0);
+  const inspectionRecoveryStartTimeRef = useRef<number | null>(null);
+  const inspectionRecoveryHandoffCommittedRef = useRef(false);
   const pendingInspectionNavigationTargetRef = useRef<string | null>(null);
   const requestDirectResourceRef = useRef<
     (resourceAddress: string) => boolean
@@ -2193,6 +2195,10 @@ export function ReservoirScene() {
 
   const requestInspectionClose = useCallback(() => {
     setInspectionFooterReached(false);
+    inspectionRecoveryStartTimeRef.current = performance.now();
+    inspectionRecoveryHandoffCommittedRef.current = false;
+    restorationElapsedRef.current = 0;
+    restorationProgressRef.current = 0;
     if (interaction.current) {
       interaction.current.dataset.inspectionExitIntent = pendingInspectionNavigationTargetRef.current
         ? "support-resource-navigation"
@@ -2242,32 +2248,126 @@ export function ReservoirScene() {
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-      const navigationTarget =
+    const snapshot = preservedReservoirState;
+    const retractDuration = getInspectionWindowRetractDuration(reducedMotion);
+    const restorationDuration = getReservoirRestoreDuration(reducedMotion);
+    const startTime =
+      inspectionRecoveryStartTimeRef.current ?? performance.now();
+    if (inspectionRecoveryStartTimeRef.current === null) {
+      inspectionRecoveryStartTimeRef.current = startTime;
+    }
+    const expectedSphereQuaternion = new THREE.Quaternion(
+      ...snapshot.sphereQuaternion,
+    );
+    let animationFrameId = 0;
+
+    function updateClosingRecovery(now: number) {
+      const elapsed = (now - startTime) / 1000;
+      const retractProgress = Math.min(
+        Math.max(elapsed / Math.max(retractDuration, Number.EPSILON), 0),
+        1,
+      );
+      restorationElapsedRef.current = Math.min(elapsed, restorationDuration);
+      restorationProgressRef.current = getReservoirRestoreProgress(
+        elapsed,
+        reducedMotion,
+      );
+
+      const renderedSphere = sphereRotationRef.current;
+      const sphereQuaternionError = renderedSphere
+        ? renderedSphere.quaternion.angleTo(expectedSphereQuaternion)
+        : Number.POSITIVE_INFINITY;
+      const zoomLevelError = Math.abs(
+        zoomLevelRef.current - snapshot.zoomLevel,
+      );
+      const endpointReached =
+        sphereQuaternionError < 0.00001 && zoomLevelError < 0.00001;
+      const fallbackUsed = elapsed >= restorationDuration && !endpointReached;
+      const supportNavigationTarget =
         pendingInspectionNavigationTargetRef.current ?? null;
-      if (navigationTarget) {
-        const started = requestDirectResourceRef.current(navigationTarget);
+      const supportHandoffReady =
+        supportNavigationTarget !== null && retractProgress >= 1;
+
+      if (interaction.current) {
+        interaction.current.dataset.inspectionCloseRetractDuration =
+          retractDuration.toFixed(6);
+        interaction.current.dataset.inspectionCloseRetractElapsed = Math.min(
+          elapsed,
+          retractDuration,
+        ).toFixed(6);
+        interaction.current.dataset.inspectionCloseRetractProgress =
+          retractProgress.toFixed(6);
+        interaction.current.dataset.restorationNominalDuration =
+          restorationDuration.toFixed(6);
+        interaction.current.dataset.restorationElapsed =
+          restorationElapsedRef.current.toFixed(6);
+        interaction.current.dataset.restorationProgress =
+          restorationProgressRef.current.toFixed(6);
+        interaction.current.dataset.restorationSphereQuaternionError =
+          sphereQuaternionError.toFixed(9);
+        interaction.current.dataset.restorationZoomLevelError =
+          zoomLevelError.toFixed(9);
+        interaction.current.dataset.restorationEndpointReached = String(
+          endpointReached,
+        );
+        interaction.current.dataset.restorationFallbackUsed = String(
+          fallbackUsed,
+        );
+        interaction.current.dataset.supportQueryHandoffReady = String(
+          supportHandoffReady,
+        );
+        interaction.current.dataset.supportQueryHandoffCommitted = String(
+          inspectionRecoveryHandoffCommittedRef.current,
+        );
+      }
+
+      if (supportHandoffReady && supportNavigationTarget) {
+        inspectionRecoveryHandoffCommittedRef.current = true;
+        if (interaction.current) {
+          interaction.current.dataset.supportQueryHandoffCommitted = "true";
+        }
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+        const started = requestDirectResourceRef.current(
+          supportNavigationTarget,
+        );
         if (started) {
-          pendingInspectionNavigationTargetRef.current = null;
+          inspectionRecoveryStartTimeRef.current = null;
           restorationElapsedRef.current = 0;
           restorationProgressRef.current = 0;
           setPreservedReservoirState(null);
           setInspectedResourceId(null);
-        } else {
-          pendingInspectionNavigationTargetRef.current = null;
-          restorationElapsedRef.current = 0;
-          restorationProgressRef.current = 0;
-          setTransitionState("restoringInspection");
+          return;
         }
+        inspectionRecoveryHandoffCommittedRef.current = false;
+        restorationElapsedRef.current = 0;
+        restorationProgressRef.current = 0;
+        setTransitionState("restoringInspection");
         return;
       }
-      restorationElapsedRef.current = 0;
-      restorationProgressRef.current = 0;
-      setTransitionState("restoringInspection");
-    }, getInspectionWindowRetractDuration(reducedMotion) * 1000);
 
-    return () => window.clearTimeout(timeoutId);
+      if (retractProgress < 1) {
+        animationFrameId = requestAnimationFrame(updateClosingRecovery);
+        return;
+      }
+
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      if (endpointReached || elapsed >= restorationDuration + 1) {
+        restorationProgressRef.current = 1;
+        if (renderedSphere) {
+          renderedSphere.quaternion.copy(expectedSphereQuaternion);
+        }
+        setReservoirZoom(snapshot.zoomLevel);
+        setInspectedResourceId(null);
+        inspectionRecoveryStartTimeRef.current = null;
+        setTransitionState("idle");
+        return;
+      }
+
+      setTransitionState("restoringInspection");
+    }
+
+    animationFrameId = requestAnimationFrame(updateClosingRecovery);
+    return () => cancelAnimationFrame(animationFrameId);
   }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
 
   useEffect(() => {
@@ -2280,7 +2380,11 @@ export function ReservoirScene() {
 
     const snapshot = preservedReservoirState;
     const duration = getReservoirRestoreDuration(reducedMotion);
-    const startTime = performance.now();
+    const startTime =
+      inspectionRecoveryStartTimeRef.current ?? performance.now();
+    if (inspectionRecoveryStartTimeRef.current === null) {
+      inspectionRecoveryStartTimeRef.current = startTime;
+    }
     const expectedSphereQuaternion = new THREE.Quaternion(
       ...snapshot.sphereQuaternion,
     );
@@ -2320,6 +2424,7 @@ export function ReservoirScene() {
         }
         setReservoirZoom(snapshot.zoomLevel);
         setInspectedResourceId(null);
+        inspectionRecoveryStartTimeRef.current = null;
         setTransitionState("idle");
         return;
       }
@@ -2702,6 +2807,10 @@ export function ReservoirScene() {
 
     pendingInspectionNavigationTargetRef.current = null;
     openingElapsedRef.current = 0;
+    inspectionRecoveryStartTimeRef.current = null;
+    inspectionRecoveryHandoffCommittedRef.current = false;
+    restorationElapsedRef.current = 0;
+    restorationProgressRef.current = 0;
     setInspectedResourceId(resourceId);
     setPreservedReservoirState(preservedState);
     setInspectionFooterReached(false);
@@ -3222,6 +3331,10 @@ export function ReservoirScene() {
     setHoveredResourceId(null);
     setSelectedPressActive(false);
     setLocatingResourceId(resource.id);
+    inspectionRecoveryStartTimeRef.current = null;
+    inspectionRecoveryHandoffCommittedRef.current = false;
+    restorationElapsedRef.current = 0;
+    restorationProgressRef.current = 0;
     setTransitionState("idle");
     pendingCollectionResolutionRef.current = null;
     if (interaction.current) {
@@ -3871,6 +3984,11 @@ export function ReservoirScene() {
       {inspectionWindowPhase && openingResource ? (
         <InspectionWindow
           atmosphereBottom={atmosphereBottom}
+          exitIntent={
+            pendingInspectionNavigationTargetRef.current
+              ? "support-resource-navigation"
+              : "close"
+          }
           resource={openingResource}
           phase={inspectionWindowPhase}
           reducedMotion={reducedMotion}

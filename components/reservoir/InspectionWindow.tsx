@@ -35,6 +35,7 @@ type InspectionRevealMeasurements = {
 export type InspectionWindowProps = {
   atmosphereBottom: number;
   resource: Resource;
+  exitIntent: "close" | "support-resource-navigation";
   phase: InspectionWindowPhase;
   reducedMotion: boolean;
   onDeployComplete: () => void;
@@ -100,6 +101,7 @@ export function InspectionWindow({
   resource,
   phase,
   reducedMotion,
+  exitIntent,
   onDeployComplete,
   onClose,
   onFooterReachedChange,
@@ -116,6 +118,7 @@ export function InspectionWindow({
     useRef<InspectionRevealMeasurements>(INITIAL_REVEAL_MEASUREMENTS);
   const closeStartedRef = useRef(false);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const closeIntentRef = useRef<InspectionWindowProps["exitIntent"]>(exitIntent);
   const [postContentOffset, setPostContentOffset] = useState(0);
   const [revealMeasurements, setRevealMeasurements] =
     useState<InspectionRevealMeasurements>(INITIAL_REVEAL_MEASUREMENTS);
@@ -163,6 +166,10 @@ export function InspectionWindow({
     setPostContentOffset(next);
   }, []);
 
+  useLayoutEffect(() => {
+    closeIntentRef.current = exitIntent;
+  }, [exitIntent]);
+
   const beginClose = useCallback(() => {
     if (phase !== "reading" || closeStartedRef.current) return;
     closeStartedRef.current = true;
@@ -202,17 +209,16 @@ export function InspectionWindow({
           previous.element.setAttribute("aria-hidden", previous.ariaHidden);
         }
       }
-      previouslyFocusedRef.current?.focus({ preventScroll: true });
+      if (closeIntentRef.current === "close") {
+        previouslyFocusedRef.current?.focus({ preventScroll: true });
+      }
     };
   }, []);
 
   useEffect(() => {
-    if (phase === "reading") {
-      closeButtonRef.current?.focus({ preventScroll: true });
-      return;
-    }
+    if (phase !== "reading") return;
 
-    stageRef.current?.focus({ preventScroll: true });
+    closeButtonRef.current?.focus({ preventScroll: true });
   }, [phase]);
 
   useEffect(() => {
@@ -387,7 +393,6 @@ export function InspectionWindow({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        tabIndex={-1}
         data-inspection-window-phase={phase}
         data-artifact-window-phase={phase}
         data-inspection-scroll-phase={revealPhase}
