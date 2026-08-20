@@ -90,6 +90,7 @@ const {
   consumeInspectionReturnFrame,
   createInspectionReturnFrame,
   discardInspectionReturnFrame,
+  getCollectionInspectionReturnFrame,
   getInspectionReturnFrame,
   getInspectionReturnPostContentOffset,
   getInspectionReturnScrollY,
@@ -510,6 +511,26 @@ const inspectionReturnOwnershipSnapshot = JSON.stringify({
   target: supportTargetResource,
   memberships: contentRegistry.memberships,
 });
+const ordinaryCollectionHistory = [
+  { collectionId: ROOT_COLLECTION_ID },
+  { collectionId: "collection-web" },
+];
+const inspectionCollectionHistory = [
+  { collectionId: ROOT_COLLECTION_ID },
+  {
+    collectionId: "collection-about-self",
+    inspectionReturn: inspectionReturnFrame,
+  },
+];
+const nestedInspectionCollectionHistory = [
+  ...inspectionCollectionHistory,
+  { collectionId: "collection-digital-reservoir" },
+];
+const collectionReturnFrame = getCollectionInspectionReturnFrame(
+  inspectionCollectionHistory,
+);
+const nestedFirstBackHistory = nestedInspectionCollectionHistory.slice(0, -1);
+const nestedSecondBackHistory = nestedFirstBackHistory.slice(0, -1);
 
 const checks = [
   [
@@ -750,6 +771,49 @@ const checks = [
       target: supportTargetResource,
       memberships: contentRegistry.memberships,
     }) === inspectionReturnOwnershipSnapshot,
+  ],
+  [
+    "AK ordinary Collection history has no Inspection return ownership",
+    getCollectionInspectionReturnFrame(ordinaryCollectionHistory) === null &&
+      ordinaryCollectionHistory.slice(0, -1).at(-1)?.collectionId ===
+        ROOT_COLLECTION_ID,
+  ],
+  [
+    "AL Inspection-originated Collection history retains its frame on the arrival hop",
+    collectionReturnFrame === inspectionReturnFrame &&
+      collectionReturnFrame.resourceId === supportSourceResource.id,
+  ],
+  [
+    "AM nested Collection Back consumes the outer hop before reopening",
+    getCollectionInspectionReturnFrame(nestedFirstBackHistory) ===
+        inspectionReturnFrame &&
+      getCollectionInspectionReturnFrame(nestedSecondBackHistory) ===
+        null &&
+      nestedFirstBackHistory.at(-1)?.collectionId ===
+        "collection-about-self" &&
+      nestedSecondBackHistory.at(-1)?.collectionId === ROOT_COLLECTION_ID,
+  ],
+  [
+    "AN nested Collection Back preserves the originating frame until its boundary is crossed",
+    getCollectionInspectionReturnFrame(nestedInspectionCollectionHistory) ===
+      null &&
+      nestedFirstBackHistory.at(-1)?.inspectionReturn === inspectionReturnFrame,
+  ],
+  [
+    "AO Home discards Collection Inspection return ownership",
+    nestedSecondBackHistory.length === 1 &&
+      getCollectionInspectionReturnFrame(nestedSecondBackHistory) === null,
+  ],
+  [
+    "AP current Collection selection does not create a new history hop",
+    inspectionCollectionHistory.length === 2 &&
+      inspectionCollectionHistory.at(-1)?.collectionId ===
+        "collection-about-self",
+  ],
+  [
+    "AQ invalid Collection return sources fail closed without reopening",
+    !canInspectResource(unsupportedResource) &&
+      collectionReturnFrame.resourceId === supportSourceResource.id,
   ],
 ];
 

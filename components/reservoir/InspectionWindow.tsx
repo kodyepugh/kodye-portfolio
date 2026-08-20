@@ -54,7 +54,10 @@ export type InspectionWindowProps = {
     resourceId: string,
     returnFrame: InspectionReturnFrame,
   ) => void;
-  onNavigateToCollection: (collectionId: string) => void;
+  onNavigateToCollection: (
+    collectionId: string,
+    returnFrame: InspectionReturnFrame,
+  ) => void;
   onReadingStateRestored: (frame: InspectionReturnFrame) => void;
 };
 
@@ -458,17 +461,24 @@ export function InspectionWindow({
   }
 
   function navigateToSupportingResource(resourceId: string) {
+    onNavigateToResource(resourceId, createCurrentInspectionReturnFrame());
+  }
+
+  function createCurrentInspectionReturnFrame() {
     const measurements = revealMeasurementsRef.current;
     const measuredRevealDistance =
       measurements.controlPlaneHeight + measurements.footerHeight;
-    const returnFrame = createInspectionReturnFrame(
+    return createInspectionReturnFrame(
       resource.id,
       window.scrollY,
       measuredRevealDistance > 0
         ? postContentOffsetRef.current / measuredRevealDistance
         : 0,
     );
-    onNavigateToResource(resourceId, returnFrame);
+  }
+
+  function navigateToCollection(collectionId: string) {
+    onNavigateToCollection(collectionId, createCurrentInspectionReturnFrame());
   }
 
   return (
@@ -569,7 +579,7 @@ export function InspectionWindow({
                 resources={resources}
                 collections={collections}
                 onNavigateToResource={navigateToSupportingResource}
-                onNavigateToCollection={onNavigateToCollection}
+                onNavigateToCollection={navigateToCollection}
               />
             </div>
           </article>

@@ -100,9 +100,11 @@ import {
   associateInspectionReturnFrame,
   consumeInspectionReturnFrame,
   discardInspectionReturnFrame,
+  getCollectionInspectionReturnFrame,
   getInspectionReturnFrame,
   type InspectionReturnFrame,
   type InspectionReturnFrameStore,
+  type CollectionHistoryFrame,
 } from "@/lib/reservoir/inspection-return";
 import { getReservoirResourceSelectionAction } from "@/lib/reservoir/resource-selection";
 import { canInspectResource } from "@/lib/reservoir/inspection";
@@ -324,10 +326,6 @@ type PreservedReservoirState = {
   resourceId: string;
   sphereQuaternion: QuaternionTuple;
   zoomLevel: number;
-};
-
-type CollectionHistoryFrame = {
-  collectionId: string;
 };
 
 type CollectionNavigationState = {
@@ -1131,6 +1129,10 @@ export function ReservoirScene() {
   const inspectionRecoveryHandoffCommittedRef = useRef(false);
   const pendingInspectionNavigationTargetRef = useRef<string | null>(null);
   const pendingInspectionCollectionTargetRef = useRef<string | null>(null);
+  const pendingInspectionCollectionReturnFrameRef =
+    useRef<InspectionReturnFrame | null>(null);
+  const pendingCollectionInspectionReturnRef =
+    useRef<InspectionReturnFrame | null>(null);
   const pendingInspectionReturnFrameRef =
     useRef<InspectionReturnFrame | null>(null);
   const inspectionReturnFrameStoreRef = useRef<InspectionReturnFrameStore>(
@@ -1707,8 +1709,9 @@ export function ReservoirScene() {
       ? shouldShowBackNavigationForQueryContext(
           navigationContext,
           activeInspectionReturnFrame !== null,
-      )
-      : collectionHistory.length >= 3;
+        )
+      : collectionHistory.length >= 3 ||
+        getCollectionInspectionReturnFrame(collectionHistory) !== null;
   const inspectionReturnRuntimeInProgress =
     inspectionReturnRuntime?.phase === "captured" ||
     inspectionReturnRuntime?.phase === "detouring" ||
@@ -2375,7 +2378,7 @@ export function ReservoirScene() {
   );
 
   const requestInspectionCollectionNavigation = useCallback(
-    (collectionId: string) => {
+    (collectionId: string, returnFrame: InspectionReturnFrame) => {
       if (transitionState !== "readingInspection") return;
 
       const targetContextKey = getReservoirContextKey({
@@ -2383,11 +2386,20 @@ export function ReservoirScene() {
         collectionId,
       });
       if (targetContextKey === layoutOwnership.activeLayout.contextKey) {
+        pendingInspectionCollectionReturnFrameRef.current = null;
+        setInspectionReturnRuntime(null);
         requestInspectionClose();
         return;
       }
 
       pendingInspectionCollectionTargetRef.current = collectionId;
+      pendingInspectionCollectionReturnFrameRef.current = returnFrame;
+      setInspectionReturnRuntime({
+        queryContextKey: "",
+        returnContextKey: getReservoirContextKey(settledReservoirContext),
+        frame: returnFrame,
+        phase: "captured",
+      });
       if (interaction.current) {
         interaction.current.dataset.inspectionExitIntent =
           "collection-navigation";
@@ -2398,6 +2410,7 @@ export function ReservoirScene() {
     [
       layoutOwnership.activeLayout.contextKey,
       requestInspectionClose,
+      settledReservoirContext,
       transitionState,
     ],
   );
@@ -2609,10 +2622,21 @@ export function ReservoirScene() {
 
     const collectionId = pendingInspectionCollectionTargetRef.current;
     if (!collectionId) return;
+    const inspectionReturnFrame =
+      pendingInspectionCollectionReturnFrameRef.current;
 
     pendingInspectionCollectionTargetRef.current = null;
+    pendingInspectionCollectionReturnFrameRef.current = null;
     pendingCollectionResolutionRef.current = {
-      history: [...collectionHistory, { collectionId }],
+      history: [
+        ...collectionHistory,
+        {
+          collectionId,
+          ...(inspectionReturnFrame
+            ? { inspectionReturn: inspectionReturnFrame }
+            : {}),
+        },
+      ],
       spatialSelectionId: null,
     };
     if (!requestCollectionRef.current(collectionId)) {
@@ -3193,7 +3217,7 @@ export function ReservoirScene() {
   requestCollectionRef.current = requestCollection;
 
   function requestAncestorCollection(targetCollectionId: string) {
-    if (inputLocked || collectionHistory.length <= 1) return;
+    if (inputLocked || collectionHistory.length <= 1) return false;
     const targetHistoryIndex = collectionHistory.findIndex(
       (frame) => frame.collectionId === targetCollectionId,
     );
@@ -3201,7 +3225,7 @@ export function ReservoirScene() {
       targetHistoryIndex < 0 ||
       targetHistoryIndex >= collectionHistory.length - 1
     ) {
-      return;
+      return false;
     }
 
     pendingCollectionResolutionRef.current = {
@@ -3209,7 +3233,9 @@ export function ReservoirScene() {
       spatialSelectionId: null,
     };
     persistReservoirPresentationForCurrentContext();
-    requestCollection(targetCollectionId);
+    const started = requestCollection(targetCollectionId);
+    if (!started) pendingCollectionResolutionRef.current = null;
+    return started;
   }
 
   function beginCollectionEntry(collectionId: string) {
@@ -3772,11 +3798,86 @@ export function ReservoirScene() {
     transitionState,
   ]);
 
+  useEffect(() => {
+    const frame = pendingCollectionInspectionReturnRef.current;
+    if (
+      !frame ||
+      transitionState !== "idle" ||
+      collectionNavigation.transitionPhase !== "idle" ||
+      queryReservoirTransitionPhase !== "idle" ||
+      queryActivityRevision !== null ||
+      layoutOwnership.transitionPlan !== null ||
+      settledReservoirContext.kind !== "collection"
+    ) {
+      return;
+    }
+
+    const returnContextKey = getReservoirContextKey(settledReservoirContext);
+    const resource = getResourceById(frame.resourceId);
+    const resourceExistsInReturnedContext = getReservoirContextNodes(
+      settledReservoirContext,
+    ).some(
+      (node) =>
+        node.kind !== "collection" && node.id === frame.resourceId,
+    );
+    const resourceIsValid =
+      resource?.published === true &&
+      canInspectResource(resource) &&
+      resourceExistsInReturnedContext;
+
+    pendingCollectionInspectionReturnRef.current = null;
+    if (!resourceIsValid) {
+      setInspectionReturnRuntime({
+        queryContextKey: "",
+        returnContextKey,
+        frame,
+        phase: "failed",
+      });
+      return;
+    }
+
+    setHoveredResourceId(null);
+    setSelectedCollectionId(null);
+    setSelectedResourceId(frame.resourceId);
+    setSelectedPressActive(false);
+    if (!beginResourceInspectionRef.current(frame.resourceId)) {
+      setInspectionReturnRuntime({
+        queryContextKey: "",
+        returnContextKey,
+        frame,
+        phase: "failed",
+      });
+      return;
+    }
+
+    setInspectionReturnRuntime({
+      queryContextKey: "",
+      returnContextKey,
+      frame,
+      phase: "reopening-inspection",
+    });
+  }, [
+    collectionNavigation.transitionPhase,
+    inspectionReturnRuntime,
+    layoutOwnership.transitionPlan,
+    queryActivityRevision,
+    queryReservoirTransitionPhase,
+    settledReservoirContext,
+    transitionState,
+  ]);
+
   function requestNavigationBack() {
     if (queryReservoirContext?.kind !== "query") {
       const previousCollectionId = collectionHistory.at(-2)?.collectionId;
       if (previousCollectionId) {
-        requestAncestorCollection(previousCollectionId);
+        pendingCollectionInspectionReturnRef.current =
+          getCollectionInspectionReturnFrame(collectionHistory);
+        if (!requestAncestorCollection(previousCollectionId)) {
+          pendingCollectionInspectionReturnRef.current = null;
+        }
+        if (!getCollectionInspectionReturnFrame(collectionHistory)) {
+          setInspectionReturnRuntime(null);
+        }
       }
       return;
     }
@@ -3824,6 +3925,8 @@ export function ReservoirScene() {
     const homeCollectionId = collectionHistory[0]?.collectionId;
     if (!homeCollectionId) return;
 
+    pendingCollectionInspectionReturnRef.current = null;
+
     if (queryReservoirContext) {
       pendingCollectionResolutionRef.current = {
         history: [{ collectionId: homeCollectionId }],
@@ -3845,6 +3948,7 @@ export function ReservoirScene() {
       return;
     }
 
+    setInspectionReturnRuntime(null);
     requestAncestorCollection(homeCollectionId);
   }
 

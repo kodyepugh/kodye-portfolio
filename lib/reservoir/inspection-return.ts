@@ -4,6 +4,17 @@ export type InspectionReturnFrame = {
   postContentProgress: number;
 };
 
+export type CollectionHistoryFrame = {
+  collectionId: string;
+  inspectionReturn?: InspectionReturnFrame;
+};
+
+export function getCollectionInspectionReturnFrame(
+  history: readonly CollectionHistoryFrame[],
+) {
+  return history.at(-1)?.inspectionReturn ?? null;
+}
+
 export type InspectionReturnFrameStore = Map<string, InspectionReturnFrame>;
 
 function clamp(value: number, minimum: number, maximum: number) {
