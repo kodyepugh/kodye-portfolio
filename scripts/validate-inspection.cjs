@@ -61,6 +61,12 @@ const {
   getPublishedSupportingResourcesFromRegistry,
 } = require(path.join(projectRoot, "lib/content/selectors.ts"));
 const {
+  ROOT_COLLECTION_ID,
+} = require(path.join(
+  projectRoot,
+  "content/digital-reservoir/collections.ts",
+));
+const {
   shouldShowInspectionSupportRail,
   isInspectionSupportRailInteractive,
   canRequestInspectionSupportNavigation,
@@ -80,6 +86,9 @@ const {
   projectRoot,
   "lib/reservoir/inspection-return.ts",
 ));
+const {
+  shouldShowBackNavigationForQueryContext,
+} = require(path.join(projectRoot, "lib/reservoir/navigation.ts"));
 const {
   validateContentRegistry,
 } = require(path.join(projectRoot, "lib/content/validation.ts"));
@@ -242,6 +251,30 @@ const supportQueryContextKey =
   "query:qa-inspection-support-target|return=collection:collection-work";
 const ordinaryQueryContextKey =
   "query:artifact-about|return=collection:collection-root";
+const ordinaryRootQueryContext = {
+  kind: "query",
+  resultIds: [about.id],
+  returnContext: {
+    kind: "collection",
+    collectionId: ROOT_COLLECTION_ID,
+  },
+};
+const ordinaryNestedQueryContext = {
+  kind: "query",
+  resultIds: [about.id],
+  returnContext: {
+    kind: "collection",
+    collectionId: "collection-work",
+  },
+};
+const inspectionReturnQueryContext = {
+  kind: "query",
+  resultIds: [supportSourceResource.id],
+  returnContext: {
+    kind: "collection",
+    collectionId: ROOT_COLLECTION_ID,
+  },
+};
 const inspectionReturnStore = new Map();
 const inspectionReturnFrame = createInspectionReturnFrame(
   supportSourceResource.id,
@@ -386,31 +419,50 @@ const checks = [
       ) === null,
   ],
   [
-    "R Inspection return frames preserve canonical Resource identity",
+    "R ordinary non-root queries keep Back available",
+    shouldShowBackNavigationForQueryContext(
+      ordinaryNestedQueryContext,
+      false,
+    ) === true,
+  ],
+  [
+    "S ordinary root-returning queries keep Back hidden",
+    shouldShowBackNavigationForQueryContext(ordinaryRootQueryContext, false) ===
+      false,
+  ],
+  [
+    "T inspection-originated root-returning support queries show Back",
+    shouldShowBackNavigationForQueryContext(
+      inspectionReturnQueryContext,
+      true,
+    ) === true,
+  ],
+  [
+    "U Inspection return frames preserve canonical Resource identity",
     inspectionReturnFrame.resourceId === supportSourceResource.id,
   ],
   [
-    "S Inspection return reading state is bounded and restores proportionally",
+    "V Inspection return reading state is bounded and restores proportionally",
     boundedInspectionReturnFrame.scrollY === 0 &&
       boundedInspectionReturnFrame.postContentProgress === 1 &&
       getInspectionReturnScrollY(inspectionReturnFrame, 400) === 400 &&
       getInspectionReturnPostContentOffset(inspectionReturnFrame, 600) === 300,
   ],
   [
-    "T Home discards Inspection return state instead of restoring it",
+    "W Home discards Inspection return state instead of restoring it",
     discardInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) &&
       getInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) ===
         null,
   ],
   [
-    "U failed support queries leave no Inspection return frame",
+    "X failed support queries leave no Inspection return frame",
     getInspectionReturnFrame(
       failedSupportQueryStore,
       supportQueryContextKey,
     ) === null,
   ],
   [
-    "V unsupported destinations do not invalidate the inspectable source frame",
+    "Y unsupported destinations do not invalidate the inspectable source frame",
     !canInspectResource(unsupportedResource) &&
       canInspectResource(supportSourceResource) &&
       getInspectionReturnFrame(
@@ -419,7 +471,7 @@ const checks = [
       )?.resourceId === supportSourceResource.id,
   ],
   [
-    "W Inspection return frames are consumed exactly once",
+    "Z Inspection return frames are consumed exactly once",
     consumedInspectionReturnFrame === inspectionReturnFrame &&
       consumeInspectionReturnFrame(
         inspectionReturnStore,
@@ -427,7 +479,7 @@ const checks = [
       ) === null,
   ],
   [
-    "X Inspection return state does not mutate Artifact status or membership",
+    "AA Inspection return state does not mutate Artifact status or membership",
     JSON.stringify({
       source: supportSourceResource,
       target: supportTargetResource,

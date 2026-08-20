@@ -91,6 +91,7 @@ import {
   getReservoirRestoreDuration,
   getReservoirRestoreProgress,
 } from "@/lib/reservoir/reading";
+import { shouldShowBackNavigationForQueryContext } from "@/lib/reservoir/navigation";
 import {
   canRequestInspectionSupportNavigation,
   type InspectionWindowPhase,
@@ -109,8 +110,8 @@ import type {
   ActiveExploreFilter,
   DirectArtifactId,
 } from "@/types/reservoir";
-import type { ReservoirContext } from "@/types/reservoir";
 import type { Collection } from "@/types/content";
+import type { ReservoirContext } from "@/types/reservoir";
 import { AtmosphereContent } from "./AtmosphereContent";
 import { InspectionWindow } from "./InspectionWindow";
 import { ReservoirLayoutModeSwitch } from "../navigation/ReservoirLayoutModeSwitch";
@@ -261,13 +262,6 @@ function getReservoirLayoutPlacementPolicy(
   return context.kind === "query" && context.resultIds.length === 1
     ? "canonical-focal-single-result"
     : "normal";
-}
-
-function canNavigateBackFromQueryContext(
-  context: Extract<ReservoirContext, { kind: "query" }>,
-) {
-  if (context.returnContext.kind === "query") return true;
-  return context.returnContext.collectionId !== ROOT_COLLECTION_ID;
 }
 
 function getExploreNodeIds(
@@ -1689,12 +1683,6 @@ export function ReservoirScene() {
     collectionContextTransition || layoutModeTransitionActive;
   const navigationContext =
     queryReservoirContext ?? queryReservoirTransitionContext;
-  const showHomeNavigation =
-    navigationContext?.kind === "query" || collectionHistory.length > 1;
-  const showBackNavigation =
-    navigationContext?.kind === "query"
-      ? canNavigateBackFromQueryContext(navigationContext)
-      : collectionHistory.length >= 3;
   const activeInspectionReturnContextKey =
     navigationContext?.kind === "query"
       ? getReservoirContextKey(navigationContext)
@@ -1705,6 +1693,15 @@ export function ReservoirScene() {
         activeInspectionReturnContextKey,
       )
     : null;
+  const showHomeNavigation =
+    navigationContext?.kind === "query" || collectionHistory.length > 1;
+  const showBackNavigation =
+    navigationContext?.kind === "query"
+      ? shouldShowBackNavigationForQueryContext(
+          navigationContext,
+          activeInspectionReturnFrame !== null,
+      )
+      : collectionHistory.length >= 3;
   const inspectionReturnRuntimeInProgress =
     inspectionReturnRuntime?.phase === "captured" ||
     inspectionReturnRuntime?.phase === "detouring" ||
