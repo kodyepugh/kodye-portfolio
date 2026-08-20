@@ -585,6 +585,10 @@ const inspectionCloseRule =
   inspectionStyles.match(/\.inspection-window__close-row\s*\{([^}]*)\}/)?.[1] ?? "";
 const artifactCloseRule =
   inspectionStyles.match(/\.artifact-window__close\s*\{([^}]*)\}/)?.[1] ?? "";
+const inspectionSource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/InspectionWindow.tsx"),
+  "utf8",
+);
 const validSyntheticRegistry = {
   ...contentRegistry,
   resources: [
@@ -896,11 +900,23 @@ const checks = [
       inspectionStyles.includes("minmax(0, var(--inspection-primary-track))"),
   ],
   [
-    "Inspection close uses a real sticky hit area",
-    /\bposition:\s*sticky;/.test(inspectionCloseRule) &&
-      /\bheight:\s*44px;/.test(inspectionCloseRule) &&
+    "Inspection close uses an ordinary in-flow hit area",
+    /\bheight:\s*44px;/.test(inspectionCloseRule) &&
       /\bmargin:\s*0 0 -44px;/.test(inspectionCloseRule) &&
-      !/\bposition:\s*fixed;/.test(artifactCloseRule),
+      !/\bposition:\s*(?:fixed|sticky);/.test(inspectionCloseRule) &&
+      !/\bposition:\s*fixed;/.test(artifactCloseRule) &&
+      !/\.inspection-window__close-row[\s\S]*?transform:\s*translateY\(var\(--artifact-window-offset\)\)/.test(
+        inspectionStyles,
+      ),
+  ],
+  [
+    "shared Inspection chassis includes an ordinary Back to Top control",
+    inspectionSource.includes('className="inspection-window__back-to-top"') &&
+      inspectionSource.includes('aria-label="Back to top"') &&
+      inspectionSource.includes("updatePostContentOffset(0)") &&
+      inspectionStyles.includes("grid-column: 3") &&
+      inspectionStyles.includes("grid-row: 2") &&
+      inspectionStyles.includes("grid-column: 2"),
   ],
   [
     "W support rail geometry is presence-driven",

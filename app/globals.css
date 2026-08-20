@@ -918,8 +918,6 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .artifact-window__close {
-  position: relative;
-  z-index: 60;
   display: grid;
   place-items: center;
   width: 44px;
@@ -935,7 +933,6 @@ body.artifact-reading-mode .reservoir-study {
   font-weight: 400;
   line-height: 1;
   cursor: pointer;
-  pointer-events: auto;
   transition:
     color 140ms ease-out,
     background-color 140ms ease-out;
@@ -979,6 +976,7 @@ body.artifact-reading-mode .reservoir-study {
 
 .inspection-window__primary-body {
   grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   width: 100%;
 }
@@ -998,32 +996,74 @@ body.artifact-reading-mode .reservoir-study {
     minmax(0, var(--inspection-primary-track))
     minmax(0, 1fr);
   gap: var(--inspection-column-gap);
+  container-type: inline-size;
+  container-name: inspection-window;
 }
 
 .inspection-window__close-row {
-  position: sticky;
-  top: var(--artifact-window-top-padding);
-  z-index: 60;
   display: flex;
   justify-content: flex-end;
   width: 100%;
   height: 44px;
   margin: 0 0 -44px;
   padding: 0;
-  pointer-events: none;
 }
 
-.inspection-window__close {
-  position: relative;
-  inset: auto;
-  right: auto;
-  pointer-events: auto;
+.inspection-window__back-to-top {
+  grid-column: 3;
+  grid-row: 2;
+  align-self: end;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  margin: 0;
+  padding: 8px 0;
+  color: var(--artifact-text-muted);
+  background: transparent;
+  border: 0;
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 140ms ease-out,
+    transform 140ms ease-out;
 }
 
-.artifact-reading-stage[data-artifact-scroll-phase]:not(
-  [data-artifact-scroll-phase="content"]
-) .inspection-window__close-row {
-  transform: translateY(var(--artifact-window-offset));
+.inspection-window__back-to-top:hover,
+.inspection-window__back-to-top:focus-visible {
+  color: var(--artifact-text);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.inspection-window__back-to-top:focus-visible {
+  outline: 2px solid var(--artifact-focus);
+  outline-offset: 4px;
+}
+
+.inspection-window__back-to-top:disabled {
+  cursor: default;
+  opacity: 0.56;
+}
+
+@container inspection-window (max-width: 1160px) {
+  .inspection-window__back-to-top {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: end;
+  }
+
+  .inspection-window__body-layout[data-context-tray-visible="false"]
+    .inspection-window__back-to-top {
+    grid-row: 2;
+  }
 }
 
 .inspection-window[data-inspection-kind="image"]
@@ -1033,6 +1073,7 @@ body.artifact-reading-mode .reservoir-study {
 
 .inspection-context-tray {
   grid-column: 2;
+  grid-row: 2;
   display: grid;
   gap: 18px;
   width: min(100%, 760px);

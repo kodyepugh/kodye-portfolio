@@ -202,6 +202,9 @@ export function InspectionWindow({
     closeRequestCountRef.current += 1;
     closeRequestPendingRef.current = true;
     if (stage) {
+      stage.dataset.inspectionCloseRequestCount = String(
+        closeRequestCountRef.current,
+      );
       stage.dataset.inspectionCloseRequestSentAt = String(performance.now());
       stage.dataset.inspectionCloseTransitionAccepted = "pending";
     }
@@ -247,6 +250,26 @@ export function InspectionWindow({
       performance.now(),
     );
   }, []);
+
+  const handleBackToTop = useCallback(() => {
+    updatePostContentOffset(0);
+
+    const returnToTop = () => {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: reducedMotion ? "instant" : "smooth",
+      });
+      closeButtonRef.current?.focus({ preventScroll: true });
+    };
+
+    if (reducedMotion) {
+      returnToTop();
+      return;
+    }
+
+    requestAnimationFrame(returnToTop);
+  }, [reducedMotion, updatePostContentOffset]);
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -618,20 +641,10 @@ export function InspectionWindow({
                 className="artifact-window__close inspection-window__close"
                 type="button"
                 disabled={phase !== "reading"}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  markClosePointer();
-                }}
-                onPointerUp={(event) => {
-                  event.stopPropagation();
-                  markClosePointerUp();
-                }}
-                onPointerCancel={(event) => {
-                  event.stopPropagation();
-                  markClosePointerCancel();
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
+                onPointerDown={markClosePointer}
+                onPointerUp={markClosePointerUp}
+                onPointerCancel={markClosePointerCancel}
+                onClick={() => {
                   markCloseClick();
                   beginClose();
                 }}
@@ -663,6 +676,17 @@ export function InspectionWindow({
                 onNavigateToResource={navigateToSupportingResource}
                 onNavigateToCollection={navigateToCollection}
               />
+              <button
+                className="inspection-window__back-to-top"
+                type="button"
+                disabled={phase !== "reading"}
+                onClick={handleBackToTop}
+                aria-label="Back to top"
+                title="Back to top"
+              >
+                <span aria-hidden="true">↑</span>
+                <span>Back to top</span>
+              </button>
             </div>
           </article>
         </div>
