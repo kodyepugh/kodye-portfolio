@@ -1,5 +1,10 @@
 import type { Resource } from "@/types/content";
-import { resolveExternalLinkInspection } from "@/lib/content/external-link-inspection";
+import {
+  getExternalLinkInspectionActionLabel,
+  getExternalLinkInspectionLocationLabel,
+  getExternalLinkInspectionProviderLabel,
+  resolveExternalLinkInspection,
+} from "@/lib/content/external-link-inspection";
 
 type ExternalLinkInspectionBodyProps = {
   resource: Resource;
@@ -29,17 +34,12 @@ function ExternalLinkUnavailableState({
   );
 }
 
-function formatRepositoryPath(pathname: string) {
-  const trimmed = pathname.trim();
-  if (!trimmed || trimmed === "/") return "/";
-  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-}
-
 export function ExternalLinkInspectionBody({
   resource,
 }: ExternalLinkInspectionBodyProps) {
   const resolution = resolveExternalLinkInspection(resource);
   const titleId = `inspection-${resource.id}-external-link-heading`;
+  const actionLabel = getExternalLinkInspectionActionLabel(resource.type);
 
   if (resolution.status === "unavailable") {
     return (
@@ -60,6 +60,11 @@ export function ExternalLinkInspectionBody({
   }
 
   const { target } = resolution;
+  const providerLabel = getExternalLinkInspectionProviderLabel(target);
+  const locationLabel = getExternalLinkInspectionLocationLabel(
+    target,
+    resource.type,
+  );
 
   return (
     <section
@@ -67,59 +72,30 @@ export function ExternalLinkInspectionBody({
       aria-labelledby={titleId}
       data-external-link-resolution={resolution.source}
       data-external-link-hostname={target.hostname}
-      data-external-link-protocol={target.protocol}
+      data-external-link-variant={resource.type === "repository" ? "repository" : "external"}
     >
       <h2 id={titleId} className="sr-only">
         {resource.title}
       </h2>
 
-      <div className="inspection-external-link__intro">
-        <p className="artifact-window__section-index">
-          {resource.type === "repository" ? "Repository" : "External link"}
-        </p>
-        <p className="inspection-external-link__lede">
-          {resource.description ??
-            resource.subtitle ??
-            "Open the canonical external target in a new tab."}
-        </p>
+      <div className="inspection-external-link__hero">
+        <div className="inspection-external-link__icon">↗</div>
+        <p className="inspection-external-link__provider">{providerLabel}</p>
+        {locationLabel !== providerLabel ? (
+          <p className="inspection-external-link__location">{locationLabel}</p>
+        ) : null}
       </div>
 
-      <div className="inspection-external-link__panel">
-        <dl className="inspection-external-link__metadata">
-          <div className="inspection-external-link__metadata-item">
-            <dt>Destination</dt>
-            <dd>{target.label}</dd>
-          </div>
-          <div className="inspection-external-link__metadata-item">
-            <dt>Domain</dt>
-            <dd>{target.hostname}</dd>
-          </div>
-          <div className="inspection-external-link__metadata-item">
-            <dt>Path</dt>
-            <dd>{formatRepositoryPath(target.pathname)}</dd>
-          </div>
-          {target.sourceLabel ? (
-            <div className="inspection-external-link__metadata-item">
-              <dt>Source</dt>
-              <dd>{target.sourceLabel}</dd>
-            </div>
-          ) : null}
-          <div className="inspection-external-link__metadata-item">
-            <dt>Open</dt>
-            <dd>
-              <a
-                className="inspection-external-link__action"
-                href={target.url}
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label={`Open ${target.label} in a new tab`}
-              >
-                Open repository
-              </a>
-            </dd>
-          </div>
-        </dl>
-      </div>
+      <a
+        className="inspection-external-link__action"
+        href={target.url}
+        target="_blank"
+        rel="noreferrer noopener"
+        aria-label={`${actionLabel} in a new tab`}
+      >
+        <span>{actionLabel}</span>
+        <span aria-hidden="true">↗</span>
+      </a>
     </section>
   );
 }

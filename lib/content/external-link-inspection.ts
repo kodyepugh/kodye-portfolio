@@ -25,6 +25,15 @@ export type ExternalLinkInspectionResolution =
       details: readonly string[];
     };
 
+const LOCAL_PROVIDER_LABELS = new Map([
+  ["github.com", "GitHub"],
+  ["www.github.com", "GitHub"],
+  ["gitlab.com", "GitLab"],
+  ["www.gitlab.com", "GitLab"],
+  ["bitbucket.org", "Bitbucket"],
+  ["www.bitbucket.org", "Bitbucket"],
+]);
+
 function compareRepresentations(
   a: { order?: number; id: string },
   b: { order?: number; id: string },
@@ -56,6 +65,34 @@ function resolveTarget(url: string, label: string, sourceLabel?: string) {
     protocol: resolved.protocol.replace(/:$/, ""),
     sourceLabel,
   };
+}
+
+export function getExternalLinkInspectionActionLabel(
+  resourceType: Resource["type"],
+) {
+  return resourceType === "repository"
+    ? "Open repository"
+    : "Open external resource";
+}
+
+export function getExternalLinkInspectionProviderLabel(
+  target: Pick<ExternalLinkInspectionTarget, "hostname" | "sourceLabel">,
+) {
+  return target.sourceLabel?.trim() || LOCAL_PROVIDER_LABELS.get(target.hostname) || target.hostname;
+}
+
+export function getExternalLinkInspectionLocationLabel(
+  target: Pick<ExternalLinkInspectionTarget, "hostname" | "pathname">,
+  resourceType: Resource["type"],
+) {
+  const pathname = target.pathname.trim();
+  if (!pathname || pathname === "/") {
+    return target.hostname;
+  }
+
+  return resourceType === "repository"
+    ? `${target.hostname}${pathname}`
+    : pathname;
 }
 
 export function getPublishedExternalLinkRepresentations(

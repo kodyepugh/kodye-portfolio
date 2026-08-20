@@ -60,6 +60,9 @@ const {
 } = require(path.join(projectRoot, "lib/content/image-inspection.ts"));
 const {
   getPublishedExternalLinkRepresentations,
+  getExternalLinkInspectionActionLabel,
+  getExternalLinkInspectionLocationLabel,
+  getExternalLinkInspectionProviderLabel,
   resolveExternalLinkInspection,
 } = require(path.join(
   projectRoot,
@@ -455,6 +458,32 @@ const syntheticExternalLinkInvalidUrlResource = {
     label: "Broken content target",
   },
 };
+const syntheticExternalLinkUnsafeSchemeResource = {
+  objectType: "resource",
+  id: "qa-external-link-unsafe-scheme-resource",
+  slug: "qa-external-link-unsafe-scheme-resource",
+  title: "QA External Link Unsafe Scheme Resource",
+  type: "webpage",
+  inspectionKind: "external-link",
+  isArtifact: false,
+  published: true,
+  representations: [
+    {
+      id: "qa-external-link-rep-javascript",
+      kind: "external",
+      url: "javascript:alert(1)",
+      label: "Unsafe javascript target",
+      order: 1,
+      published: true,
+    },
+  ],
+  content: {
+    kind: "external-link",
+    status: "ready",
+    url: "data:text/html,<h1>unsafe</h1>",
+    label: "Unsafe data target",
+  },
+};
 const supportSourceResource = {
   objectType: "resource",
   id: "qa-inspection-support-source",
@@ -567,6 +596,9 @@ const unavailableExternalLinkInspection = resolveExternalLinkInspection(
 );
 const invalidExternalLinkInspection = resolveExternalLinkInspection(
   syntheticExternalLinkInvalidUrlResource,
+);
+const unsafeSchemeExternalLinkInspection = resolveExternalLinkInspection(
+  syntheticExternalLinkUnsafeSchemeResource,
 );
 const publishedRepositoryInspection = repositoryResource
   ? resolveExternalLinkInspection(repositoryResource)
@@ -966,7 +998,28 @@ const checks = [
       ),
   ],
   [
-    "AT repository resources resolve through the published external-link representation",
+    "AT repository and generic presentation helpers stay truthful",
+    getExternalLinkInspectionActionLabel("repository") === "Open repository" &&
+      getExternalLinkInspectionActionLabel("webpage") ===
+        "Open external resource" &&
+      publishedRepositoryInspection !== null &&
+      getExternalLinkInspectionProviderLabel(
+        publishedRepositoryInspection.target,
+      ) === "GitHub" &&
+      getExternalLinkInspectionProviderLabel(
+        fallbackExternalLinkInspection.status === "ready"
+          ? fallbackExternalLinkInspection.target
+          : { hostname: "", sourceLabel: undefined },
+      ) === "example.com" &&
+      getExternalLinkInspectionLocationLabel(
+        fallbackExternalLinkInspection.status === "ready"
+          ? fallbackExternalLinkInspection.target
+          : { hostname: "", pathname: "/" },
+        "webpage",
+      ) === "/fallback",
+  ],
+  [
+    "AU repository resources resolve through the published external-link representation",
     publishedRepositoryInspection?.status === "ready" &&
       publishedRepositoryInspection.source === "representation" &&
       publishedRepositoryInspection.target.hostname === "github.com" &&
@@ -974,7 +1027,7 @@ const checks = [
         "/kodyepugh/bellabeat-wellness-analysis",
   ],
   [
-    "AU ordered published external-link Resources pick the first usable representation",
+    "AV ordered published external-link Resources pick the first usable representation",
     resolvedExternalLinkInspection.status === "ready" &&
       resolvedExternalLinkInspection.source === "representation" &&
       resolvedExternalLinkInspection.target.url ===
@@ -982,14 +1035,28 @@ const checks = [
       resolvedExternalLinkInspection.target.label === "First target",
   ],
   [
-    "AV external-link content fallback resolves when no published representation is usable",
+    "AW external-link content fallback resolves when no published representation is usable",
     fallbackExternalLinkInspection.status === "ready" &&
       fallbackExternalLinkInspection.source === "content" &&
       fallbackExternalLinkInspection.target.url ===
         "https://example.com/fallback",
   ],
   [
-    "AW unavailable external-link Resources report an explicit failure",
+    "AX explicit unsafe-scheme resources resolve as unavailable",
+    unsafeSchemeExternalLinkInspection.status === "unavailable" &&
+      unsafeSchemeExternalLinkInspection.details.some((detail) =>
+        detail.includes("unsupported URL protocol"),
+      ) &&
+      validateContentRegistry({
+        ...contentRegistry,
+        resources: [
+          ...contentRegistry.resources,
+          syntheticExternalLinkUnsafeSchemeResource,
+        ],
+      }).errors.some((error) => error.includes("unsupported protocol")),
+  ],
+  [
+    "AY unavailable external-link Resources report an explicit failure",
     unavailableExternalLinkInspection.status === "unavailable" &&
       unavailableExternalLinkInspection.reason.includes("unavailable") &&
       unavailableExternalLinkInspection.details.some((detail) =>
@@ -997,7 +1064,7 @@ const checks = [
       ),
   ],
   [
-    "AX invalid external-link content is rejected",
+    "AZ invalid external-link content is rejected",
     invalidExternalLinkInspection.status === "unavailable" &&
       invalidExternalLinkInspection.details.some((detail) =>
         detail.includes("invalid URL"),
