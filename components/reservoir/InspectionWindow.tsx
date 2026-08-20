@@ -12,6 +12,7 @@ import {
   getInspectionWindowDeployDuration,
   getInspectionWindowRetractDuration,
 } from "@/lib/reservoir/reading";
+import { getResourceInspectionSurface } from "@/lib/reservoir/inspection";
 import { BrandSymbol } from "../navigation/BrandSymbol";
 import { ReservoirFooterContent } from "../navigation/ReservoirFooter";
 import { InspectionSupportRail } from "./InspectionSupportRail";
@@ -145,6 +146,7 @@ export function InspectionWindow({
   const supportRailVisible = shouldShowInspectionSupportRail(
     supportingResources.length,
   );
+  const inspectionSurface = getResourceInspectionSurface(resource.inspectionKind);
   const totalRevealDistance =
     revealMeasurements.controlPlaneHeight + revealMeasurements.footerHeight;
   const controlPlaneOffset = Math.max(
@@ -550,6 +552,7 @@ export function InspectionWindow({
             <div
               id={bodyId}
               className="artifact-window__body inspection-window__body-layout"
+              data-inspection-surface={inspectionSurface}
               data-support-rail-visible={supportRailVisible}
               data-support-rail-interactive={phase === "reading"}
               data-supporting-resource-count={supportingResources.length}

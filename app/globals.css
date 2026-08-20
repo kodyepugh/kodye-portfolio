@@ -975,11 +975,25 @@ body.artifact-reading-mode .reservoir-study {
   width: min(100%, 880px);
 }
 
+.inspection-window__body-layout[data-inspection-surface="image"] {
+  width: min(100%, 1180px);
+}
+
 .inspection-window__body-layout[data-support-rail-visible="true"] {
   width: min(100%, 1140px);
   grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
   gap: clamp(28px, 4vw, 48px);
   align-items: start;
+}
+
+.inspection-window__body-layout[data-inspection-surface="image"][data-support-rail-visible="true"] {
+  width: min(100%, 1320px);
+  grid-template-columns: minmax(0, 1.35fr) minmax(250px, 300px);
+}
+
+.inspection-window__body-layout[data-inspection-surface="image"]
+  .inspection-window__primary-body {
+  width: 100%;
 }
 
 .inspection-window__support-region {
@@ -1105,6 +1119,160 @@ body.artifact-reading-mode .reservoir-study {
     border-left: 0;
     border-top: 1px solid var(--artifact-border);
   }
+}
+
+.inspection-image {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.inspection-image__header {
+  display: grid;
+  gap: 8px;
+}
+
+.inspection-image__header h2 {
+  margin: 14px 0 0;
+}
+
+.inspection-image__lede {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--artifact-text-muted);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: clamp(15px, 1.6vw, 18px);
+  line-height: 1.55;
+}
+
+.inspection-image__figure {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+}
+
+.inspection-image__stage {
+  display: grid;
+  place-items: center;
+  min-height: clamp(320px, 64svh, 760px);
+  padding: clamp(18px, 3vw, 36px);
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 50% 24%,
+      rgba(255, 255, 255, 0.08),
+      transparent 54%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.025),
+      rgba(255, 255, 255, 0.01)
+    );
+  border: 1px solid var(--artifact-border);
+  border-radius: 28px;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.22);
+}
+
+.inspection-image__frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 1000px);
+  max-width: 100%;
+  max-height: min(72svh, 780px);
+}
+
+.inspection-image__image {
+  display: block;
+  max-width: 100%;
+  max-height: min(72svh, 780px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 38px rgba(0, 0, 0, 0.18));
+}
+
+.inspection-image__meta {
+  display: grid;
+  gap: 14px;
+}
+
+.inspection-image__caption {
+  margin: 0;
+  color: var(--artifact-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.inspection-image__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+}
+
+.inspection-image__stats div {
+  min-width: 160px;
+  padding: 10px 12px 11px;
+  background: color-mix(
+    in srgb,
+    var(--artifact-surface-raised) 94%,
+    transparent
+  );
+  border: 1px solid var(--artifact-border);
+  border-radius: 16px;
+}
+
+.inspection-image__stats dt {
+  color: var(--artifact-text-muted);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.inspection-image__stats dd {
+  margin: 6px 0 0;
+  color: var(--artifact-text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.inspection-image__unavailable {
+  display: grid;
+  gap: 14px;
+  align-content: center;
+  min-height: clamp(280px, 52svh, 640px);
+  padding: clamp(24px, 4vw, 48px);
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 255, 255, 0.05),
+      transparent 58%
+    ),
+    color-mix(in srgb, var(--artifact-surface-raised) 96%, transparent);
+  border: 1px solid var(--artifact-border);
+  border-radius: 28px;
+}
+
+.inspection-image__unavailable h3 {
+  margin: 0;
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: clamp(22px, 3vw, 34px);
+  font-weight: 560;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.inspection-image__detail-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--artifact-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .structured-document {

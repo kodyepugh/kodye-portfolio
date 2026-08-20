@@ -2,7 +2,7 @@ import type { Resource, ResourceInspectionKind } from "../../types/content";
 
 export type ResourceInspectionSurface =
   | "structured-document"
-  | "image-compatibility"
+  | "image"
   | "unsupported";
 
 export function getResourceInspectionSurface(
@@ -12,7 +12,7 @@ export function getResourceInspectionSurface(
     case "structured-document":
       return "structured-document";
     case "image":
-      return "image-compatibility";
+      return "image";
     case "video":
     case "audio":
     case "external-link":

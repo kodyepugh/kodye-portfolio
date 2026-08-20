@@ -54,6 +54,10 @@ const {
   canInspectResource,
 } = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
 const {
+  getPublishedImageRepresentations,
+  resolveImageInspection,
+} = require(path.join(projectRoot, "lib/content/image-inspection.ts"));
+const {
   getReservoirResourceSelectionAction,
 } = require(path.join(projectRoot, "lib/reservoir/resource-selection.ts"));
 const {
@@ -98,6 +102,186 @@ const bellabeat = getResourceById("artifact-bellabeat-wellness-analysis");
 const brandSymbol = getResourceById("artifact-kodyepugh-symbol");
 const imageResource = contentRegistry.resources.find(
   (resource) => resource.inspectionKind === "image",
+);
+const imageResolution = resolveImageInspection(brandSymbol);
+const qaImageAssetRepresentation = {
+  id: "qa-image-asset-representation",
+  kind: "image",
+  src: "/qa/image-representation.svg",
+  filename: "qa-image-representation.svg",
+  mimeType: "image/svg+xml",
+  width: 960,
+  height: 720,
+  alt: "QA image representation",
+};
+const qaImageAssetFallback = {
+  id: "qa-image-asset-fallback",
+  kind: "image",
+  src: "/qa/image-fallback.svg",
+  filename: "qa-image-fallback.svg",
+  mimeType: "image/svg+xml",
+  width: 640,
+  height: 640,
+  alt: "QA image fallback",
+};
+const qaImageAssetWrongKind = {
+  id: "qa-image-asset-wrong-kind",
+  kind: "document",
+  src: "/qa/image-wrong-kind.pdf",
+  filename: "qa-image-wrong-kind.pdf",
+  mimeType: "application/pdf",
+  alt: "QA image wrong kind",
+};
+const qaImageAssetMissingSource = {
+  id: "qa-image-asset-missing-source",
+  kind: "image",
+  src: "   ",
+  filename: "qa-image-asset-missing-source.svg",
+  mimeType: "image/svg+xml",
+  width: 400,
+  height: 300,
+  alt: "QA missing source",
+};
+const qaAssetsById = new Map(
+  [
+    ...contentRegistry.assets,
+    qaImageAssetRepresentation,
+    qaImageAssetFallback,
+    qaImageAssetWrongKind,
+    qaImageAssetMissingSource,
+  ].map((asset) => [asset.id, asset]),
+);
+const qaAssetById = (assetId) => qaAssetsById.get(assetId) ?? null;
+const orderedImageRepresentations = getPublishedImageRepresentations({
+  representations: [
+    {
+      id: "qa-image-rep-late",
+      kind: "asset",
+      assetId: qaImageAssetRepresentation.id,
+      label: "Resolved representation",
+      order: 2,
+      published: true,
+    },
+    {
+      id: "qa-image-rep-early",
+      kind: "asset",
+      assetId: "qa-missing-image-asset",
+      label: "Missing asset",
+      order: 1,
+      published: true,
+    },
+    {
+      id: "qa-image-rep-unpublished",
+      kind: "asset",
+      assetId: qaImageAssetWrongKind.id,
+      label: "Unpublished",
+      order: 0,
+      published: false,
+    },
+  ],
+});
+const orderedImageResource = {
+  objectType: "resource",
+  id: "qa-ordered-image-resource",
+  slug: "qa-ordered-image-resource",
+  title: "QA Ordered Image Resource",
+  type: "image",
+  inspectionKind: "image",
+  isArtifact: false,
+  published: true,
+  representations: [
+    {
+      id: "qa-image-rep-late",
+      kind: "asset",
+      assetId: qaImageAssetRepresentation.id,
+      label: "Resolved representation",
+      order: 2,
+      published: true,
+    },
+    {
+      id: "qa-image-rep-early",
+      kind: "asset",
+      assetId: "qa-missing-image-asset",
+      label: "Missing asset",
+      order: 1,
+      published: true,
+    },
+    {
+      id: "qa-image-rep-unpublished",
+      kind: "asset",
+      assetId: qaImageAssetWrongKind.id,
+      label: "Unpublished",
+      order: 0,
+      published: false,
+    },
+  ],
+  content: {
+    kind: "media",
+    status: "ready",
+    assetId: qaImageAssetFallback.id,
+    caption: "Fallback caption",
+  },
+};
+const fallbackOnlyImageResource = {
+  objectType: "resource",
+  id: "qa-fallback-image-resource",
+  slug: "qa-fallback-image-resource",
+  title: "QA Fallback Image Resource",
+  type: "image",
+  inspectionKind: "image",
+  isArtifact: false,
+  published: true,
+  content: {
+    kind: "media",
+    status: "ready",
+    assetId: qaImageAssetFallback.id,
+    caption: "Fallback caption",
+  },
+};
+const unavailableImageResource = {
+  objectType: "resource",
+  id: "qa-unavailable-image-resource",
+  slug: "qa-unavailable-image-resource",
+  title: "QA Unavailable Image Resource",
+  type: "image",
+  inspectionKind: "image",
+  isArtifact: false,
+  published: true,
+  representations: [
+    {
+      id: "qa-image-rep-malformed",
+      kind: "inline",
+      format: "text",
+      body: "not an image",
+      order: 0,
+      published: true,
+    },
+    {
+      id: "qa-image-rep-unpublished-doc",
+      kind: "asset",
+      assetId: qaImageAssetWrongKind.id,
+      label: "Unpublished document",
+      order: 1,
+      published: false,
+    },
+  ],
+  content: {
+    kind: "media",
+    status: "ready",
+    assetId: "qa-missing-image-asset",
+  },
+};
+const orderedImageResolution = resolveImageInspection(
+  orderedImageResource,
+  qaAssetById,
+);
+const fallbackImageResolution = resolveImageInspection(
+  fallbackOnlyImageResource,
+  qaAssetById,
+);
+const unavailableImageResolution = resolveImageInspection(
+  unavailableImageResource,
+  qaAssetById,
 );
 const structuredBlocks = [
   { id: "heading", type: "heading", level: 2, text: "Heading" },
@@ -340,35 +524,68 @@ const checks = [
       !canInspectResource(unsupportedResource),
   ],
   [
-    "F canonical block order is preserved",
+    "F image representation ordering is deterministic",
+    orderedImageRepresentations.map((representation) => representation.id)
+      .join(",") === "qa-image-rep-early,qa-image-rep-late",
+  ],
+  [
+    "G production image Resources resolve through the published representation path",
+    imageResolution.status === "ready" &&
+      imageResolution.source === "representation" &&
+      imageResolution.asset.id === brandSymbol.representations[0].assetId,
+  ],
+  [
+    "H ordered published image Resources pick the first usable representation",
+    orderedImageResolution.status === "ready" &&
+      orderedImageResolution.source === "representation" &&
+      orderedImageResolution.asset.id === qaImageAssetRepresentation.id &&
+      orderedImageResolution.representation?.id === "qa-image-rep-late",
+  ],
+  [
+    "I media-content fallback resolves when no published representation is usable",
+    fallbackImageResolution.status === "ready" &&
+      fallbackImageResolution.source === "content" &&
+      fallbackImageResolution.asset.id === qaImageAssetFallback.id,
+  ],
+  [
+    "J unavailable image Resources report an explicit failure",
+    unavailableImageResolution.status === "unavailable" &&
+      unavailableImageResolution.reason.includes("unavailable") &&
+      unavailableImageResolution.details.some(
+        (detail) =>
+          detail.includes("missing") || detail.includes("malformed"),
+      ),
+  ],
+  [
+    "K canonical block order is preserved",
     getStructuredDocumentBody(nonArtifactDocument).blocks
       .map((block) => block.id)
       .join(",") === structuredBlocks.map((block) => block.id).join(","),
   ],
   [
-    "G every supported structured block validates",
+    "L every supported structured block validates",
     validSyntheticResult.valid,
   ],
   [
-    "H invalid Resource references fail validation",
+    "M invalid Resource references fail validation",
     validateContentRegistry(invalidReferenceRegistry).errors.some((error) =>
       error.includes("references unknown Resource missing-resource"),
     ),
   ],
   [
-    "I unsupported inspection kinds do not open a structured surface",
+    "N unsupported inspection kinds do not open a structured surface",
     getResourceInspectionSurface(unsupportedResource.inspectionKind) === "unsupported" &&
       getReservoirResourceSelectionAction(unsupportedNode, unsupportedNode.id) ===
         "unsupported-resource-inspection",
   ],
   [
-    "J legacy case-study content resolves through the compatibility adapter",
+    "O legacy case-study content resolves through the compatibility adapter",
     bellabeat.content.kind === "case-study" &&
       getStructuredDocumentBody(bellabeat).source === "legacy-adapter" &&
       getStructuredDocumentBody(bellabeat).blocks.length > 0,
   ],
   [
-    "K opening selection is identity, membership, and status preserving",
+    "P opening selection is identity, membership, and status preserving",
     openAction === "open-resource-inspection" &&
       JSON.stringify({
         resource: nonArtifactDocument,
@@ -376,7 +593,7 @@ const checks = [
       }) === originalSnapshot,
   ],
   [
-    "L published supporting resources resolve through the canonical selector",
+    "Q published supporting resources resolve through the canonical selector",
     supportEntries.length === 1 &&
       supportEntries[0].targetResourceId === supportTargetResource.id &&
       supportEntries[0].resource === supportTargetResource &&
@@ -385,24 +602,24 @@ const checks = [
       supportEntries[0].relationship.published !== false,
   ],
   [
-    "M unsupported target resources remain filtered from public support rails",
+    "R unsupported target resources remain filtered from public support rails",
     supportEntries.every((entry) => entry.resource.published === true) &&
       supportEntries.every((entry) => entry.resource.id !== supportHiddenTargetResource.id),
   ],
   [
-    "N support rail geometry is presence-driven",
+    "S support rail geometry is presence-driven",
     shouldShowInspectionSupportRail(0) === false &&
       shouldShowInspectionSupportRail(supportEntries.length) ===
         (supportEntries.length > 0),
   ],
   [
-    "O support rail controls are reading-only",
+    "T support rail controls are reading-only",
     isInspectionSupportRailInteractive("reading") &&
       !isInspectionSupportRailInteractive("deploying") &&
       !isInspectionSupportRailInteractive("closing"),
   ],
   [
-    "P duplicate support navigation is blocked while pending or closing",
+    "U duplicate support navigation is blocked while pending or closing",
     canRequestInspectionSupportNavigation("reading", null) &&
       !canRequestInspectionSupportNavigation(
         "reading",
@@ -411,7 +628,7 @@ const checks = [
       !canRequestInspectionSupportNavigation("closing", null),
   ],
   [
-    "Q Inspection return frames associate only with their support-query context",
+    "V Inspection return frames associate only with their support-query context",
     consumedInspectionReturnFrame === inspectionReturnFrame &&
       getInspectionReturnFrame(
         inspectionReturnStore,
@@ -419,50 +636,50 @@ const checks = [
       ) === null,
   ],
   [
-    "R ordinary non-root queries keep Back available",
+    "W ordinary non-root queries keep Back available",
     shouldShowBackNavigationForQueryContext(
       ordinaryNestedQueryContext,
       false,
     ) === true,
   ],
   [
-    "S ordinary root-returning queries keep Back hidden",
+    "X ordinary root-returning queries keep Back hidden",
     shouldShowBackNavigationForQueryContext(ordinaryRootQueryContext, false) ===
       false,
   ],
   [
-    "T inspection-originated root-returning support queries show Back",
+    "Y inspection-originated root-returning support queries show Back",
     shouldShowBackNavigationForQueryContext(
       inspectionReturnQueryContext,
       true,
     ) === true,
   ],
   [
-    "U Inspection return frames preserve canonical Resource identity",
+    "Z Inspection return frames preserve canonical Resource identity",
     inspectionReturnFrame.resourceId === supportSourceResource.id,
   ],
   [
-    "V Inspection return reading state is bounded and restores proportionally",
+    "AA Inspection return reading state is bounded and restores proportionally",
     boundedInspectionReturnFrame.scrollY === 0 &&
       boundedInspectionReturnFrame.postContentProgress === 1 &&
       getInspectionReturnScrollY(inspectionReturnFrame, 400) === 400 &&
       getInspectionReturnPostContentOffset(inspectionReturnFrame, 600) === 300,
   ],
   [
-    "W Home discards Inspection return state instead of restoring it",
+    "AB Home discards Inspection return state instead of restoring it",
     discardInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) &&
       getInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) ===
         null,
   ],
   [
-    "X failed support queries leave no Inspection return frame",
+    "AC failed support queries leave no Inspection return frame",
     getInspectionReturnFrame(
       failedSupportQueryStore,
       supportQueryContextKey,
     ) === null,
   ],
   [
-    "Y unsupported destinations do not invalidate the inspectable source frame",
+    "AD unsupported destinations do not invalidate the inspectable source frame",
     !canInspectResource(unsupportedResource) &&
       canInspectResource(supportSourceResource) &&
       getInspectionReturnFrame(
@@ -471,7 +688,7 @@ const checks = [
       )?.resourceId === supportSourceResource.id,
   ],
   [
-    "Z Inspection return frames are consumed exactly once",
+    "AE Inspection return frames are consumed exactly once",
     consumedInspectionReturnFrame === inspectionReturnFrame &&
       consumeInspectionReturnFrame(
         inspectionReturnStore,
@@ -479,7 +696,7 @@ const checks = [
       ) === null,
   ],
   [
-    "AA Inspection return state does not mutate Artifact status or membership",
+    "AF Inspection return state does not mutate Artifact status or membership",
     JSON.stringify({
       source: supportSourceResource,
       target: supportTargetResource,

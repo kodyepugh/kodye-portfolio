@@ -65,7 +65,7 @@ Implemented and merged:
 - reusable ordered structured-document blocks include headings, paragraphs, figures, lists, callouts, links, dividers, tables, quotes, code, and Resource references;
 - figure blocks reference stable Resource/representation identity rather than creating duplicate file identity;
 - structured-document validation covers block identity/order constraints, Resource references, representation references, figure alt text, links, lists, tables, and content/inspection compatibility;
-- the existing image Artifact has a narrow image-compatibility inspection surface while polished image inspection remains deferred;
+- the existing image Artifact now uses a production image inspection surface with deterministic published-representation resolution, media-content fallback, and an explicit unavailable state;
 - unsupported inspection kinds remain explicit and do not silently render through the structured-document surface;
 - the Inspection Window owns one coherent modal semantic/focus boundary encompassing both primary inspection content and the terminal footer;
 - background Reservoir controls are inert while inspection is active; Escape closes; focus restores after ordinary close;
