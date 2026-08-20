@@ -1266,7 +1266,6 @@ body.artifact-reading-mode .reservoir-study {
   min-height: 0;
   height: var(--inspection-image-stage-height);
   padding: var(--inspection-image-stage-padding);
-  overflow: hidden;
   background:
     radial-gradient(
       circle at 50% 24%,
@@ -1278,9 +1277,6 @@ body.artifact-reading-mode .reservoir-study {
       rgba(255, 255, 255, 0.025),
       rgba(255, 255, 255, 0.01)
     );
-  border: 1px solid var(--artifact-border);
-  border-radius: 28px;
-  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.22);
 }
 
 .inspection-image__frame {
