@@ -3,6 +3,7 @@ import type { Resource, ResourceInspectionKind } from "../../types/content";
 export type ResourceInspectionSurface =
   | "structured-document"
   | "image"
+  | "external-link"
   | "unsupported";
 
 export function getResourceInspectionSurface(
@@ -13,9 +14,10 @@ export function getResourceInspectionSurface(
       return "structured-document";
     case "image":
       return "image";
+    case "external-link":
+      return "external-link";
     case "video":
     case "audio":
-    case "external-link":
     case "dataset-table":
     case "notebook-code":
     case "generic-file":

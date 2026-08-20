@@ -59,6 +59,13 @@ const {
   resolveImageInspection,
 } = require(path.join(projectRoot, "lib/content/image-inspection.ts"));
 const {
+  getPublishedExternalLinkRepresentations,
+  resolveExternalLinkInspection,
+} = require(path.join(
+  projectRoot,
+  "lib/content/external-link-inspection.ts",
+));
+const {
   getInspectionCollectionPill,
   getInspectionContextAvailability,
   getInspectionResourcePill,
@@ -71,6 +78,9 @@ const {
   getPublishedResourceCollections,
   getPublishedSupportingResourcesFromRegistry,
 } = require(path.join(projectRoot, "lib/content/selectors.ts"));
+const {
+  RESOURCE_IDS,
+} = require(path.join(projectRoot, "content/digital-reservoir/artifacts.ts"));
 const {
   ROOT_COLLECTION_ID,
 } = require(path.join(
@@ -108,6 +118,7 @@ const {
 const about = getResourceById("artifact-about");
 const bellabeat = getResourceById("artifact-bellabeat-wellness-analysis");
 const brandSymbol = getResourceById("artifact-kodyepugh-symbol");
+const repositoryResource = getResourceById(RESOURCE_IDS.bellabeatRepository);
 const imageResource = contentRegistry.resources.find(
   (resource) => resource.inspectionKind === "image",
 );
@@ -344,6 +355,106 @@ const unsupportedResource = {
   inspectionKind: "video",
   content: undefined,
 };
+const syntheticExternalLinkResource = {
+  objectType: "resource",
+  id: "qa-external-link-resource",
+  slug: "qa-external-link-slug",
+  title: "QA External Link Resource",
+  type: "repository",
+  inspectionKind: "external-link",
+  isArtifact: false,
+  published: true,
+  representations: [
+    {
+      id: "qa-external-link-rep-b",
+      kind: "external",
+      url: "https://example.com/second",
+      label: "Second target",
+      order: 2,
+      published: true,
+    },
+    {
+      id: "qa-external-link-rep-a",
+      kind: "external",
+      url: "https://example.com/first",
+      label: "First target",
+      order: 1,
+      published: true,
+    },
+    {
+      id: "qa-external-link-rep-inline",
+      kind: "inline",
+      format: "markdown",
+      body: "[ignored](https://example.com/ignored)",
+      order: 0,
+      published: true,
+    },
+  ],
+  content: {
+    kind: "external-link",
+    status: "ready",
+    url: "https://example.com/content",
+    label: "Fallback content target",
+  },
+};
+const syntheticExternalLinkFallbackResource = {
+  objectType: "resource",
+  id: "qa-external-link-fallback-resource",
+  slug: "qa-external-link-fallback-resource",
+  title: "QA External Link Fallback Resource",
+  type: "webpage",
+  inspectionKind: "external-link",
+  isArtifact: false,
+  published: true,
+  content: {
+    kind: "external-link",
+    status: "ready",
+    url: "https://example.com/fallback",
+    label: "Fallback content target",
+  },
+};
+const syntheticExternalLinkUnavailableResource = {
+  objectType: "resource",
+  id: "qa-external-link-unavailable-resource",
+  slug: "qa-external-link-unavailable-resource",
+  title: "QA External Link Unavailable Resource",
+  type: "repository",
+  inspectionKind: "external-link",
+  isArtifact: false,
+  published: true,
+  representations: [
+    {
+      id: "qa-external-link-rep-invalid",
+      kind: "external",
+      url: "   ",
+      label: "Broken target",
+      order: 1,
+      published: true,
+    },
+  ],
+  content: {
+    kind: "external-link",
+    status: "ready",
+    url: "   ",
+    label: "Broken fallback target",
+  },
+};
+const syntheticExternalLinkInvalidUrlResource = {
+  objectType: "resource",
+  id: "qa-external-link-invalid-url-resource",
+  slug: "qa-external-link-invalid-url-resource",
+  title: "QA External Link Invalid URL Resource",
+  type: "repository",
+  inspectionKind: "external-link",
+  isArtifact: false,
+  published: true,
+  content: {
+    kind: "external-link",
+    status: "ready",
+    url: "not-a-url",
+    label: "Broken content target",
+  },
+};
 const supportSourceResource = {
   objectType: "resource",
   id: "qa-inspection-support-source",
@@ -411,7 +522,11 @@ const supportEntries = getPublishedSupportingResourcesFromRegistry(
 );
 const validSyntheticRegistry = {
   ...contentRegistry,
-  resources: [...contentRegistry.resources, nonArtifactDocument],
+  resources: [
+    ...contentRegistry.resources,
+    nonArtifactDocument,
+    syntheticExternalLinkResource,
+  ],
 };
 const invalidReferenceRegistry = {
   ...contentRegistry,
@@ -439,6 +554,23 @@ const validSyntheticResult = validateContentRegistry(validSyntheticRegistry);
 const brandSymbolCollections = getPublishedResourceCollections(brandSymbol.id);
 const resourcePill = getInspectionResourcePill(supportTargetResource);
 const collectionPill = getInspectionCollectionPill(brandSymbolCollections[0]);
+const publishedExternalLinkRepresentations =
+  getPublishedExternalLinkRepresentations(syntheticExternalLinkResource);
+const resolvedExternalLinkInspection = resolveExternalLinkInspection(
+  syntheticExternalLinkResource,
+);
+const fallbackExternalLinkInspection = resolveExternalLinkInspection(
+  syntheticExternalLinkFallbackResource,
+);
+const unavailableExternalLinkInspection = resolveExternalLinkInspection(
+  syntheticExternalLinkUnavailableResource,
+);
+const invalidExternalLinkInspection = resolveExternalLinkInspection(
+  syntheticExternalLinkInvalidUrlResource,
+);
+const publishedRepositoryInspection = repositoryResource
+  ? resolveExternalLinkInspection(repositoryResource)
+  : null;
 
 const originalSnapshot = JSON.stringify({
   resource: nonArtifactDocument,
@@ -814,6 +946,62 @@ const checks = [
     "AQ invalid Collection return sources fail closed without reopening",
     !canInspectResource(unsupportedResource) &&
       collectionReturnFrame.resourceId === supportSourceResource.id,
+  ],
+  [
+    "AR external-link inspection dispatches to the dedicated surface",
+    getResourceInspectionSurface("external-link") === "external-link" &&
+      repositoryResource !== null &&
+      canInspectResource(repositoryResource) &&
+      getReservoirResourceSelectionAction(
+        adaptResourceToReservoirContentNode(repositoryResource),
+        repositoryResource.id,
+      ) === "open-resource-inspection",
+  ],
+  [
+    "AS external-link representation ordering is deterministic and ignores unrelated kinds",
+    publishedExternalLinkRepresentations.map((representation) => representation.id)
+      .join(",") === "qa-external-link-rep-a,qa-external-link-rep-b" &&
+      publishedExternalLinkRepresentations.every(
+        (representation) => representation.kind === "external",
+      ),
+  ],
+  [
+    "AT repository resources resolve through the published external-link representation",
+    publishedRepositoryInspection?.status === "ready" &&
+      publishedRepositoryInspection.source === "representation" &&
+      publishedRepositoryInspection.target.hostname === "github.com" &&
+      publishedRepositoryInspection.target.pathname ===
+        "/kodyepugh/bellabeat-wellness-analysis",
+  ],
+  [
+    "AU ordered published external-link Resources pick the first usable representation",
+    resolvedExternalLinkInspection.status === "ready" &&
+      resolvedExternalLinkInspection.source === "representation" &&
+      resolvedExternalLinkInspection.target.url ===
+        "https://example.com/first" &&
+      resolvedExternalLinkInspection.target.label === "First target",
+  ],
+  [
+    "AV external-link content fallback resolves when no published representation is usable",
+    fallbackExternalLinkInspection.status === "ready" &&
+      fallbackExternalLinkInspection.source === "content" &&
+      fallbackExternalLinkInspection.target.url ===
+        "https://example.com/fallback",
+  ],
+  [
+    "AW unavailable external-link Resources report an explicit failure",
+    unavailableExternalLinkInspection.status === "unavailable" &&
+      unavailableExternalLinkInspection.reason.includes("unavailable") &&
+      unavailableExternalLinkInspection.details.some((detail) =>
+        detail.includes("usable URL"),
+      ),
+  ],
+  [
+    "AX invalid external-link content is rejected",
+    invalidExternalLinkInspection.status === "unavailable" &&
+      invalidExternalLinkInspection.details.some((detail) =>
+        detail.includes("invalid URL"),
+      ),
   ],
 ];
 

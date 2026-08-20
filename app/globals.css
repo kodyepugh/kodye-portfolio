@@ -1367,6 +1367,167 @@ body.artifact-reading-mode .reservoir-study {
   line-height: 1.5;
 }
 
+.inspection-external-link {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+
+.inspection-external-link__intro {
+  display: grid;
+  gap: 12px;
+  max-width: 60ch;
+}
+
+.inspection-external-link__lede {
+  margin: 0;
+  color: var(--artifact-text-muted);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: clamp(18px, 2vw, 24px);
+  line-height: 1.45;
+}
+
+.inspection-external-link__panel {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+  padding: clamp(22px, 3.2vw, 34px);
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 255, 255, 0.06),
+      transparent 60%
+    ),
+    color-mix(in srgb, var(--artifact-surface-raised) 96%, transparent);
+  border: 1px solid var(--artifact-border);
+  border-radius: 28px;
+}
+
+.inspection-external-link__metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin: 0;
+}
+
+.inspection-external-link__metadata-item {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.inspection-external-link__metadata-item dt {
+  color: var(--artifact-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.inspection-external-link__metadata-item dd {
+  margin: 0;
+  color: var(--artifact-text);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: clamp(15px, 1.7vw, 18px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.inspection-external-link__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 9px 14px;
+  color: var(--artifact-text);
+  text-decoration: none;
+  background: color-mix(
+    in srgb,
+    var(--artifact-surface-raised) 100%,
+    var(--artifact-focus) 8%
+  );
+  border: 1px solid var(--artifact-border);
+  border-radius: 999px;
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.inspection-external-link__action:hover,
+.inspection-external-link__action:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--artifact-focus);
+  background: color-mix(
+    in srgb,
+    var(--artifact-surface-raised) 98%,
+    var(--artifact-focus) 10%
+  );
+  outline: none;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+.inspection-external-link__action:focus-visible {
+  outline: 2px solid var(--artifact-focus);
+  outline-offset: 3px;
+}
+
+.inspection-external-link__unavailable {
+  display: grid;
+  gap: 14px;
+  align-content: center;
+  min-height: clamp(280px, 52svh, 640px);
+  padding: clamp(24px, 4vw, 48px);
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 255, 255, 0.05),
+      transparent 58%
+    ),
+    color-mix(in srgb, var(--artifact-surface-raised) 96%, transparent);
+  border: 1px solid var(--artifact-border);
+  border-radius: 28px;
+}
+
+.inspection-external-link__unavailable-title {
+  margin: 0;
+  color: var(--artifact-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.inspection-external-link__unavailable-reason {
+  max-width: 34ch;
+  margin: 0;
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: clamp(20px, 2.6vw, 32px);
+  font-weight: 540;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  color: var(--artifact-text);
+}
+
+.inspection-external-link__detail-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--artifact-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .structured-document {
   display: grid;
   gap: clamp(100px, 20svh, 220px);
@@ -1744,6 +1905,10 @@ body.artifact-reading-mode .reservoir-study {
   .artifact-window {
     --artifact-window-inline-padding: 20px;
     padding-inline: 20px;
+  }
+
+  .inspection-external-link__metadata {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .reservoir-footer--artifact {

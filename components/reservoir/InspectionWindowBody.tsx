@@ -1,4 +1,5 @@
 import { getStructuredDocumentBody } from "@/lib/content/structured-document";
+import { ExternalLinkInspectionBody } from "./ExternalLinkInspectionBody";
 import { getResourceInspectionSurface } from "@/lib/reservoir/inspection";
 import type { Resource } from "@/types/content";
 import { ImageInspectionBody } from "./ImageInspectionBody";
@@ -29,6 +30,14 @@ export function InspectionWindowBody({ resource }: InspectionWindowBodyProps) {
     return (
       <div data-inspection-body="image">
         <ImageInspectionBody resource={resource} />
+      </div>
+    );
+  }
+
+  if (surface === "external-link") {
+    return (
+      <div data-inspection-body="external-link">
+        <ExternalLinkInspectionBody resource={resource} />
       </div>
     );
   }

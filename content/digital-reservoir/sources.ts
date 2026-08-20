@@ -1,5 +1,5 @@
 import type { SourceRecord } from "../../types/content";
-import { ARTIFACT_IDS } from "./artifacts";
+import { ARTIFACT_IDS, RESOURCE_IDS } from "./artifacts";
 import { ASSET_IDS } from "./assets";
 
 export const sourceRecords = [
@@ -43,5 +43,12 @@ export const sourceRecords = [
     sourceType: "local-file",
     originalPath: "public/brand/kodyepugh-symbol.svg",
     sourceLabel: "Public brand asset",
+  },
+  {
+    id: "source-bellabeat-repository",
+    resourceId: RESOURCE_IDS.bellabeatRepository,
+    sourceType: "external-url",
+    externalUrl: "https://github.com/kodyepugh/bellabeat-wellness-analysis",
+    sourceLabel: "GitHub repository",
   },
 ] satisfies readonly SourceRecord[];

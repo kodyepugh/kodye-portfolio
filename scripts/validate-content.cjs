@@ -39,7 +39,7 @@ Module._resolveFilename = function resolveRepositoryAliases(
 
   return originalResolveFilename.call(this, request, parent, isMain, options);
 };
-const { ARTIFACT_IDS } = require(path.join(
+const { ARTIFACT_IDS, RESOURCE_IDS } = require(path.join(
   projectRoot,
   "content/digital-reservoir/artifacts.ts",
 ));
@@ -301,7 +301,9 @@ const checks = [
   [
     "supporting resources selector is stable",
     Array.isArray(getPublishedSupportingResources(ARTIFACT_IDS.bellabeat)) &&
-      getPublishedSupportingResources(ARTIFACT_IDS.bellabeat).length === 0,
+      getPublishedSupportingResources(ARTIFACT_IDS.bellabeat).length === 1 &&
+      getPublishedSupportingResources(ARTIFACT_IDS.bellabeat)[0]
+        .targetResourceId === RESOURCE_IDS.bellabeatRepository,
   ],
   [
     "published support relationships filter and order deterministically",

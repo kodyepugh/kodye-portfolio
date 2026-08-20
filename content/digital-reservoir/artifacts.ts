@@ -9,6 +9,10 @@ export const ARTIFACT_IDS = {
   brandSymbol: "artifact-kodyepugh-symbol",
 } as const;
 
+export const RESOURCE_IDS = {
+  bellabeatRepository: "resource-bellabeat-wellness-analysis-repository",
+} as const;
+
 export const resources = [
   {
     objectType: "resource",
@@ -39,6 +43,39 @@ export const resources = [
           ],
         },
       ],
+    },
+  },
+  {
+    objectType: "resource",
+    id: RESOURCE_IDS.bellabeatRepository,
+    slug: "bellabeat-wellness-analysis-repository",
+    title: "Bellabeat Wellness Analysis Repository",
+    subtitle: "Canonical source code and analysis files",
+    description: "The public GitHub repository containing the Bellabeat portfolio analysis.",
+    type: "repository",
+    inspectionKind: "external-link",
+    isArtifact: false,
+    category: "Data / Analytics",
+    categoryColor: "#28758c",
+    medium: "GitHub repository",
+    format: "Repository",
+    published: true,
+    representations: [
+      {
+        id: "representation-bellabeat-wellness-analysis-repository-github",
+        kind: "external",
+        url: "https://github.com/kodyepugh/bellabeat-wellness-analysis",
+        label: "GitHub repository",
+        sourceLabel: "GitHub",
+        order: 1,
+        published: true,
+      },
+    ],
+    content: {
+      kind: "external-link",
+      status: "ready",
+      url: "https://github.com/kodyepugh/bellabeat-wellness-analysis",
+      label: "Open GitHub repository",
     },
   },
   {

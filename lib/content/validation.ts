@@ -228,6 +228,44 @@ function reportInspectionContentCompatibility(
   }
 }
 
+function reportExternalLinkTargets(resource: Resource, errors: string[]) {
+  function validateExternalUrl(url: string) {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error(`Unsupported protocol ${parsed.protocol}`);
+    }
+    return parsed;
+  }
+
+  for (const representation of resource.representations ?? []) {
+    if (representation.kind !== "external" || representation.published === false) {
+      continue;
+    }
+
+    try {
+      validateExternalUrl(representation.url);
+    } catch (error) {
+      errors.push(
+        error instanceof Error && error.message.includes("protocol")
+          ? `Resource ${resource.id} published external representation ${representation.id} uses unsupported protocol ${representation.url}`
+          : `Resource ${resource.id} published external representation ${representation.id} has an invalid URL ${representation.url}`,
+      );
+    }
+  }
+
+  if (resource.content?.kind !== "external-link") return;
+
+  try {
+    validateExternalUrl(resource.content.url);
+  } catch (error) {
+    errors.push(
+      error instanceof Error && error.message.includes("protocol")
+        ? `Resource ${resource.id} external-link content uses unsupported protocol ${resource.content.url}`
+        : `Resource ${resource.id} external-link content has an invalid URL ${resource.content.url}`,
+    );
+  }
+}
+
 export function validateContentRegistry(
   registry: ContentRegistry,
 ): ContentValidationResult {
@@ -290,6 +328,7 @@ export function validateContentRegistry(
 
   for (const resource of registry.resources) {
     reportInspectionContentCompatibility(resource, errors);
+    reportExternalLinkTargets(resource, errors);
     reportStructuredDocumentBlocks(resource, registry, errors);
 
     for (const assetId of getArtifactContentAssetIds(resource.content)) {
