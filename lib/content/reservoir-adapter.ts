@@ -4,7 +4,11 @@ import {
   getPublishedCollectionMembers,
   getResourceById,
 } from "./selectors";
-import type { Resource, ResourceType } from "../../types/content";
+import type {
+  Resource,
+  ResourceInspectionKind,
+  ResourceType,
+} from "../../types/content";
 
 export type ReservoirContentNode =
   | {
@@ -16,6 +20,7 @@ export type ReservoirContentNode =
       title: string;
       subtitle?: string;
       type: ResourceType;
+      inspectionKind: ResourceInspectionKind;
       typeLabel: string;
       icon?: string;
       category?: string;
@@ -33,6 +38,7 @@ export type ReservoirContentNode =
       title: string;
       subtitle?: string;
       type: ResourceType;
+      inspectionKind: ResourceInspectionKind;
       typeLabel: string;
       icon?: string;
       category?: string;
@@ -85,6 +91,7 @@ export function adaptResourceToReservoirContentNode(
     title: resource.title,
     subtitle: resource.subtitle,
     type: resource.type,
+    inspectionKind: resource.inspectionKind,
     typeLabel: getTypeLabel(resource.type),
     icon: resource.icon,
     category: resource.category,

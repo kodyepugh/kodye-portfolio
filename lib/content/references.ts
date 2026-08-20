@@ -12,6 +12,7 @@ export function getResourceContentAssetIds(
       return content.assetId ? [content.assetId] : [];
     case "case-study":
       return content.sections.flatMap((section) => section.assetIds ?? []);
+    case "structured-document":
     case "external-link":
     case "rich-text":
       return [];

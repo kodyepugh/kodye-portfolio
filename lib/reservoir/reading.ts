@@ -7,17 +7,22 @@ export const RESERVOIR_READING_TIMING = {
   reducedMotionReservoirRestoreDuration: 0.32,
 } as const;
 
-export function getArtifactWindowDeployDuration(reducedMotion: boolean) {
+export function getInspectionWindowDeployDuration(reducedMotion: boolean) {
   return reducedMotion
     ? RESERVOIR_READING_TIMING.reducedMotionWindowDeployDuration
     : RESERVOIR_READING_TIMING.windowDeployDuration;
 }
 
-export function getArtifactWindowRetractDuration(reducedMotion: boolean) {
+export function getInspectionWindowRetractDuration(reducedMotion: boolean) {
   return reducedMotion
     ? RESERVOIR_READING_TIMING.reducedMotionWindowRetractDuration
     : RESERVOIR_READING_TIMING.windowRetractDuration;
 }
+
+/** Compatibility aliases for the previous ArtifactWindow API. */
+export const getArtifactWindowDeployDuration = getInspectionWindowDeployDuration;
+export const getArtifactWindowRetractDuration =
+  getInspectionWindowRetractDuration;
 
 export function getReservoirRestoreDuration(reducedMotion: boolean) {
   return reducedMotion

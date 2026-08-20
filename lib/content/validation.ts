@@ -2,7 +2,11 @@ import {
   getArtifactContentAssetIds,
   getResourceRepresentationAssetIds,
 } from "./references";
-import type { ContentRegistry } from "../../types/content";
+import type {
+  ContentRegistry,
+  Resource,
+  StructuredDocumentBlock,
+} from "../../types/content";
 
 export type ContentValidationResult = {
   valid: boolean;
@@ -93,6 +97,137 @@ function reportSemanticAddressNamespace(
   }
 }
 
+function reportStructuredDocumentBlocks(
+  resource: Resource,
+  registry: ContentRegistry,
+  errors: string[],
+) {
+  if (resource.content?.kind !== "structured-document") return;
+
+  const blockIds = new Set<string>();
+  const resourcesById = new Map(
+    registry.resources.map((candidate) => [candidate.id, candidate]),
+  );
+  const requireText = (
+    block: StructuredDocumentBlock,
+    label: string,
+    value: string,
+  ) => {
+    if (!value.trim()) {
+      errors.push(
+        `Resource ${resource.id} structured-document block ${block.id} has blank ${label}`,
+      );
+    }
+  };
+
+  for (const block of resource.content.blocks) {
+    if (!block.id.trim()) {
+      errors.push(`Resource ${resource.id} has a structured-document block with a blank ID`);
+    } else if (blockIds.has(block.id)) {
+      errors.push(
+        `Resource ${resource.id} has duplicate structured-document block ID ${block.id}`,
+      );
+    }
+    blockIds.add(block.id);
+
+    switch (block.type) {
+      case "heading":
+      case "paragraph":
+      case "quote":
+        requireText(block, "text", block.text);
+        break;
+      case "figure": {
+        requireText(block, "alt text", block.alt);
+        const figureResource = resourcesById.get(block.resourceId);
+        if (!figureResource) {
+          errors.push(
+            `Resource ${resource.id} figure block ${block.id} references unknown Resource ${block.resourceId}`,
+          );
+        } else if (
+          block.representationId &&
+          !figureResource.representations?.some(
+            (representation) => representation.id === block.representationId,
+          )
+        ) {
+          errors.push(
+            `Resource ${resource.id} figure block ${block.id} references unknown representation ${block.representationId} on Resource ${block.resourceId}`,
+          );
+        }
+        break;
+      }
+      case "list":
+        if (block.items.length === 0 || block.items.some((item) => !item.trim())) {
+          errors.push(
+            `Resource ${resource.id} list block ${block.id} must contain nonblank items`,
+          );
+        }
+        break;
+      case "callout":
+        requireText(block, "text", block.text);
+        break;
+      case "link":
+        requireText(block, "label", block.label);
+        requireText(block, "href", block.href);
+        try {
+          new URL(block.href, "https://digital-reservoir.local");
+        } catch {
+          errors.push(
+            `Resource ${resource.id} link block ${block.id} has invalid href ${block.href}`,
+          );
+        }
+        break;
+      case "table":
+        if (
+          block.columns.length === 0 ||
+          block.columns.some((column) => !column.trim()) ||
+          block.rows.some((row) => row.length !== block.columns.length)
+        ) {
+          errors.push(
+            `Resource ${resource.id} table block ${block.id} must have nonblank columns and rectangular rows`,
+          );
+        }
+        break;
+      case "code":
+        requireText(block, "code", block.code);
+        break;
+      case "resource-reference":
+        if (!resourcesById.has(block.resourceId)) {
+          errors.push(
+            `Resource ${resource.id} reference block ${block.id} references unknown Resource ${block.resourceId}`,
+          );
+        }
+        break;
+      case "divider":
+        break;
+    }
+  }
+}
+
+function reportInspectionContentCompatibility(
+  resource: Resource,
+  errors: string[],
+) {
+  const contentKind = resource.content?.kind;
+  if (!contentKind) return;
+
+  const compatible =
+    resource.inspectionKind === "structured-document"
+      ? ["structured-document", "rich-text", "case-study", "document"].includes(
+          contentKind,
+        )
+      : resource.inspectionKind === "image"
+        ? contentKind === "media"
+        : resource.inspectionKind === "external-link"
+          ? contentKind === "external-link"
+          : true;
+
+  if (!compatible) {
+    errors.push(
+      `Resource ${resource.id} inspectionKind ${resource.inspectionKind} is incompatible with content kind ${contentKind}`,
+    );
+  }
+}
+
 export function validateContentRegistry(
   registry: ContentRegistry,
 ): ContentValidationResult {
@@ -154,6 +289,9 @@ export function validateContentRegistry(
   reportSemanticAddressNamespace(registry, errors);
 
   for (const resource of registry.resources) {
+    reportInspectionContentCompatibility(resource, errors);
+    reportStructuredDocumentBlocks(resource, registry, errors);
+
     for (const assetId of getArtifactContentAssetIds(resource.content)) {
       if (!assetIds.has(assetId)) {
         errors.push(`Resource ${resource.id} references unknown asset ${assetId}`);
@@ -174,6 +312,11 @@ export function validateContentRegistry(
           errors.push(`Duplicate resource representation ID: ${representation.id}`);
         }
         representationIds.add(representation.id);
+        if (resourceIds.has(representation.id)) {
+          errors.push(
+            `Resource representation ${representation.id} duplicates a persistent Resource identity`,
+          );
+        }
       }
     }
 

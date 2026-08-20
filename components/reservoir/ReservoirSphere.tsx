@@ -31,7 +31,7 @@ import {
 import type { CollectionReconstitutionPhase } from "@/lib/reservoir/collection-entry";
 import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
 import type { Collection } from "@/types/content";
-import type { Artifact } from "@/types/content";
+import type { Resource } from "@/types/content";
 import {
   getReservoirNodeSizingFamily,
   isReservoirInspectableResourceNode,
@@ -85,11 +85,11 @@ type ReservoirSphereProps = {
   interactionRevisionRef: MutableRefObject<number>;
   diagnosticsRef: RefObject<HTMLDivElement | null>;
   openingActive: boolean;
-  openingArtifact: Artifact | null;
+  openingResource: Resource | null;
   openingElapsedRef: MutableRefObject<number>;
   openingReducedMotion: boolean;
   openingReactionDistances: ReadonlyMap<string, number>;
-  maximumOpeningReactionDistance: number;
+  maximumInspectionReactionDistance: number;
   restoring: boolean;
   restorationProgressRef: MutableRefObject<number>;
   emergingChildren: boolean;
@@ -131,11 +131,11 @@ export function ReservoirSphere({
   interactionRevisionRef,
   diagnosticsRef,
   openingActive,
-  openingArtifact,
+  openingResource,
   openingElapsedRef,
   openingReducedMotion,
   openingReactionDistances,
-  maximumOpeningReactionDistance,
+  maximumInspectionReactionDistance,
   restoring,
   restorationProgressRef,
   emergingChildren,
@@ -351,7 +351,7 @@ export function ReservoirSphere({
       surfaceSelectionPresentationRef.current;
     const selectionRetreatActive =
       selectedMeshRetractionStarted ||
-      (openingActive && openingArtifact?.id === selectedResourceId);
+      (openingActive && openingResource?.id === selectedResourceId);
     const selectedCollectionIndex = selectedCollectionId
       ? activeNodes.findIndex((node) => node.id === selectedCollectionId)
       : -1;
@@ -425,7 +425,7 @@ export function ReservoirSphere({
     surfaceSelectionUniforms.current.selectedGlowVisibility.value =
       selectionPresentation.selectedGlowVisibility;
     surfaceSelectionUniforms.current.selectedShockwaveProgress.value =
-      openingActive && openingArtifact?.id === selectedResourceId
+      openingActive && openingResource?.id === selectedResourceId
         ? Math.min(
             Math.max(
               (openingElapsedRef.current -
@@ -437,7 +437,7 @@ export function ReservoirSphere({
           )
         : 0;
     surfaceSelectionUniforms.current.selectedShockwaveActive.value =
-      openingActive && openingArtifact?.id === selectedResourceId ? 1 : 0;
+      openingActive && openingResource?.id === selectedResourceId ? 1 : 0;
     const patternMaterial = surfacePatternMaterialRef.current;
     if (patternMaterial) {
       patternMaterial.uniforms.lineOpacity.value =
@@ -516,7 +516,7 @@ export function ReservoirSphere({
         const surfaced =
           filterSurfaced ||
           (node.kind !== "collection" && node.id === locatingResourceId) ||
-          (node.kind !== "collection" && node.id === openingArtifact?.id);
+          (node.kind !== "collection" && node.id === openingResource?.id);
         const reconstitutionSinking = reservoirExchangeDeactivating;
         const collectionNodeTransitionPhase = reservoirExchangeDeactivating
           ? "departure"
@@ -535,11 +535,11 @@ export function ReservoirSphere({
           : restorationProgressRef;
         const nodeOpeningReactionDelay = layoutTransitionSink
           ? 0
-          : openingActive && openingArtifact?.id === node.id
+          : openingActive && openingResource?.id === node.id
             ? 0
             : getNodeReactionArrival(
                   openingReactionDistances.get(node.id) ?? 0,
-                  maximumOpeningReactionDistance,
+                  maximumInspectionReactionDistance,
                   openingReducedMotion,
                   getShockwaveStart(openingReducedMotion),
                 );
@@ -581,7 +581,7 @@ export function ReservoirSphere({
             diagnosticsRef={diagnosticsRef}
             opening={nodeOpening}
             openingSelected={
-              openingActive && openingArtifact?.id === node.id
+              openingActive && openingResource?.id === node.id
             }
             openingElapsedRef={nodeOpeningElapsedRef}
             openingReactionDelay={nodeOpeningReactionDelay}

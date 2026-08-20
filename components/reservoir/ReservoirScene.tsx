@@ -87,11 +87,12 @@ import {
   type ReservoirAdaptiveZoom,
 } from "@/lib/reservoir/zoom";
 import {
-  getArtifactWindowRetractDuration,
+  getInspectionWindowRetractDuration,
   getReservoirRestoreDuration,
   getReservoirRestoreProgress,
 } from "@/lib/reservoir/reading";
 import { getReservoirResourceSelectionAction } from "@/lib/reservoir/resource-selection";
+import { canInspectResource } from "@/lib/reservoir/inspection";
 import type {
   ActiveExploreFilter,
   DirectArtifactId,
@@ -99,7 +100,7 @@ import type {
 import type { ReservoirContext } from "@/types/reservoir";
 import type { Collection } from "@/types/content";
 import { AtmosphereContent } from "./AtmosphereContent";
-import { ArtifactWindow } from "./ArtifactWindow";
+import { InspectionWindow } from "./InspectionWindow";
 import { ReservoirLayoutModeSwitch } from "../navigation/ReservoirLayoutModeSwitch";
 import { ReservoirSphere } from "./ReservoirSphere";
 import { CollectionNavigation } from "../navigation/CollectionNavigation";
@@ -144,13 +145,13 @@ type PickedReservoirNode =
   | { kind: "collection"; id: string };
 type ReservoirTransitionState =
   | "idle"
-  | "locatingArtifact"
+  | "locatingResource"
   | "reconstitutingCollection"
-  | "openingArtifact"
-  | "deployingArtifact"
-  | "readingArtifact"
-  | "closingArtifact"
-  | "restoringArtifact";
+  | "openingResource"
+  | "deployingInspection"
+  | "readingInspection"
+  | "closingInspection"
+  | "restoringInspection";
 
 type QuaternionTuple = [number, number, number, number];
 
@@ -297,7 +298,7 @@ function getReservoirNodeDiameters(
 }
 
 type PreservedReservoirState = {
-  artifactId: string;
+  resourceId: string;
   sphereQuaternion: QuaternionTuple;
   zoomLevel: number;
 };
@@ -1030,12 +1031,12 @@ export function ReservoirScene() {
   );
   const [transitionState, setTransitionState] =
     useState<ReservoirTransitionState>("idle");
-  const [openingArtifactId, setOpeningArtifactId] = useState<string | null>(
+  const [inspectedResourceId, setInspectedResourceId] = useState<string | null>(
     null,
   );
   const [preservedReservoirState, setPreservedReservoirState] =
     useState<PreservedReservoirState | null>(null);
-  const [artifactFooterReached, setArtifactFooterReached] = useState(false);
+  const [inspectionFooterReached, setInspectionFooterReached] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [atmosphereBottom, setAtmosphereBottom] = useState(0);
   const interaction = useRef<HTMLDivElement>(null);
@@ -1578,13 +1579,13 @@ export function ReservoirScene() {
   const selectedCollection = selectedCollectionId
     ? (getCollectionById(selectedCollectionId) ?? null)
     : null;
-  const openingArtifact = openingArtifactId
-    ? (getArtifactById(openingArtifactId) ?? null)
+  const openingResource = inspectedResourceId
+    ? (getResourceById(inspectedResourceId) ?? null)
     : null;
-  const openingReactionDistances = useMemo(() => {
+  const inspectionReactionDistances = useMemo(() => {
     const distances = new Map<string, number>();
-    if (!openingArtifact) return distances;
-    const openingDirection = activeReservoirLayout.get(openingArtifact.id);
+    if (!openingResource) return distances;
+    const openingDirection = activeReservoirLayout.get(openingResource.id);
     if (!openingDirection) return distances;
 
     for (const node of activeReservoirNodes) {
@@ -1596,24 +1597,24 @@ export function ReservoirScene() {
       );
     }
     return distances;
-  }, [activeReservoirLayout, activeReservoirNodes, openingArtifact]);
-  const maximumOpeningReactionDistance = Math.max(
+  }, [activeReservoirLayout, activeReservoirNodes, openingResource]);
+  const maximumInspectionReactionDistance = Math.max(
     0,
-    ...openingReactionDistances.values(),
+    ...inspectionReactionDistances.values(),
   );
   const openingActive = [
-    "openingArtifact",
-    "deployingArtifact",
-    "readingArtifact",
-    "closingArtifact",
+    "openingResource",
+    "deployingInspection",
+    "readingInspection",
+    "closingInspection",
   ].includes(transitionState);
-  const restoring = transitionState === "restoringArtifact";
-  const artifactWindowPhase =
-    transitionState === "deployingArtifact"
+  const restoring = transitionState === "restoringInspection";
+  const inspectionWindowPhase =
+    transitionState === "deployingInspection"
       ? "deploying"
-      : transitionState === "readingArtifact"
+      : transitionState === "readingInspection"
         ? "reading"
-        : transitionState === "closingArtifact"
+        : transitionState === "closingInspection"
           ? "closing"
           : null;
   const collectionContextTransition =
@@ -1647,7 +1648,7 @@ export function ReservoirScene() {
 
   useEffect(() => {
     if (
-      transitionState !== "openingArtifact" ||
+      transitionState !== "openingResource" ||
       !preservedReservoirState
     ) {
       return;
@@ -1670,7 +1671,7 @@ export function ReservoirScene() {
 
       if (elapsed >= duration) {
         window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-        setTransitionState("deployingArtifact");
+        setTransitionState("deployingInspection");
         return;
       }
 
@@ -2151,12 +2152,12 @@ export function ReservoirScene() {
 
   useLayoutEffect(() => {
     const readingMode = [
-      "deployingArtifact",
-      "readingArtifact",
-      "closingArtifact",
+      "deployingInspection",
+      "readingInspection",
+      "closingInspection",
     ].includes(transitionState);
-    const scrollEnabled = transitionState === "readingArtifact";
-    const deploying = transitionState === "deployingArtifact";
+    const scrollEnabled = transitionState === "readingInspection";
+    const deploying = transitionState === "deployingInspection";
     const scrollRoots = [document.documentElement, document.body];
 
     for (const root of scrollRoots) {
@@ -2174,26 +2175,26 @@ export function ReservoirScene() {
     };
   }, [transitionState]);
 
-  const completeArtifactDeployment = useCallback(() => {
+  const completeInspectionDeployment = useCallback(() => {
     setTransitionState((currentState) =>
-      currentState === "deployingArtifact"
-        ? "readingArtifact"
+      currentState === "deployingInspection"
+        ? "readingInspection"
         : currentState,
     );
   }, []);
 
-  const requestArtifactClose = useCallback(() => {
-    setArtifactFooterReached(false);
+  const requestInspectionClose = useCallback(() => {
+    setInspectionFooterReached(false);
     setTransitionState((currentState) =>
-      currentState === "readingArtifact"
-        ? "closingArtifact"
+      currentState === "readingInspection"
+        ? "closingInspection"
         : currentState,
     );
   }, []);
 
   useEffect(() => {
     if (
-      transitionState !== "closingArtifact" ||
+      transitionState !== "closingInspection" ||
       !preservedReservoirState
     ) {
       return;
@@ -2203,15 +2204,15 @@ export function ReservoirScene() {
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       restorationElapsedRef.current = 0;
       restorationProgressRef.current = 0;
-      setTransitionState("restoringArtifact");
-    }, getArtifactWindowRetractDuration(reducedMotion) * 1000);
+      setTransitionState("restoringInspection");
+    }, getInspectionWindowRetractDuration(reducedMotion) * 1000);
 
     return () => window.clearTimeout(timeoutId);
   }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
 
   useEffect(() => {
     if (
-      transitionState !== "restoringArtifact" ||
+      transitionState !== "restoringInspection" ||
       !preservedReservoirState
     ) {
       return;
@@ -2258,7 +2259,7 @@ export function ReservoirScene() {
           renderedSphere.quaternion.copy(expectedSphereQuaternion);
         }
         setReservoirZoom(snapshot.zoomLevel);
-        setOpeningArtifactId(null);
+        setInspectedResourceId(null);
         setTransitionState("idle");
         return;
       }
@@ -2502,13 +2503,13 @@ export function ReservoirScene() {
   }
 
   function capturePreservedReservoirState(
-    artifactId: string,
+    resourceId: string,
   ): PreservedReservoirState | null {
     const sphere = sphereRotationRef.current;
     if (!sphere) return null;
 
     return {
-      artifactId,
+      resourceId,
       sphereQuaternion: toQuaternionTuple(sphere.quaternion),
       zoomLevel: zoomLevelRef.current,
     };
@@ -2557,7 +2558,7 @@ export function ReservoirScene() {
     if (
       nextLayoutMode === layoutMode ||
       layoutModeTransitionActive ||
-      artifactWindowPhase !== null ||
+      inspectionWindowPhase !== null ||
       collectionNavigation.transitionPhase !== "idle" ||
       menuActive ||
       queryTransitionActive ||
@@ -2617,28 +2618,35 @@ export function ReservoirScene() {
     }
   }
 
-  function beginArtifactOpening(
-    artifactId: string,
+  function beginResourceInspection(
+    resourceId: string,
     allowLocatedTransition = false,
   ) {
     if (
       transitionState !== "idle" &&
-      !(allowLocatedTransition && transitionState === "locatingArtifact")
+      !(allowLocatedTransition && transitionState === "locatingResource")
     ) {
       return;
     }
 
-    const artifact = getArtifactById(artifactId);
-    const preservedState = capturePreservedReservoirState(artifactId);
-    if (!artifact || artifact.published !== true || !preservedState) return;
+    const resource = getResourceById(resourceId);
+    const preservedState = capturePreservedReservoirState(resourceId);
+    if (
+      !resource ||
+      resource.published !== true ||
+      !canInspectResource(resource) ||
+      !preservedState
+    ) {
+      return;
+    }
 
     openingElapsedRef.current = 0;
-    setOpeningArtifactId(artifactId);
+    setInspectedResourceId(resourceId);
     setPreservedReservoirState(preservedState);
-    setArtifactFooterReached(false);
+    setInspectionFooterReached(false);
     setHoveredResourceId(null);
     setSelectedPressActive(false);
-    setTransitionState("openingArtifact");
+    setTransitionState("openingResource");
   }
 
   function requestCollection(
@@ -2826,12 +2834,14 @@ export function ReservoirScene() {
           resourceNode,
           selectedResourceId,
         );
-        if (selectionAction === "open-artifact") {
-          beginArtifactOpening(resourceNode.id);
-        } else if (selectionAction === "resource-inspection-deferred") {
+        if (selectionAction === "open-resource-inspection") {
+          beginResourceInspection(resourceNode.id);
+        } else if (selectionAction === "unsupported-resource-inspection") {
           if (interaction.current) {
-            interaction.current.dataset.resourceInspectionDeferred =
+            interaction.current.dataset.resourceInspectionUnsupported =
               resourceNode.id;
+            interaction.current.dataset.resourceInspectionUnsupportedKind =
+              resourceNode.inspectionKind;
           }
         } else {
           setTransitionState("idle");
@@ -3290,7 +3300,7 @@ export function ReservoirScene() {
       <div
       ref={interaction}
       className="reservoir-interaction"
-      aria-hidden={artifactWindowPhase !== null}
+      aria-hidden={inspectionWindowPhase !== null}
       data-dragging={isDragging}
       data-aspect-ratio={(viewportFrame.width / viewportFrame.height).toFixed(3)}
       data-camera-model="stable-reference"
@@ -3622,21 +3632,28 @@ export function ReservoirScene() {
           ? locatingResourceId
           : ""
       }
-      data-opening-artifact={openingArtifactId ?? ""}
+      data-inspected-resource={inspectedResourceId ?? ""}
+      data-resource-inspection-kind={openingResource?.inspectionKind ?? ""}
+      data-inspection-phase={inspectionWindowPhase ?? ""}
+      data-inspected-artifact-status={openingResource?.isArtifact ?? ""}
+      data-opening-artifact={openingResource?.isArtifact ? openingResource.id : ""}
       data-opening-complete={
-        transitionState !== "idle" && transitionState !== "openingArtifact"
+        transitionState !== "idle" && transitionState !== "openingResource"
       }
       data-input-locked={inputLocked}
-      data-content-open={artifactWindowPhase !== null}
+      data-content-open={inspectionWindowPhase !== null}
       data-atmosphere-bottom={atmosphereBottom.toFixed(3)}
       data-artifact-window-atmosphere-gap="clamp(24px, 3.2vw, 48px)"
-      data-reading-mode={transitionState === "readingArtifact"}
-      data-artifact-footer-reached={artifactFooterReached}
+      data-reading-mode={transitionState === "readingInspection"}
+      data-inspection-footer-reached={inspectionFooterReached}
+      data-artifact-footer-reached={inspectionFooterReached}
       data-restoring={restoring}
-      data-artifact-content-ready={openingArtifact !== null}
-      data-prepared-content-artifact={openingArtifact?.id ?? ""}
-      data-prepared-content-title={openingArtifact?.title ?? ""}
-      data-opening-reaction-order={[...openingReactionDistances.entries()]
+      data-resource-content-ready={openingResource !== null}
+      data-prepared-content-resource={openingResource?.id ?? ""}
+      data-artifact-content-ready={openingResource?.isArtifact === true}
+      data-prepared-content-artifact={openingResource?.isArtifact ? openingResource.id : ""}
+      data-prepared-content-title={openingResource?.title ?? ""}
+      data-opening-reaction-order={[...inspectionReactionDistances.entries()]
         .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
         .map(([artifactId, distance]) => `${artifactId}:${distance}`)
         .join(",")}
@@ -3761,12 +3778,12 @@ export function ReservoirScene() {
               interactionRevisionRef={interactionRevisionRef}
               diagnosticsRef={interaction}
               openingActive={openingActive}
-              openingArtifact={openingArtifact}
+              openingResource={openingResource}
               openingElapsedRef={openingElapsedRef}
               openingReducedMotion={reducedMotion}
-              openingReactionDistances={openingReactionDistances}
-              maximumOpeningReactionDistance={
-                maximumOpeningReactionDistance
+              openingReactionDistances={inspectionReactionDistances}
+              maximumInspectionReactionDistance={
+                maximumInspectionReactionDistance
               }
               restoring={restoring}
               restorationProgressRef={restorationProgressRef}
@@ -3782,15 +3799,15 @@ export function ReservoirScene() {
         </ReservoirTransform>
       </Canvas>
       </div>
-      {artifactWindowPhase && openingArtifact ? (
-        <ArtifactWindow
+      {inspectionWindowPhase && openingResource ? (
+        <InspectionWindow
           atmosphereBottom={atmosphereBottom}
-          artifact={openingArtifact}
-          phase={artifactWindowPhase}
+          resource={openingResource}
+          phase={inspectionWindowPhase}
           reducedMotion={reducedMotion}
-          onDeployComplete={completeArtifactDeployment}
-          onClose={requestArtifactClose}
-          onFooterReachedChange={setArtifactFooterReached}
+          onDeployComplete={completeInspectionDeployment}
+          onClose={requestInspectionClose}
+          onFooterReachedChange={setInspectionFooterReached}
         />
       ) : null}
     </>

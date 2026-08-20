@@ -281,20 +281,20 @@ const checks = [
       testZoom([syntheticReservoirNode]).smallestNodeWorldDiameter,
   ],
   [
-    "non-artifact second selection defers Resource inspection",
+    "non-artifact structured document opens Resource inspection",
     getReservoirResourceSelectionAction(
       syntheticReservoirNode,
       syntheticReservoirNode.id,
-    ) === "resource-inspection-deferred",
+    ) === "open-resource-inspection",
   ],
   [
-    "artifact second selection preserves existing opening behavior",
+    "artifact second selection opens Resource inspection",
     getReservoirResourceSelectionAction(
       adaptResourceToReservoirContentNode(
         getArtifactById(ARTIFACT_IDS.about),
       ),
       ARTIFACT_IDS.about,
-    ) === "open-artifact",
+    ) === "open-resource-inspection",
   ],
 ];
 

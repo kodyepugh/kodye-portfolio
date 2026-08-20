@@ -51,6 +51,101 @@ export type ResourceInspectionKind =
 export type ArtifactContentStatus = "ready" | "placeholder";
 export type ResourceContentStatus = ArtifactContentStatus;
 
+type StructuredDocumentBlockBase = {
+  id: string;
+};
+
+export type StructuredDocumentHeadingBlock = StructuredDocumentBlockBase & {
+  type: "heading";
+  level: 2 | 3 | 4 | 5 | 6;
+  text: string;
+  eyebrow?: string;
+};
+
+export type StructuredDocumentParagraphBlock = StructuredDocumentBlockBase & {
+  type: "paragraph";
+  text: string;
+};
+
+export type StructuredDocumentFigureBlock = StructuredDocumentBlockBase & {
+  type: "figure";
+  resourceId: string;
+  representationId?: string;
+  alt: string;
+  caption?: string;
+};
+
+export type StructuredDocumentListBlock = StructuredDocumentBlockBase & {
+  type: "list";
+  style: "ordered" | "unordered";
+  items: readonly string[];
+};
+
+export type StructuredDocumentCalloutBlock = StructuredDocumentBlockBase & {
+  type: "callout";
+  text: string;
+  title?: string;
+  tone?: "note" | "important" | "warning";
+};
+
+export type StructuredDocumentLinkBlock = StructuredDocumentBlockBase & {
+  type: "link";
+  href: string;
+  label: string;
+  description?: string;
+};
+
+export type StructuredDocumentDividerBlock = StructuredDocumentBlockBase & {
+  type: "divider";
+};
+
+export type StructuredDocumentTableBlock = StructuredDocumentBlockBase & {
+  type: "table";
+  columns: readonly string[];
+  rows: readonly (readonly string[])[];
+  caption?: string;
+};
+
+export type StructuredDocumentQuoteBlock = StructuredDocumentBlockBase & {
+  type: "quote";
+  text: string;
+  attribution?: string;
+};
+
+export type StructuredDocumentCodeBlock = StructuredDocumentBlockBase & {
+  type: "code";
+  code: string;
+  language?: string;
+  caption?: string;
+};
+
+export type StructuredDocumentResourceReferenceBlock =
+  StructuredDocumentBlockBase & {
+    type: "resource-reference";
+    resourceId: string;
+    label?: string;
+    description?: string;
+  };
+
+export type StructuredDocumentBlock =
+  | StructuredDocumentHeadingBlock
+  | StructuredDocumentParagraphBlock
+  | StructuredDocumentFigureBlock
+  | StructuredDocumentListBlock
+  | StructuredDocumentCalloutBlock
+  | StructuredDocumentLinkBlock
+  | StructuredDocumentDividerBlock
+  | StructuredDocumentTableBlock
+  | StructuredDocumentQuoteBlock
+  | StructuredDocumentCodeBlock
+  | StructuredDocumentResourceReferenceBlock;
+
+export type StructuredDocumentContent = {
+  kind: "structured-document";
+  status: ResourceContentStatus;
+  blocks: readonly StructuredDocumentBlock[];
+};
+
 export type ArtifactSection = {
   id: string;
   heading: string;
@@ -61,6 +156,7 @@ export type ArtifactSection = {
 export type ResourceSection = ArtifactSection;
 
 export type ResourceContent =
+  | StructuredDocumentContent
   | {
       kind: "rich-text";
       status: ArtifactContentStatus;

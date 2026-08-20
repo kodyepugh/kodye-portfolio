@@ -1,16 +1,17 @@
 import type { ReservoirInspectableResourceNode } from "@/lib/content/reservoir-adapter";
+import { getResourceInspectionSurface } from "@/lib/reservoir/inspection";
 
 export type ReservoirResourceSelectionAction =
   | "select-resource"
-  | "open-artifact"
-  | "resource-inspection-deferred";
+  | "open-resource-inspection"
+  | "unsupported-resource-inspection";
 
 export function getReservoirResourceSelectionAction(
   node: ReservoirInspectableResourceNode,
   selectedResourceId: string | null,
 ): ReservoirResourceSelectionAction {
   if (node.id !== selectedResourceId) return "select-resource";
-  return node.isArtifact
-    ? "open-artifact"
-    : "resource-inspection-deferred";
+  return getResourceInspectionSurface(node.inspectionKind) === "unsupported"
+    ? "unsupported-resource-inspection"
+    : "open-resource-inspection";
 }
