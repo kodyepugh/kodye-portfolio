@@ -843,7 +843,7 @@ body.artifact-reading-mode .reservoir-study {
   opacity: 0;
   animation: inspection-reading-backdrop-enter
     var(--artifact-window-deploy-duration)
-    linear both;
+    var(--artifact-window-deploy-easing) both;
 }
 
 .inspection-reading-backdrop[data-inspection-window-phase="reading"] {
@@ -854,13 +854,15 @@ body.artifact-reading-mode .reservoir-study {
   opacity: 0;
   animation: inspection-reading-backdrop-exit
     var(--artifact-window-retract-duration)
-    linear both;
+    var(--artifact-window-retract-easing) both;
 }
 
 .artifact-reading-stage {
   --artifact-window-responsive-top: 18svh;
   --artifact-window-atmosphere-bottom: 0px;
   --artifact-window-atmosphere-gap: clamp(16px, 1.6vw, 28px);
+  --artifact-window-deploy-easing: cubic-bezier(0.2, 0.76, 0.2, 1);
+  --artifact-window-retract-easing: cubic-bezier(0.58, 0, 0.86, 0.42);
   --artifact-window-top: max(
     var(--artifact-window-responsive-top),
     calc(
@@ -880,7 +882,7 @@ body.artifact-reading-mode .reservoir-study {
   pointer-events: none;
   animation: artifact-reading-stage-retract
     var(--artifact-window-retract-duration)
-    cubic-bezier(0.58, 0, 0.86, 0.42) both;
+    var(--artifact-window-retract-easing) both;
 }
 
 .artifact-reading-stage[data-artifact-window-phase="closing"]
@@ -893,7 +895,7 @@ body.artifact-reading-mode .reservoir-study {
 
 .artifact-window-shell[data-artifact-window-phase="deploying"] {
   animation: artifact-window-deploy var(--artifact-window-deploy-duration)
-    cubic-bezier(0.2, 0.76, 0.2, 1) both;
+    var(--artifact-window-deploy-easing) both;
 }
 
 .artifact-reading-stage[data-artifact-scroll-phase]:not(
@@ -1379,26 +1381,6 @@ body.artifact-reading-mode .reservoir-study {
 @keyframes inspection-reading-backdrop-enter {
   from {
     opacity: 0;
-  }
-
-  10% {
-    opacity: 0.18;
-  }
-
-  20% {
-    opacity: 0.42;
-  }
-
-  35% {
-    opacity: 0.68;
-  }
-
-  55% {
-    opacity: 0.86;
-  }
-
-  75% {
-    opacity: 0.96;
   }
 
   to {
