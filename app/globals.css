@@ -872,6 +872,12 @@ body.artifact-reading-mode .reservoir-study {
   pointer-events: none;
 }
 
+.artifact-reading-backdrop[data-artifact-window-phase="closing"] {
+  animation: artifact-reading-backdrop-release
+    var(--artifact-window-retract-duration)
+    cubic-bezier(0.58, 0, 0.86, 0.42) both;
+}
+
 .artifact-window-shell[data-artifact-window-phase="deploying"] {
   animation: artifact-window-deploy var(--artifact-window-deploy-duration)
     cubic-bezier(0.2, 0.76, 0.2, 1) both;
@@ -1357,6 +1363,16 @@ body.artifact-reading-mode .reservoir-study {
   }
 }
 
+@keyframes artifact-reading-backdrop-release {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 .interaction-note {
   z-index: 2;
   bottom: 20px;
@@ -1450,6 +1466,10 @@ body.artifact-reading-mode .reservoir-study {
   .artifact-reading-stage[data-artifact-window-phase="closing"] {
     animation-name: artifact-reading-stage-retract-reduced;
   }
+
+  .artifact-reading-backdrop[data-artifact-window-phase="closing"] {
+    animation-name: artifact-reading-backdrop-release-reduced;
+  }
 }
 
 @keyframes artifact-window-deploy-reduced {
@@ -1473,5 +1493,15 @@ body.artifact-reading-mode .reservoir-study {
   to {
     opacity: 0;
     transform: translateY(24px);
+  }
+}
+
+@keyframes artifact-reading-backdrop-release-reduced {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
   }
 }

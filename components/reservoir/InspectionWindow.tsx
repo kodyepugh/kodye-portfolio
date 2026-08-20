@@ -386,7 +386,13 @@ export function InspectionWindow({
 
   return (
     <>
-      <div ref={backdropRef} className="artifact-reading-backdrop" aria-hidden="true" />
+      <div
+        ref={backdropRef}
+        className="artifact-reading-backdrop"
+        aria-hidden="true"
+        data-inspection-window-phase={phase}
+        data-artifact-window-phase={phase}
+      />
       <div
         ref={stageRef}
         className="artifact-reading-stage inspection-reading-stage"

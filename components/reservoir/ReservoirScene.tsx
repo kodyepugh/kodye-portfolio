@@ -2244,6 +2244,30 @@ export function ReservoirScene() {
 
   useEffect(() => {
     if (
+      !["closingInspection", "restoringInspection"].includes(
+        transitionState,
+      ) ||
+      preservedReservoirState
+    ) {
+      return;
+    }
+
+    const animationFrameId = requestAnimationFrame(() => {
+      pendingInspectionNavigationTargetRef.current = null;
+      inspectionRecoveryStartTimeRef.current = null;
+      inspectionRecoveryHandoffCommittedRef.current = false;
+      restorationElapsedRef.current = 0;
+      restorationProgressRef.current = 1;
+      setInspectionFooterReached(false);
+      setInspectedResourceId(null);
+      setTransitionState("idle");
+    });
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [preservedReservoirState, transitionState]);
+
+  useEffect(() => {
+    if (
       transitionState !== "closingInspection" ||
       !preservedReservoirState
     ) {
