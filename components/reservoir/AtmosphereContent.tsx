@@ -1,6 +1,7 @@
 import type { Ref } from "react";
 import type { Resource } from "@/types/content";
 import type { Collection } from "@/types/content";
+import { resolveImageInspection } from "@/lib/content/image-inspection";
 import { getResourceAtmosphereMetadata } from "@/lib/content/selectors";
 
 function getTypeLabel(type: string) {
@@ -42,6 +43,14 @@ export function AtmosphereContent({
         selectedCollection?.id,
       )
     : null;
+  const selectedImageResolution =
+    selectedResource?.inspectionKind === "image"
+      ? resolveImageInspection(selectedResource)
+      : null;
+  const selectedImageAsset =
+    selectedImageResolution?.status === "ready"
+      ? selectedImageResolution.asset
+      : null;
   const selectedNode = selectedResource ?? selectedCollection;
   if (!selectedNode) return null;
   const selectedType = selectedResource
@@ -58,6 +67,25 @@ export function AtmosphereContent({
     {
       label: selectedResource ? "Medium" : "Contents",
       value: selectedResource?.medium ?? selectedCollection?.description,
+    },
+    {
+      label: selectedResource ? "Format" : "Category",
+      value: selectedResource?.format ?? selectedCollection?.category,
+    },
+    {
+      label: "File",
+      value: selectedImageAsset?.filename,
+    },
+    {
+      label: "Dimensions",
+      value:
+        selectedImageAsset?.width && selectedImageAsset?.height
+          ? `${selectedImageAsset.width} × ${selectedImageAsset.height}px`
+          : undefined,
+    },
+    {
+      label: "MIME",
+      value: selectedImageAsset?.mimeType,
     },
     {
       label: "Collection",

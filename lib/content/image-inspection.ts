@@ -49,9 +49,11 @@ export function resolveImageInspection(
   assetById: typeof getAssetById = getAssetById,
 ): ImageInspectionResolution {
   const details: string[] = [];
-  const representations = getPublishedImageRepresentations(resource);
+  const representations = (resource.representations ?? [])
+    .slice()
+    .sort(compareRepresentations);
 
-  for (const representation of resource.representations ?? []) {
+  for (const representation of representations) {
     if (representation.kind !== "asset") {
       if (representation.published !== false) {
         details.push(
@@ -122,7 +124,7 @@ export function resolveImageInspection(
   }
 
   const reason =
-    resource.representations?.length && representations.length === 0
+    getPublishedImageRepresentations(resource).length > 0
       ? "The published image representation is unavailable."
       : resource.content?.kind === "media"
         ? "The media-content fallback is unavailable."

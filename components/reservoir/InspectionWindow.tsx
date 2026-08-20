@@ -7,23 +7,21 @@ import {
 } from "react";
 import type { AnimationEvent, CSSProperties } from "react";
 import type { Resource } from "@/types/content";
-import { getPublishedSupportingResources } from "@/lib/content/selectors";
-import {
-  getInspectionWindowDeployDuration,
-  getInspectionWindowRetractDuration,
-} from "@/lib/reservoir/reading";
-import { getResourceInspectionSurface } from "@/lib/reservoir/inspection";
+import { getPublishedResourceCollections, getPublishedSupportingResources } from "@/lib/content/selectors";
 import { BrandSymbol } from "../navigation/BrandSymbol";
 import { ReservoirFooterContent } from "../navigation/ReservoirFooter";
-import { InspectionSupportRail } from "./InspectionSupportRail";
+import { InspectionContextTray } from "./InspectionContextTray";
 import { InspectionWindowBody } from "./InspectionWindowBody";
-import { shouldShowInspectionSupportRail } from "@/lib/reservoir/inspection-support";
 import {
   createInspectionReturnFrame,
   getInspectionReturnPostContentOffset,
   getInspectionReturnScrollY,
   type InspectionReturnFrame,
 } from "@/lib/reservoir/inspection-return";
+import {
+  getInspectionWindowDeployDuration,
+  getInspectionWindowRetractDuration,
+} from "@/lib/reservoir/reading";
 
 export type InspectionWindowPhase = "deploying" | "reading" | "closing";
 
@@ -140,13 +138,12 @@ export function InspectionWindow({
   const [closeScrollY, setCloseScrollY] = useState(0);
   const titleId = `inspection-window-title-${resource.id}`;
   const bodyId = `inspection-window-body-${resource.id}`;
-  const supportingResources = getPublishedSupportingResources(resource.id);
+  const connections = getPublishedSupportingResources(resource.id);
+  const collections = getPublishedResourceCollections(resource.id);
   const deployDuration = getInspectionWindowDeployDuration(reducedMotion);
   const retractDuration = getInspectionWindowRetractDuration(reducedMotion);
-  const supportRailVisible = shouldShowInspectionSupportRail(
-    supportingResources.length,
-  );
-  const inspectionSurface = getResourceInspectionSurface(resource.inspectionKind);
+  const contextTrayVisible =
+    connections.length > 0 || collections.length > 0;
   const totalRevealDistance =
     revealMeasurements.controlPlaneHeight + revealMeasurements.footerHeight;
   const controlPlaneOffset = Math.max(
@@ -544,28 +541,28 @@ export function InspectionWindow({
               type="button"
               disabled={phase !== "reading"}
               onClick={beginClose}
+              aria-label="Close inspection"
+              title="Close inspection"
             >
-              <span>Close inspection</span>
               <span aria-hidden="true">×</span>
+              <span className="sr-only">Close inspection</span>
             </button>
 
             <div
               id={bodyId}
               className="artifact-window__body inspection-window__body-layout"
-              data-inspection-surface={inspectionSurface}
-              data-support-rail-visible={supportRailVisible}
-              data-support-rail-interactive={phase === "reading"}
-              data-supporting-resource-count={supportingResources.length}
-              data-supporting-resource-ids={supportingResources
-                .map((supportingResource) => supportingResource.targetResourceId)
-                .join(",")}
+              data-context-tray-visible={contextTrayVisible}
+              data-context-tray-interactive={phase === "reading"}
+              data-context-connections-count={connections.length}
+              data-context-collections-count={collections.length}
             >
               <div className="inspection-window__primary-body">
                 <InspectionWindowBody resource={resource} />
               </div>
-              <InspectionSupportRail
+              <InspectionContextTray
                 phase={phase}
-                supportingResources={supportingResources}
+                connections={connections}
+                collections={collections}
                 onNavigateToResource={navigateToSupportingResource}
               />
             </div>

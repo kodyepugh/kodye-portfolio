@@ -62,6 +62,7 @@ const {
 } = require(path.join(projectRoot, "lib/reservoir/resource-selection.ts"));
 const {
   getResourceById,
+  getPublishedResourceCollections,
   getPublishedSupportingResourcesFromRegistry,
 } = require(path.join(projectRoot, "lib/content/selectors.ts"));
 const {
@@ -201,8 +202,8 @@ const orderedImageResource = {
     {
       id: "qa-image-rep-early",
       kind: "asset",
-      assetId: "qa-missing-image-asset",
-      label: "Missing asset",
+      assetId: qaImageAssetFallback.id,
+      label: "Preferred representation",
       order: 1,
       published: true,
     },
@@ -257,11 +258,19 @@ const unavailableImageResource = {
       published: true,
     },
     {
+      id: "qa-image-rep-missing-source",
+      kind: "asset",
+      assetId: qaImageAssetMissingSource.id,
+      label: "Missing source",
+      order: 1,
+      published: true,
+    },
+    {
       id: "qa-image-rep-unpublished-doc",
       kind: "asset",
       assetId: qaImageAssetWrongKind.id,
       label: "Unpublished document",
-      order: 1,
+      order: 2,
       published: false,
     },
   ],
@@ -420,6 +429,7 @@ const invalidReferenceRegistry = {
   ],
 };
 const validSyntheticResult = validateContentRegistry(validSyntheticRegistry);
+const brandSymbolCollections = getPublishedResourceCollections(brandSymbol.id);
 
 const originalSnapshot = JSON.stringify({
   resource: nonArtifactDocument,
@@ -538,8 +548,8 @@ const checks = [
     "H ordered published image Resources pick the first usable representation",
     orderedImageResolution.status === "ready" &&
       orderedImageResolution.source === "representation" &&
-      orderedImageResolution.asset.id === qaImageAssetRepresentation.id &&
-      orderedImageResolution.representation?.id === "qa-image-rep-late",
+      orderedImageResolution.asset.id === qaImageAssetFallback.id &&
+      orderedImageResolution.representation?.id === "qa-image-rep-early",
   ],
   [
     "I media-content fallback resolves when no published representation is usable",
@@ -557,35 +567,40 @@ const checks = [
       ),
   ],
   [
-    "K canonical block order is preserved",
+    "K published collection memberships resolve in order",
+    brandSymbolCollections.map((collection) => collection.id).join(",") ===
+      "collection-web,collection-about-self",
+  ],
+  [
+    "L canonical block order is preserved",
     getStructuredDocumentBody(nonArtifactDocument).blocks
       .map((block) => block.id)
       .join(",") === structuredBlocks.map((block) => block.id).join(","),
   ],
   [
-    "L every supported structured block validates",
+    "M every supported structured block validates",
     validSyntheticResult.valid,
   ],
   [
-    "M invalid Resource references fail validation",
+    "N invalid Resource references fail validation",
     validateContentRegistry(invalidReferenceRegistry).errors.some((error) =>
       error.includes("references unknown Resource missing-resource"),
     ),
   ],
   [
-    "N unsupported inspection kinds do not open a structured surface",
+    "O unsupported inspection kinds do not open a structured surface",
     getResourceInspectionSurface(unsupportedResource.inspectionKind) === "unsupported" &&
       getReservoirResourceSelectionAction(unsupportedNode, unsupportedNode.id) ===
         "unsupported-resource-inspection",
   ],
   [
-    "O legacy case-study content resolves through the compatibility adapter",
+    "P legacy case-study content resolves through the compatibility adapter",
     bellabeat.content.kind === "case-study" &&
       getStructuredDocumentBody(bellabeat).source === "legacy-adapter" &&
       getStructuredDocumentBody(bellabeat).blocks.length > 0,
   ],
   [
-    "P opening selection is identity, membership, and status preserving",
+    "Q opening selection is identity, membership, and status preserving",
     openAction === "open-resource-inspection" &&
       JSON.stringify({
         resource: nonArtifactDocument,
@@ -593,7 +608,7 @@ const checks = [
       }) === originalSnapshot,
   ],
   [
-    "Q published supporting resources resolve through the canonical selector",
+    "R published supporting resources resolve through the canonical selector",
     supportEntries.length === 1 &&
       supportEntries[0].targetResourceId === supportTargetResource.id &&
       supportEntries[0].resource === supportTargetResource &&
@@ -602,24 +617,24 @@ const checks = [
       supportEntries[0].relationship.published !== false,
   ],
   [
-    "R unsupported target resources remain filtered from public support rails",
+    "S unsupported target resources remain filtered from public support rails",
     supportEntries.every((entry) => entry.resource.published === true) &&
       supportEntries.every((entry) => entry.resource.id !== supportHiddenTargetResource.id),
   ],
   [
-    "S support rail geometry is presence-driven",
+    "T support rail geometry is presence-driven",
     shouldShowInspectionSupportRail(0) === false &&
       shouldShowInspectionSupportRail(supportEntries.length) ===
         (supportEntries.length > 0),
   ],
   [
-    "T support rail controls are reading-only",
+    "U support rail controls are reading-only",
     isInspectionSupportRailInteractive("reading") &&
       !isInspectionSupportRailInteractive("deploying") &&
       !isInspectionSupportRailInteractive("closing"),
   ],
   [
-    "U duplicate support navigation is blocked while pending or closing",
+    "V duplicate support navigation is blocked while pending or closing",
     canRequestInspectionSupportNavigation("reading", null) &&
       !canRequestInspectionSupportNavigation(
         "reading",
@@ -628,7 +643,7 @@ const checks = [
       !canRequestInspectionSupportNavigation("closing", null),
   ],
   [
-    "V Inspection return frames associate only with their support-query context",
+    "W Inspection return frames associate only with their support-query context",
     consumedInspectionReturnFrame === inspectionReturnFrame &&
       getInspectionReturnFrame(
         inspectionReturnStore,
@@ -636,50 +651,50 @@ const checks = [
       ) === null,
   ],
   [
-    "W ordinary non-root queries keep Back available",
+    "X ordinary non-root queries keep Back available",
     shouldShowBackNavigationForQueryContext(
       ordinaryNestedQueryContext,
       false,
     ) === true,
   ],
   [
-    "X ordinary root-returning queries keep Back hidden",
+    "Y ordinary root-returning queries keep Back hidden",
     shouldShowBackNavigationForQueryContext(ordinaryRootQueryContext, false) ===
       false,
   ],
   [
-    "Y inspection-originated root-returning support queries show Back",
+    "Z inspection-originated root-returning support queries show Back",
     shouldShowBackNavigationForQueryContext(
       inspectionReturnQueryContext,
       true,
     ) === true,
   ],
   [
-    "Z Inspection return frames preserve canonical Resource identity",
+    "AA Inspection return frames preserve canonical Resource identity",
     inspectionReturnFrame.resourceId === supportSourceResource.id,
   ],
   [
-    "AA Inspection return reading state is bounded and restores proportionally",
+    "AB Inspection return reading state is bounded and restores proportionally",
     boundedInspectionReturnFrame.scrollY === 0 &&
       boundedInspectionReturnFrame.postContentProgress === 1 &&
       getInspectionReturnScrollY(inspectionReturnFrame, 400) === 400 &&
       getInspectionReturnPostContentOffset(inspectionReturnFrame, 600) === 300,
   ],
   [
-    "AB Home discards Inspection return state instead of restoring it",
+    "AC Home discards Inspection return state instead of restoring it",
     discardInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) &&
       getInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) ===
         null,
   ],
   [
-    "AC failed support queries leave no Inspection return frame",
+    "AD failed support queries leave no Inspection return frame",
     getInspectionReturnFrame(
       failedSupportQueryStore,
       supportQueryContextKey,
     ) === null,
   ],
   [
-    "AD unsupported destinations do not invalidate the inspectable source frame",
+    "AE unsupported destinations do not invalidate the inspectable source frame",
     !canInspectResource(unsupportedResource) &&
       canInspectResource(supportSourceResource) &&
       getInspectionReturnFrame(
@@ -688,7 +703,7 @@ const checks = [
       )?.resourceId === supportSourceResource.id,
   ],
   [
-    "AE Inspection return frames are consumed exactly once",
+    "AF Inspection return frames are consumed exactly once",
     consumedInspectionReturnFrame === inspectionReturnFrame &&
       consumeInspectionReturnFrame(
         inspectionReturnStore,
@@ -696,7 +711,7 @@ const checks = [
       ) === null,
   ],
   [
-    "AF Inspection return state does not mutate Artifact status or membership",
+    "AG Inspection return state does not mutate Artifact status or membership",
     JSON.stringify({
       source: supportSourceResource,
       target: supportTargetResource,
