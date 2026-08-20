@@ -102,8 +102,8 @@ export function InspectionWindow({
 }: InspectionWindowProps) {
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const dialogRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const contentRef = useRef<HTMLElement | null>(null);
   const controlPlaneRef = useRef<HTMLDivElement | null>(null);
   const footerRef = useRef<HTMLElement | null>(null);
   const postContentOffsetRef = useRef(0);
@@ -212,10 +212,10 @@ export function InspectionWindow({
         beginClose();
         return;
       }
-      if (event.key !== "Tab" || !dialogRef.current) return;
+      if (event.key !== "Tab" || !stageRef.current || !contentRef.current) return;
 
       const focusable = [
-        ...getFocusableElements(dialogRef.current),
+        ...getFocusableElements(contentRef.current),
         ...(footerInteractive && footerRef.current
           ? getFocusableElements(footerRef.current)
           : []),
@@ -372,10 +372,14 @@ export function InspectionWindow({
       <div
         ref={stageRef}
         className="artifact-reading-stage inspection-reading-stage"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         data-inspection-window-phase={phase}
         data-artifact-window-phase={phase}
         data-inspection-scroll-phase={revealPhase}
         data-artifact-scroll-phase={revealPhase}
+        aria-busy={phase !== "reading"}
         data-post-content-offset={postContentOffset.toFixed(3)}
         data-symbol-reveal-distance={revealMeasurements.controlPlaneHeight.toFixed(3)}
         data-footer-reveal-distance={revealMeasurements.footerHeight.toFixed(3)}
@@ -417,13 +421,8 @@ export function InspectionWindow({
           onAnimationEnd={completeDeployment}
         >
           <article
-            ref={dialogRef}
+            ref={contentRef}
             className="artifact-window inspection-window"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            aria-describedby={bodyId}
-            aria-busy={phase !== "reading"}
             data-phase={phase}
             data-inspection-kind={resource.inspectionKind}
             data-artifact-status={resource.isArtifact}
