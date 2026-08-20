@@ -843,7 +843,7 @@ body.artifact-reading-mode .reservoir-study {
   opacity: 0;
   animation: inspection-reading-backdrop-enter
     var(--artifact-window-deploy-duration)
-    var(--artifact-window-deploy-easing) both;
+    linear both;
 }
 
 .inspection-reading-backdrop[data-inspection-window-phase="reading"] {
@@ -1381,6 +1381,26 @@ body.artifact-reading-mode .reservoir-study {
 @keyframes inspection-reading-backdrop-enter {
   from {
     opacity: 0;
+  }
+
+  12% {
+    opacity: 0.24;
+  }
+
+  28% {
+    opacity: 0.55;
+  }
+
+  45% {
+    opacity: 0.8;
+  }
+
+  60% {
+    opacity: 0.95;
+  }
+
+  70% {
+    opacity: 1;
   }
 
   to {
