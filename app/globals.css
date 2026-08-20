@@ -1381,16 +1381,24 @@ body.artifact-reading-mode .reservoir-study {
     opacity: 0;
   }
 
+  10% {
+    opacity: 0.18;
+  }
+
   20% {
-    opacity: 0.08;
+    opacity: 0.42;
+  }
+
+  35% {
+    opacity: 0.68;
   }
 
   55% {
-    opacity: 0.58;
+    opacity: 0.86;
   }
 
-  80% {
-    opacity: 0.9;
+  75% {
+    opacity: 0.96;
   }
 
   to {
