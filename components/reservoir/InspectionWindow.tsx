@@ -574,6 +574,26 @@ export function InspectionWindow({
             <BrandSymbol variant="artifact-terminal" />
           </div>
         </div>
+        <button
+          ref={closeButtonRef}
+          className="artifact-window__close inspection-window__close"
+          type="button"
+          disabled={phase !== "reading"}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            markClosePointer();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            markCloseClick();
+            beginClose();
+          }}
+          aria-label="Close inspection"
+          title="Close inspection"
+        >
+          <span aria-hidden="true">×</span>
+          <span className="sr-only">Close inspection</span>
+        </button>
         <div
           className="artifact-window-shell inspection-window-shell"
           data-inspection-window-phase={phase}
@@ -592,29 +612,6 @@ export function InspectionWindow({
             <h1 id={titleId} className="sr-only">
               {resource.title}
             </h1>
-            <div className="inspection-window__chrome">
-              <button
-                ref={closeButtonRef}
-                className="artifact-window__close inspection-window__close"
-                type="button"
-                disabled={phase !== "reading"}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  markClosePointer();
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  markCloseClick();
-                  beginClose();
-                }}
-                aria-label="Close inspection"
-                title="Close inspection"
-              >
-                <span aria-hidden="true">×</span>
-                <span className="sr-only">Close inspection</span>
-              </button>
-            </div>
-
             <div
               id={bodyId}
               className="artifact-window__body inspection-window__body-layout"

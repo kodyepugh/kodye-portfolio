@@ -861,6 +861,8 @@ body.artifact-reading-mode .reservoir-study {
   --artifact-window-responsive-top: 18svh;
   --artifact-window-atmosphere-bottom: 0px;
   --artifact-window-atmosphere-gap: clamp(16px, 1.6vw, 28px);
+  --artifact-window-inline-padding: clamp(20px, 6vw, 96px);
+  --artifact-window-top-padding: clamp(18px, 2.5vw, 38px);
   --artifact-window-deploy-easing: cubic-bezier(0.2, 0.76, 0.2, 1);
   --artifact-window-retract-easing: cubic-bezier(0.58, 0, 0.86, 0.42);
   --artifact-window-top: max(
@@ -905,10 +907,9 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .artifact-window {
-  --artifact-window-inline-padding: clamp(20px, 6vw, 96px);
-  --artifact-window-top-padding: clamp(18px, 2.5vw, 38px);
+  --artifact-window-end-buffer: clamp(32px, 5svh, 64px);
   position: relative;
-  min-height: calc(190svh - var(--artifact-window-top));
+  min-height: max(0px, calc(100dvh - var(--artifact-window-top)));
   padding: var(--artifact-window-top-padding)
     var(--artifact-window-inline-padding) 0;
   background: var(--artifact-surface);
@@ -917,9 +918,12 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .artifact-window__close {
-  position: absolute;
-  top: 0;
-  right: 0;
+  position: fixed;
+  top: calc(
+    var(--artifact-window-top) + var(--artifact-window-top-padding)
+  );
+  right: var(--artifact-window-inline-padding);
+  z-index: 60;
   display: grid;
   place-items: center;
   width: 44px;
@@ -939,15 +943,6 @@ body.artifact-reading-mode .reservoir-study {
   transition:
     color 140ms ease-out,
     background-color 140ms ease-out;
-}
-
-.inspection-window__chrome {
-  position: sticky;
-  top: var(--artifact-close-top);
-  z-index: 60;
-  width: 100%;
-  height: 0;
-  pointer-events: none;
 }
 
 .artifact-window__close:hover,
@@ -983,7 +978,7 @@ body.artifact-reading-mode .reservoir-study {
   display: grid;
   gap: clamp(100px, 20svh, 220px);
   padding-top: clamp(46px, 8svh, 92px);
-  padding-bottom: clamp(120px, 22svh, 240px);
+  padding-bottom: var(--artifact-window-end-buffer);
 }
 
 .inspection-window__primary-body {
