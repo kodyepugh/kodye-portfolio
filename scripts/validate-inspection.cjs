@@ -80,6 +80,8 @@ const {
   getResourceById,
   getPublishedResourceCollections,
   getPublishedSupportingResourcesFromRegistry,
+  getPublishedResourcesSupportedByFromRegistry,
+  getPublishedResourceContextFromRegistry,
 } = require(path.join(projectRoot, "lib/content/selectors.ts"));
 const {
   RESOURCE_IDS,
@@ -549,6 +551,40 @@ const supportEntries = getPublishedSupportingResourcesFromRegistry(
   supportRegistry,
   supportSourceResource.id,
 );
+const incomingSupportEntries = getPublishedResourcesSupportedByFromRegistry(
+  supportRegistry,
+  supportTargetResource.id,
+);
+const deduplicatedSupportRegistry = {
+  ...supportRegistry,
+  resourceSupportRelations: [
+    ...supportRegistry.resourceSupportRelations,
+    {
+      id: "qa-inspection-support-rel-visible-duplicate",
+      sourceResourceId: supportSourceResource.id,
+      targetResourceId: supportTargetResource.id,
+      relationshipType: "supporting",
+      order: 3,
+      published: true,
+      label: "Duplicate",
+      role: "supporting-report",
+    },
+  ],
+};
+const bidirectionalSupportContext = getPublishedResourceContextFromRegistry(
+  deduplicatedSupportRegistry,
+  supportTargetResource.id,
+);
+const inspectionStyles = fs.readFileSync(
+  path.join(projectRoot, "app/globals.css"),
+  "utf8",
+);
+const sharedInspectionBodyRule =
+  inspectionStyles.match(/\.artifact-window__body\s*\{([^}]*)\}/)?.[1] ?? "";
+const inspectionCloseRule =
+  inspectionStyles.match(/\.inspection-window__close-row\s*\{([^}]*)\}/)?.[1] ?? "";
+const artifactCloseRule =
+  inspectionStyles.match(/\.artifact-window__close\s*\{([^}]*)\}/)?.[1] ?? "";
 const validSyntheticRegistry = {
   ...contentRegistry,
   resources: [
@@ -838,6 +874,33 @@ const checks = [
     "V unsupported target resources remain filtered from public support rails",
     supportEntries.every((entry) => entry.resource.published === true) &&
       supportEntries.every((entry) => entry.resource.id !== supportHiddenTargetResource.id),
+  ],
+  [
+    "incoming support context exposes the canonical source resource",
+    incomingSupportEntries.length === 1 &&
+      incomingSupportEntries[0].resource === supportSourceResource &&
+      incomingSupportEntries[0].relationshipId ===
+        "qa-inspection-support-rel-visible",
+  ],
+  [
+    "bidirectional context deduplicates semantic resources",
+    bidirectionalSupportContext.length === 1 &&
+      bidirectionalSupportContext[0].resource === supportSourceResource &&
+      bidirectionalSupportContext[0].direction === "incoming",
+  ],
+  [
+    "shared Inspection body owns the full available frame",
+    /\bwidth:\s*100%;/.test(sharedInspectionBodyRule) &&
+      /\bmargin-inline:\s*0;/.test(sharedInspectionBodyRule) &&
+      inspectionStyles.includes("--inspection-primary-track") &&
+      inspectionStyles.includes("minmax(0, var(--inspection-primary-track))"),
+  ],
+  [
+    "Inspection close uses a real sticky hit area",
+    /\bposition:\s*sticky;/.test(inspectionCloseRule) &&
+      /\bheight:\s*44px;/.test(inspectionCloseRule) &&
+      /\bmargin:\s*0 0 -44px;/.test(inspectionCloseRule) &&
+      !/\bposition:\s*fixed;/.test(artifactCloseRule),
   ],
   [
     "W support rail geometry is presence-driven",

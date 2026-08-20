@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { PublishedSupportingResource } from "@/lib/content/selectors";
+import type { PublishedResourceContext } from "@/lib/content/selectors";
 import type { Collection } from "@/types/content";
 import {
   getInspectionContextAvailability,
@@ -16,7 +16,7 @@ type InspectionContextView = "resources" | "collections";
 
 type InspectionContextTrayProps = {
   phase: InspectionWindowPhase;
-  resources: readonly PublishedSupportingResource[];
+  resources: readonly PublishedResourceContext[];
   collections: readonly Collection[];
   onNavigateToResource: (resourceId: string) => void;
   onNavigateToCollection: (collectionId: string) => void;
@@ -62,7 +62,7 @@ function ObjectPills({
   onNavigateToCollection,
 }: {
   view: InspectionContextView;
-  resources: readonly PublishedSupportingResource[];
+  resources: readonly PublishedResourceContext[];
   collections: readonly Collection[];
   interactive: boolean;
   onNavigateToResource: (resourceId: string) => void;

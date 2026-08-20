@@ -81,8 +81,11 @@ const {
   getCollectionById,
   getCollectionByAddress,
   getCollectionMembers,
+  getPublishedResourceCollections,
   getPublishedSupportingResources,
   getPublishedSupportingResourcesFromRegistry,
+  getPublishedResourcesSupportedByFromRegistry,
+  getPublishedResourceContextFromRegistry,
   getResourceByAddress,
   getResourceById,
   getResourceRepresentations,
@@ -207,6 +210,31 @@ const syntheticPublishedSupportingResources =
     syntheticSupportRegistry,
     syntheticSupportSource.id,
   );
+const syntheticPublishedIncomingResources =
+  getPublishedResourcesSupportedByFromRegistry(
+    syntheticSupportRegistry,
+    syntheticSupportTargetAlpha.id,
+  );
+const syntheticDeduplicatedSupportRegistry = {
+  ...syntheticSupportRegistry,
+  resourceSupportRelations: [
+    ...syntheticSupportRegistry.resourceSupportRelations,
+    {
+      id: "qa-support-rel-alpha-duplicate",
+      sourceResourceId: syntheticSupportSource.id,
+      targetResourceId: syntheticSupportTargetAlpha.id,
+      relationshipType: "supporting",
+      order: 4,
+      published: true,
+      label: "Duplicate",
+      role: "supporting-report",
+    },
+  ],
+};
+const syntheticResourceContext = getPublishedResourceContextFromRegistry(
+  syntheticDeduplicatedSupportRegistry,
+  syntheticSupportSource.id,
+);
 const testCamera = (() => {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
   camera.position.set(0, 0, 10);
@@ -322,6 +350,38 @@ const checks = [
       syntheticPublishedSupportingResources.every(
         (entry) => entry.resource.published === true,
       ),
+  ],
+  [
+    "incoming support relationships expose the canonical source resource",
+    syntheticPublishedIncomingResources.length === 1 &&
+      syntheticPublishedIncomingResources[0].resource === syntheticSupportSource &&
+      syntheticPublishedIncomingResources[0].relationshipId ===
+        "qa-support-rel-alpha",
+  ],
+  [
+    "resource context combines directions without duplicate semantic resources",
+    syntheticResourceContext.map((entry) => entry.resource.id).join(",") ===
+      `${syntheticSupportTargetAlpha.id},${syntheticSupportTargetBeta.id}` &&
+      syntheticResourceContext.length === 2 &&
+      syntheticResourceContext.every((entry) => entry.resource.published === true),
+  ],
+  [
+    "Bellabeat support graph remains one directional semantic edge",
+    contentRegistry.resourceSupportRelations.filter(
+      (relationship) =>
+        relationship.sourceResourceId === ARTIFACT_IDS.bellabeat &&
+        relationship.targetResourceId === RESOURCE_IDS.bellabeatRepository,
+    ).length === 1 &&
+      contentRegistry.resourceSupportRelations.filter(
+        (relationship) =>
+          relationship.sourceResourceId === RESOURCE_IDS.bellabeatRepository &&
+          relationship.targetResourceId === ARTIFACT_IDS.bellabeat,
+      ).length === 0,
+  ],
+  [
+    "support relationships do not create Collection context",
+    getPublishedResourceCollections(RESOURCE_IDS.bellabeatRepository).length ===
+      0,
   ],
   [
     "source records resolve independently",

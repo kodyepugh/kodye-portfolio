@@ -61,6 +61,18 @@ export type PublishedSupportingResource = {
   resource: Resource;
 };
 
+export type PublishedResourceContext = {
+  relationshipId: string;
+  resourceId: string;
+  direction: "incoming" | "outgoing";
+  relationshipType: ResourceSupportRelationship["relationshipType"];
+  role?: string;
+  label?: string;
+  order?: number;
+  relationship: ResourceSupportRelationship;
+  resource: Resource;
+};
+
 export type ResolvedCollectionMember =
   | {
       kind: "artifact";
@@ -102,6 +114,18 @@ function compareSupportOrder(
     (a.order ?? Number.MAX_SAFE_INTEGER) -
       (b.order ?? Number.MAX_SAFE_INTEGER) ||
     a.relationshipId.localeCompare(b.relationshipId)
+  );
+}
+
+function compareResourceContextOrder(
+  a: Pick<PublishedResourceContext, "order" | "relationshipId" | "direction">,
+  b: Pick<PublishedResourceContext, "order" | "relationshipId" | "direction">,
+) {
+  return (
+    (a.order ?? Number.MAX_SAFE_INTEGER) -
+      (b.order ?? Number.MAX_SAFE_INTEGER) ||
+    a.relationshipId.localeCompare(b.relationshipId) ||
+    a.direction.localeCompare(b.direction)
   );
 }
 
@@ -290,6 +314,95 @@ export function getPublishedSupportingResources(resourceId: string) {
     contentRegistry,
     resourceId,
   );
+}
+
+export function getPublishedResourcesSupportedByFromRegistry(
+  registry: Pick<ContentRegistry, "resources" | "resourceSupportRelations">,
+  resourceId: string,
+) {
+  const resourceById = new Map(
+    registry.resources.map((resource) => [resource.id, resource] as const),
+  );
+
+  return registry.resourceSupportRelations
+    .filter((relationship) => relationship.targetResourceId === resourceId)
+    .filter((relationship) => relationship.published !== false)
+    .flatMap((relationship) => {
+      const source = resourceById.get(relationship.sourceResourceId);
+      const target = resourceById.get(relationship.targetResourceId);
+      if (
+        !source ||
+        source.published !== true ||
+        !target ||
+        target.published !== true
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          relationshipId: relationship.id,
+          sourceResourceId: source.id,
+          sourceResourceTitle: source.title,
+          sourceResourceType: source.type,
+          sourceResourceInspectionKind: source.inspectionKind,
+          relationshipType: relationship.relationshipType,
+          role: relationship.role,
+          label: relationship.label,
+          order: relationship.order,
+          relationship,
+          resource: source,
+        },
+      ];
+    })
+    .sort(compareSupportOrder);
+}
+
+export function getPublishedResourceContextFromRegistry(
+  registry: Pick<ContentRegistry, "resources" | "resourceSupportRelations">,
+  resourceId: string,
+): PublishedResourceContext[] {
+  const outgoing: PublishedResourceContext[] =
+    getPublishedSupportingResourcesFromRegistry(registry, resourceId).map(
+      (entry) => ({
+        relationshipId: entry.relationshipId,
+        resourceId: entry.resource.id,
+        direction: "outgoing",
+        relationshipType: entry.relationshipType,
+        role: entry.role,
+        label: entry.label,
+        order: entry.order,
+        relationship: entry.relationship,
+        resource: entry.resource,
+      }),
+    );
+  const incoming: PublishedResourceContext[] =
+    getPublishedResourcesSupportedByFromRegistry(registry, resourceId).map(
+      (entry) => ({
+        relationshipId: entry.relationshipId,
+        resourceId: entry.resource.id,
+        direction: "incoming",
+        relationshipType: entry.relationshipType,
+        role: entry.role,
+        label: entry.label,
+        order: entry.order,
+        relationship: entry.relationship,
+        resource: entry.resource,
+      }),
+    );
+  const seenResourceIds = new Set<string>();
+
+  return [...outgoing, ...incoming]
+    .sort(compareResourceContextOrder)
+    .filter((entry) => {
+      if (seenResourceIds.has(entry.resourceId)) return false;
+      seenResourceIds.add(entry.resourceId);
+      return true;
+    });
+}
+
+export function getPublishedResourceContext(resourceId: string) {
+  return getPublishedResourceContextFromRegistry(contentRegistry, resourceId);
 }
 
 export function getSupportingResourcesForResource(resourceId: string) {

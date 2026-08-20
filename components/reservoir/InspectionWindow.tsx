@@ -7,7 +7,10 @@ import {
 } from "react";
 import type { AnimationEvent, CSSProperties } from "react";
 import type { Resource } from "@/types/content";
-import { getPublishedResourceCollections, getPublishedSupportingResources } from "@/lib/content/selectors";
+import {
+  getPublishedResourceCollections,
+  getPublishedResourceContext,
+} from "@/lib/content/selectors";
 import { BrandSymbol } from "../navigation/BrandSymbol";
 import { ReservoirFooterContent } from "../navigation/ReservoirFooter";
 import { InspectionContextTray } from "./InspectionContextTray";
@@ -148,7 +151,7 @@ export function InspectionWindow({
   const [closeScrollY, setCloseScrollY] = useState(0);
   const titleId = `inspection-window-title-${resource.id}`;
   const bodyId = `inspection-window-body-${resource.id}`;
-  const resources = getPublishedSupportingResources(resource.id);
+  const resources = getPublishedResourceContext(resource.id);
   const collections = getPublishedResourceCollections(resource.id);
   const deployDuration = getInspectionWindowDeployDuration(reducedMotion);
   const retractDuration = getInspectionWindowRetractDuration(reducedMotion);
@@ -223,6 +226,26 @@ export function InspectionWindow({
       closeClickCountRef.current,
     );
     stage.dataset.inspectionCloseClickReceivedAt = String(performance.now());
+  }, []);
+
+  const markClosePointerUp = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.dataset.inspectionClosePointerUpCount = String(
+      Number(stage.dataset.inspectionClosePointerUpCount ?? 0) + 1,
+    );
+    stage.dataset.inspectionClosePointerUpReceivedAt = String(performance.now());
+  }, []);
+
+  const markClosePointerCancel = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.dataset.inspectionClosePointerCancelCount = String(
+      Number(stage.dataset.inspectionClosePointerCancelCount ?? 0) + 1,
+    );
+    stage.dataset.inspectionClosePointerCancelReceivedAt = String(
+      performance.now(),
+    );
   }, []);
 
   useLayoutEffect(() => {
@@ -574,26 +597,6 @@ export function InspectionWindow({
             <BrandSymbol variant="artifact-terminal" />
           </div>
         </div>
-        <button
-          ref={closeButtonRef}
-          className="artifact-window__close inspection-window__close"
-          type="button"
-          disabled={phase !== "reading"}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            markClosePointer();
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-            markCloseClick();
-            beginClose();
-          }}
-          aria-label="Close inspection"
-          title="Close inspection"
-        >
-          <span aria-hidden="true">×</span>
-          <span className="sr-only">Close inspection</span>
-        </button>
         <div
           className="artifact-window-shell inspection-window-shell"
           data-inspection-window-phase={phase}
@@ -609,6 +612,36 @@ export function InspectionWindow({
             data-inspection-kind={resource.inspectionKind}
             data-artifact-status={resource.isArtifact}
           >
+            <div className="inspection-window__close-row">
+              <button
+                ref={closeButtonRef}
+                className="artifact-window__close inspection-window__close"
+                type="button"
+                disabled={phase !== "reading"}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  markClosePointer();
+                }}
+                onPointerUp={(event) => {
+                  event.stopPropagation();
+                  markClosePointerUp();
+                }}
+                onPointerCancel={(event) => {
+                  event.stopPropagation();
+                  markClosePointerCancel();
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  markCloseClick();
+                  beginClose();
+                }}
+                aria-label="Close inspection"
+                title="Close inspection"
+              >
+                <span aria-hidden="true">×</span>
+                <span className="sr-only">Close inspection</span>
+              </button>
+            </div>
             <h1 id={titleId} className="sr-only">
               {resource.title}
             </h1>
