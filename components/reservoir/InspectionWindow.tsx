@@ -16,6 +16,7 @@ import { BrandSymbol } from "../navigation/BrandSymbol";
 import { ReservoirFooterContent } from "../navigation/ReservoirFooter";
 import { InspectionSupportRail } from "./InspectionSupportRail";
 import { InspectionWindowBody } from "./InspectionWindowBody";
+import { shouldShowInspectionSupportRail } from "@/lib/reservoir/inspection-support";
 
 export type InspectionWindowPhase = "deploying" | "reading" | "closing";
 
@@ -124,7 +125,9 @@ export function InspectionWindow({
   const supportingResources = getPublishedSupportingResources(resource.id);
   const deployDuration = getInspectionWindowDeployDuration(reducedMotion);
   const retractDuration = getInspectionWindowRetractDuration(reducedMotion);
-  const supportRailVisible = phase === "reading" && supportingResources.length > 0;
+  const supportRailVisible = shouldShowInspectionSupportRail(
+    supportingResources.length,
+  );
   const totalRevealDistance =
     revealMeasurements.controlPlaneHeight + revealMeasurements.footerHeight;
   const controlPlaneOffset = Math.max(
@@ -204,9 +207,12 @@ export function InspectionWindow({
   }, []);
 
   useEffect(() => {
-    if (phase !== "reading") return;
+    if (phase === "reading") {
+      closeButtonRef.current?.focus({ preventScroll: true });
+      return;
+    }
 
-    closeButtonRef.current?.focus({ preventScroll: true });
+    stageRef.current?.focus({ preventScroll: true });
   }, [phase]);
 
   useEffect(() => {
@@ -381,6 +387,7 @@ export function InspectionWindow({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         data-inspection-window-phase={phase}
         data-artifact-window-phase={phase}
         data-inspection-scroll-phase={revealPhase}
@@ -451,6 +458,7 @@ export function InspectionWindow({
               id={bodyId}
               className="artifact-window__body inspection-window__body-layout"
               data-support-rail-visible={supportRailVisible}
+              data-support-rail-interactive={phase === "reading"}
               data-supporting-resource-count={supportingResources.length}
               data-supporting-resource-ids={supportingResources
                 .map((supportingResource) => supportingResource.targetResourceId)

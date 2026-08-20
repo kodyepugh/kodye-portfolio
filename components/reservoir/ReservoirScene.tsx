@@ -91,6 +91,10 @@ import {
   getReservoirRestoreDuration,
   getReservoirRestoreProgress,
 } from "@/lib/reservoir/reading";
+import {
+  canRequestInspectionSupportNavigation,
+  type InspectionWindowPhase,
+} from "@/lib/reservoir/inspection-support";
 import { getReservoirResourceSelectionAction } from "@/lib/reservoir/resource-selection";
 import { canInspectResource } from "@/lib/reservoir/inspection";
 import type {
@@ -2205,7 +2209,20 @@ export function ReservoirScene() {
 
   const requestInspectionNavigation = useCallback(
     (resourceId: string) => {
-      if (transitionState !== "readingInspection") return;
+      const inspectionWindowPhase: InspectionWindowPhase =
+        transitionState === "readingInspection"
+          ? "reading"
+          : transitionState === "deployingInspection"
+            ? "deploying"
+            : "closing";
+      if (
+        !canRequestInspectionSupportNavigation(
+          inspectionWindowPhase,
+          pendingInspectionNavigationTargetRef.current,
+        )
+      ) {
+        return;
+      }
       pendingInspectionNavigationTargetRef.current = resourceId;
       if (interaction.current) {
         interaction.current.dataset.inspectionExitIntent =
@@ -2230,13 +2247,19 @@ export function ReservoirScene() {
       const navigationTarget =
         pendingInspectionNavigationTargetRef.current ?? null;
       if (navigationTarget) {
-        pendingInspectionNavigationTargetRef.current = null;
-        restorationElapsedRef.current = 0;
-        restorationProgressRef.current = 0;
-        setPreservedReservoirState(null);
-        setInspectedResourceId(null);
-        setTransitionState("idle");
-        requestDirectResourceRef.current(navigationTarget);
+        const started = requestDirectResourceRef.current(navigationTarget);
+        if (started) {
+          pendingInspectionNavigationTargetRef.current = null;
+          restorationElapsedRef.current = 0;
+          restorationProgressRef.current = 0;
+          setPreservedReservoirState(null);
+          setInspectedResourceId(null);
+        } else {
+          pendingInspectionNavigationTargetRef.current = null;
+          restorationElapsedRef.current = 0;
+          restorationProgressRef.current = 0;
+          setTransitionState("restoringInspection");
+        }
         return;
       }
       restorationElapsedRef.current = 0;

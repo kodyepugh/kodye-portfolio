@@ -61,6 +61,14 @@ const {
   getPublishedSupportingResourcesFromRegistry,
 } = require(path.join(projectRoot, "lib/content/selectors.ts"));
 const {
+  shouldShowInspectionSupportRail,
+  isInspectionSupportRailInteractive,
+  canRequestInspectionSupportNavigation,
+} = require(path.join(
+  projectRoot,
+  "lib/reservoir/inspection-support.ts",
+));
+const {
   validateContentRegistry,
 } = require(path.join(projectRoot, "lib/content/validation.ts"));
 
@@ -298,6 +306,27 @@ const checks = [
     "M unsupported target resources remain filtered from public support rails",
     supportEntries.every((entry) => entry.resource.published === true) &&
       supportEntries.every((entry) => entry.resource.id !== supportHiddenTargetResource.id),
+  ],
+  [
+    "N support rail geometry is presence-driven",
+    shouldShowInspectionSupportRail(0) === false &&
+      shouldShowInspectionSupportRail(supportEntries.length) ===
+        (supportEntries.length > 0),
+  ],
+  [
+    "O support rail controls are reading-only",
+    isInspectionSupportRailInteractive("reading") &&
+      !isInspectionSupportRailInteractive("deploying") &&
+      !isInspectionSupportRailInteractive("closing"),
+  ],
+  [
+    "P duplicate support navigation is blocked while pending or closing",
+    canRequestInspectionSupportNavigation("reading", null) &&
+      !canRequestInspectionSupportNavigation(
+        "reading",
+        supportTargetResource.id,
+      ) &&
+      !canRequestInspectionSupportNavigation("closing", null),
   ],
 ];
 

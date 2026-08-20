@@ -1,5 +1,8 @@
 import type { PublishedSupportingResource } from "@/lib/content/selectors";
-import type { InspectionWindowPhase } from "./InspectionWindow";
+import {
+  isInspectionSupportRailInteractive,
+  type InspectionWindowPhase,
+} from "@/lib/reservoir/inspection-support";
 
 type InspectionSupportRailProps = {
   phase: InspectionWindowPhase;
@@ -19,15 +22,18 @@ export function InspectionSupportRail({
   supportingResources,
   onNavigateToResource,
 }: InspectionSupportRailProps) {
-  if (phase !== "reading" || supportingResources.length === 0) {
+  if (supportingResources.length === 0) {
     return null;
   }
+
+  const interactive = isInspectionSupportRailInteractive(phase);
 
   return (
     <aside
       className="inspection-window__support-region"
       aria-labelledby="inspection-support-rail-title"
       data-supporting-resource-region="visible"
+      data-supporting-resource-interactive={interactive}
       data-supporting-resource-count={supportingResources.length}
       data-supporting-resource-ids={supportingResources
         .map((supportingResource) => supportingResource.targetResourceId)
@@ -49,6 +55,8 @@ export function InspectionSupportRail({
               key={supportingResource.relationshipId}
               className="inspection-support-brick"
               type="button"
+              disabled={!interactive}
+              aria-disabled={!interactive}
               aria-label={`Open supporting resource ${supportingResource.targetResourceTitle}`}
               onClick={() =>
                 onNavigateToResource(supportingResource.targetResourceId)
