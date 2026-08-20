@@ -3908,7 +3908,7 @@ export function ReservoirScene() {
       data-input-locked={inputLocked}
       data-content-open={inspectionWindowPhase !== null}
       data-atmosphere-bottom={atmosphereBottom.toFixed(3)}
-      data-artifact-window-atmosphere-gap="clamp(24px, 3.2vw, 48px)"
+      data-artifact-window-atmosphere-gap="clamp(22px, 2.4vw, 38px)"
       data-reading-mode={transitionState === "readingInspection"}
       data-inspection-footer-reached={inspectionFooterReached}
       data-artifact-footer-reached={inspectionFooterReached}
