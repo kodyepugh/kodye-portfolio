@@ -1,7 +1,4 @@
-import type {
-  Resource,
-  ResourceInspectionKind,
-} from "../../types/content";
+import type { Resource, ResourceInspectionKind } from "../../types/content";
 
 export type ResourceInspectionSurface =
   | "structured-document"
@@ -26,6 +23,6 @@ export function getResourceInspectionSurface(
   }
 }
 
-export function canInspectResource(resource: Resource) {
+export function canInspectResource(resource: Pick<Resource, "inspectionKind">) {
   return getResourceInspectionSurface(resource.inspectionKind) !== "unsupported";
 }

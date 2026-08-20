@@ -29,6 +29,7 @@ import {
   getCollectionNodeTransitionProgress,
 } from "@/lib/reservoir/collection-entry";
 import type { CollectionReconstitutionPhase } from "@/lib/reservoir/collection-entry";
+import { canInspectResource } from "@/lib/reservoir/inspection";
 import { RESERVOIR_THEME } from "@/lib/reservoir/theme";
 import type { Collection } from "@/types/content";
 import type { Resource } from "@/types/content";
@@ -575,7 +576,7 @@ export function ReservoirSphere({
             surfaced={surfaced}
             interactionEnabled={interactionEnabled && surfaced}
             continuationCueEnabled={
-              continuationCueEnabled && node.kind === "artifact"
+              continuationCueEnabled && canInspectResource(node)
             }
             interactionRevisionRef={interactionRevisionRef}
             diagnosticsRef={diagnosticsRef}

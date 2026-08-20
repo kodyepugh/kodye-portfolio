@@ -201,6 +201,10 @@ export function InspectionWindow({
     if (phase !== "reading") return;
 
     closeButtonRef.current?.focus({ preventScroll: true });
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "reading") return;
 
     function handleDialogKeyboard(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -210,26 +214,37 @@ export function InspectionWindow({
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
 
-      const focusable = getFocusableElements(dialogRef.current);
+      const focusable = [
+        ...getFocusableElements(dialogRef.current),
+        ...(footerInteractive && footerRef.current
+          ? getFocusableElements(footerRef.current)
+          : []),
+      ];
       if (focusable.length === 0) {
         event.preventDefault();
         closeButtonRef.current?.focus({ preventScroll: true });
         return;
       }
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      const currentElement =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      const currentIndex =
+        currentElement === null ? -1 : focusable.indexOf(currentElement);
+      const nextIndex = event.shiftKey
+        ? currentIndex <= 0
+          ? focusable.length - 1
+          : currentIndex - 1
+        : currentIndex === -1 || currentIndex === focusable.length - 1
+          ? 0
+          : currentIndex + 1;
+      event.preventDefault();
+      focusable[nextIndex]?.focus({ preventScroll: true });
     }
 
     window.addEventListener("keydown", handleDialogKeyboard);
     return () => window.removeEventListener("keydown", handleDialogKeyboard);
-  }, [beginClose, phase]);
+  }, [beginClose, footerInteractive, phase]);
 
   useLayoutEffect(() => {
     const controlPlane = controlPlaneRef.current;

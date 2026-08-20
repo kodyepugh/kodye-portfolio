@@ -51,6 +51,9 @@ const {
   getResourceInspectionSurface,
 } = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
 const {
+  canInspectResource,
+} = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
+const {
   getReservoirResourceSelectionAction,
 } = require(path.join(projectRoot, "lib/reservoir/resource-selection.ts"));
 const {
@@ -63,6 +66,9 @@ const {
 const about = getResourceById("artifact-about");
 const bellabeat = getResourceById("artifact-bellabeat-wellness-analysis");
 const brandSymbol = getResourceById("artifact-kodyepugh-symbol");
+const imageResource = contentRegistry.resources.find(
+  (resource) => resource.inspectionKind === "image",
+);
 const structuredBlocks = [
   { id: "heading", type: "heading", level: 2, text: "Heading" },
   { id: "paragraph", type: "paragraph", text: "Paragraph" },
@@ -170,35 +176,43 @@ const checks = [
       getResourceInspectionSurface("video") === "unsupported",
   ],
   [
-    "E canonical block order is preserved",
+    "E supported surfaces are inspectable and unsupported surfaces are not",
+    imageResource !== undefined &&
+      canInspectResource(about) &&
+      canInspectResource(nonArtifactDocument) &&
+      canInspectResource(imageResource) &&
+      !canInspectResource(unsupportedResource),
+  ],
+  [
+    "F canonical block order is preserved",
     getStructuredDocumentBody(nonArtifactDocument).blocks
       .map((block) => block.id)
       .join(",") === structuredBlocks.map((block) => block.id).join(","),
   ],
   [
-    "F every supported structured block validates",
+    "G every supported structured block validates",
     validSyntheticResult.valid,
   ],
   [
-    "G invalid Resource references fail validation",
+    "H invalid Resource references fail validation",
     validateContentRegistry(invalidReferenceRegistry).errors.some((error) =>
       error.includes("references unknown Resource missing-resource"),
     ),
   ],
   [
-    "H unsupported inspection kinds do not open a structured surface",
+    "I unsupported inspection kinds do not open a structured surface",
     getResourceInspectionSurface(unsupportedResource.inspectionKind) === "unsupported" &&
       getReservoirResourceSelectionAction(unsupportedNode, unsupportedNode.id) ===
         "unsupported-resource-inspection",
   ],
   [
-    "I legacy case-study content resolves through the compatibility adapter",
+    "J legacy case-study content resolves through the compatibility adapter",
     bellabeat.content.kind === "case-study" &&
       getStructuredDocumentBody(bellabeat).source === "legacy-adapter" &&
       getStructuredDocumentBody(bellabeat).blocks.length > 0,
   ],
   [
-    "J opening selection is identity, membership, and status preserving",
+    "K opening selection is identity, membership, and status preserving",
     openAction === "open-resource-inspection" &&
       JSON.stringify({
         resource: nonArtifactDocument,
