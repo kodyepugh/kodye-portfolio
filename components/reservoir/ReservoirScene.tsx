@@ -1616,9 +1616,11 @@ export function ReservoirScene() {
     "openingResource",
     "deployingInspection",
     "readingInspection",
-    "closingInspection",
   ].includes(transitionState);
-  const restoring = transitionState === "restoringInspection";
+  const restoring = [
+    "closingInspection",
+    "restoringInspection",
+  ].includes(transitionState);
   const inspectionWindowPhase =
     transitionState === "deployingInspection"
       ? "deploying"
@@ -2274,15 +2276,39 @@ export function ReservoirScene() {
       );
 
       const renderedSphere = sphereRotationRef.current;
-      const sphereQuaternionError = renderedSphere
+      let sphereQuaternionError = renderedSphere
         ? renderedSphere.quaternion.angleTo(expectedSphereQuaternion)
         : Number.POSITIVE_INFINITY;
-      const zoomLevelError = Math.abs(
+      let zoomLevelError = Math.abs(
         zoomLevelRef.current - snapshot.zoomLevel,
       );
-      const endpointReached =
-        sphereQuaternionError < 0.00001 && zoomLevelError < 0.00001;
-      const fallbackUsed = elapsed >= restorationDuration && !endpointReached;
+      const poseMismatch =
+        sphereQuaternionError >= 0.00001 || zoomLevelError >= 0.00001;
+      if (poseMismatch) {
+        if (renderedSphere && sphereQuaternionError >= 0.00001) {
+          renderedSphere.quaternion.slerp(
+            expectedSphereQuaternion,
+            restorationProgressRef.current,
+          );
+          renderedSphere.updateMatrixWorld();
+          sphereQuaternionError = renderedSphere.quaternion.angleTo(
+            expectedSphereQuaternion,
+          );
+        }
+        if (zoomLevelError >= 0.00001) {
+          setReservoirZoom(
+            THREE.MathUtils.lerp(
+              zoomLevelRef.current,
+              snapshot.zoomLevel,
+              restorationProgressRef.current,
+            ),
+          );
+          zoomLevelError = Math.abs(
+            zoomLevelRef.current - snapshot.zoomLevel,
+          );
+        }
+      }
+      const fallbackUsed = false;
       const supportNavigationTarget =
         pendingInspectionNavigationTargetRef.current ?? null;
       const supportHandoffReady =
@@ -2308,7 +2334,13 @@ export function ReservoirScene() {
         interaction.current.dataset.restorationZoomLevelError =
           zoomLevelError.toFixed(9);
         interaction.current.dataset.restorationEndpointReached = String(
-          endpointReached,
+          restorationProgressRef.current >= 1,
+        );
+        interaction.current.dataset.inspectionRecoveryPoseInvariant = String(
+          !poseMismatch,
+        );
+        interaction.current.dataset.inspectionRecoveryPoseCorrection = String(
+          poseMismatch,
         );
         interaction.current.dataset.restorationFallbackUsed = String(
           fallbackUsed,
@@ -2351,7 +2383,7 @@ export function ReservoirScene() {
       }
 
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-      if (endpointReached || elapsed >= restorationDuration + 1) {
+      if (restorationProgressRef.current >= 1) {
         restorationProgressRef.current = 1;
         if (renderedSphere) {
           renderedSphere.quaternion.copy(expectedSphereQuaternion);
@@ -2399,14 +2431,38 @@ export function ReservoirScene() {
       );
 
       const renderedSphere = sphereRotationRef.current;
-      const sphereQuaternionError = renderedSphere
+      let sphereQuaternionError = renderedSphere
         ? renderedSphere.quaternion.angleTo(expectedSphereQuaternion)
         : Number.POSITIVE_INFINITY;
-      const zoomLevelError = Math.abs(
+      let zoomLevelError = Math.abs(
         zoomLevelRef.current - snapshot.zoomLevel,
       );
-      const endpointReached =
-        sphereQuaternionError < 0.00001 && zoomLevelError < 0.00001;
+      const poseMismatch =
+        sphereQuaternionError >= 0.00001 || zoomLevelError >= 0.00001;
+      if (poseMismatch) {
+        if (renderedSphere && sphereQuaternionError >= 0.00001) {
+          renderedSphere.quaternion.slerp(
+            expectedSphereQuaternion,
+            restorationProgressRef.current,
+          );
+          renderedSphere.updateMatrixWorld();
+          sphereQuaternionError = renderedSphere.quaternion.angleTo(
+            expectedSphereQuaternion,
+          );
+        }
+        if (zoomLevelError >= 0.00001) {
+          setReservoirZoom(
+            THREE.MathUtils.lerp(
+              zoomLevelRef.current,
+              snapshot.zoomLevel,
+              restorationProgressRef.current,
+            ),
+          );
+          zoomLevelError = Math.abs(
+            zoomLevelRef.current - snapshot.zoomLevel,
+          );
+        }
+      }
 
       if (interaction.current) {
         interaction.current.dataset.restorationProgress =
@@ -2415,9 +2471,12 @@ export function ReservoirScene() {
           sphereQuaternionError.toFixed(9);
         interaction.current.dataset.restorationZoomLevelError =
           zoomLevelError.toFixed(9);
+        interaction.current.dataset.inspectionRecoveryPoseInvariant = String(
+          !poseMismatch,
+        );
       }
 
-      if (elapsed >= duration && (endpointReached || elapsed >= duration + 1)) {
+      if (elapsed >= duration) {
         restorationProgressRef.current = 1;
         if (renderedSphere) {
           renderedSphere.quaternion.copy(expectedSphereQuaternion);
