@@ -81,10 +81,11 @@ const {
   getCollectionById,
   getCollectionByAddress,
   getCollectionMembers,
+  getPublishedSupportingResources,
+  getPublishedSupportingResourcesFromRegistry,
   getResourceByAddress,
   getResourceById,
   getResourceRepresentations,
-  getSupportingResourcesForResource,
   getSourceRecordsForArtifact,
   getSourceRecordsForAsset,
   resolveSemanticObjectAddress,
@@ -109,6 +110,103 @@ const syntheticReservoirNode = adaptResourceToReservoirContentNode(
   syntheticPublishedResource,
 );
 const syntheticCollectionNode = getReservoirCollectionNodeById(ROOT_COLLECTION_ID);
+const syntheticSupportSource = {
+  objectType: "resource",
+  id: "qa-support-source",
+  slug: "qa-support-source",
+  title: "QA Support Source",
+  type: "report",
+  inspectionKind: "structured-document",
+  isArtifact: true,
+  published: true,
+};
+const syntheticSupportTargetAlpha = {
+  objectType: "resource",
+  id: "qa-support-target-alpha",
+  slug: "qa-support-target-alpha",
+  title: "QA Support Target Alpha",
+  type: "document",
+  inspectionKind: "structured-document",
+  isArtifact: false,
+  published: true,
+};
+const syntheticSupportTargetBeta = {
+  objectType: "resource",
+  id: "qa-support-target-beta",
+  slug: "qa-support-target-beta",
+  title: "QA Support Target Beta",
+  type: "image",
+  inspectionKind: "image",
+  isArtifact: true,
+  published: true,
+};
+const syntheticSupportTargetHidden = {
+  objectType: "resource",
+  id: "qa-support-target-hidden",
+  slug: "qa-support-target-hidden",
+  title: "QA Support Target Hidden",
+  type: "document",
+  inspectionKind: "structured-document",
+  isArtifact: false,
+  published: false,
+};
+const syntheticSupportRegistry = {
+  ...contentRegistry,
+  resources: [
+    ...contentRegistry.resources,
+    syntheticSupportSource,
+    syntheticSupportTargetAlpha,
+    syntheticSupportTargetBeta,
+    syntheticSupportTargetHidden,
+  ],
+  resourceSupportRelations: [
+    {
+      id: "qa-support-rel-hidden",
+      sourceResourceId: syntheticSupportSource.id,
+      targetResourceId: syntheticSupportTargetHidden.id,
+      relationshipType: "supporting",
+      order: 3,
+      published: true,
+      label: "Hidden",
+      role: "supporting-report",
+    },
+    {
+      id: "qa-support-rel-beta",
+      sourceResourceId: syntheticSupportSource.id,
+      targetResourceId: syntheticSupportTargetBeta.id,
+      relationshipType: "supporting",
+      order: 2,
+      published: true,
+      label: "Second",
+      role: "supporting-figure",
+    },
+    {
+      id: "qa-support-rel-alpha",
+      sourceResourceId: syntheticSupportSource.id,
+      targetResourceId: syntheticSupportTargetAlpha.id,
+      relationshipType: "supporting",
+      order: 1,
+      published: true,
+      label: "First",
+      role: "supporting-report",
+    },
+    {
+      id: "qa-support-rel-unpublished",
+      sourceResourceId: syntheticSupportSource.id,
+      targetResourceId: syntheticSupportTargetAlpha.id,
+      relationshipType: "supporting",
+      order: 0,
+      published: false,
+      label: "Hidden by relationship",
+      role: "supporting-report",
+    },
+  ],
+};
+const syntheticPublishedSupportingResources =
+  getPublishedSupportingResourcesFromRegistry(
+    syntheticSupportRegistry,
+    syntheticSupportSource.id,
+  );
 const testCamera = (() => {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
   camera.position.set(0, 0, 10);
@@ -202,7 +300,26 @@ const checks = [
   ],
   [
     "supporting resources selector is stable",
-    Array.isArray(getSupportingResourcesForResource(ARTIFACT_IDS.bellabeat)),
+    Array.isArray(getPublishedSupportingResources(ARTIFACT_IDS.bellabeat)) &&
+      getPublishedSupportingResources(ARTIFACT_IDS.bellabeat).length === 0,
+  ],
+  [
+    "published support relationships filter and order deterministically",
+    syntheticPublishedSupportingResources.length === 2 &&
+      syntheticPublishedSupportingResources[0].targetResourceId ===
+        syntheticSupportTargetAlpha.id &&
+      syntheticPublishedSupportingResources[1].targetResourceId ===
+        syntheticSupportTargetBeta.id &&
+      syntheticPublishedSupportingResources[0].resource ===
+        syntheticSupportTargetAlpha &&
+      syntheticPublishedSupportingResources[1].resource ===
+        syntheticSupportTargetBeta &&
+      syntheticPublishedSupportingResources.every(
+        (entry) => entry.relationship.published !== false,
+      ) &&
+      syntheticPublishedSupportingResources.every(
+        (entry) => entry.resource.published === true,
+      ),
   ],
   [
     "source records resolve independently",

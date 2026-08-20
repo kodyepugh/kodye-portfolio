@@ -7,12 +7,14 @@ import {
 } from "react";
 import type { AnimationEvent, CSSProperties } from "react";
 import type { Resource } from "@/types/content";
+import { getPublishedSupportingResources } from "@/lib/content/selectors";
 import {
   getInspectionWindowDeployDuration,
   getInspectionWindowRetractDuration,
 } from "@/lib/reservoir/reading";
 import { BrandSymbol } from "../navigation/BrandSymbol";
 import { ReservoirFooterContent } from "../navigation/ReservoirFooter";
+import { InspectionSupportRail } from "./InspectionSupportRail";
 import { InspectionWindowBody } from "./InspectionWindowBody";
 
 export type InspectionWindowPhase = "deploying" | "reading" | "closing";
@@ -37,6 +39,7 @@ export type InspectionWindowProps = {
   onDeployComplete: () => void;
   onClose: () => void;
   onFooterReachedChange: (reached: boolean) => void;
+  onNavigateToResource: (resourceId: string) => void;
 };
 
 const INITIAL_REVEAL_MEASUREMENTS: InspectionRevealMeasurements = {
@@ -99,6 +102,7 @@ export function InspectionWindow({
   onDeployComplete,
   onClose,
   onFooterReachedChange,
+  onNavigateToResource,
 }: InspectionWindowProps) {
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -117,8 +121,10 @@ export function InspectionWindow({
   const [closeScrollY, setCloseScrollY] = useState(0);
   const titleId = `inspection-window-title-${resource.id}`;
   const bodyId = `inspection-window-body-${resource.id}`;
+  const supportingResources = getPublishedSupportingResources(resource.id);
   const deployDuration = getInspectionWindowDeployDuration(reducedMotion);
   const retractDuration = getInspectionWindowRetractDuration(reducedMotion);
+  const supportRailVisible = phase === "reading" && supportingResources.length > 0;
   const totalRevealDistance =
     revealMeasurements.controlPlaneHeight + revealMeasurements.footerHeight;
   const controlPlaneOffset = Math.max(
@@ -427,7 +433,9 @@ export function InspectionWindow({
             data-inspection-kind={resource.inspectionKind}
             data-artifact-status={resource.isArtifact}
           >
-            <h1 id={titleId} className="sr-only">{resource.title}</h1>
+            <h1 id={titleId} className="sr-only">
+              {resource.title}
+            </h1>
             <button
               ref={closeButtonRef}
               className="artifact-window__close inspection-window__close"
@@ -439,15 +447,22 @@ export function InspectionWindow({
               <span aria-hidden="true">×</span>
             </button>
 
-            <div id={bodyId} className="artifact-window__body inspection-window__body-layout">
+            <div
+              id={bodyId}
+              className="artifact-window__body inspection-window__body-layout"
+              data-support-rail-visible={supportRailVisible}
+              data-supporting-resource-count={supportingResources.length}
+              data-supporting-resource-ids={supportingResources
+                .map((supportingResource) => supportingResource.targetResourceId)
+                .join(",")}
+            >
               <div className="inspection-window__primary-body">
                 <InspectionWindowBody resource={resource} />
               </div>
-              <aside
-                className="inspection-window__support-region"
-                data-supporting-resource-region="deferred"
-                aria-hidden="true"
-                hidden
+              <InspectionSupportRail
+                phase={phase}
+                supportingResources={supportingResources}
+                onNavigateToResource={onNavigateToResource}
               />
             </div>
           </article>

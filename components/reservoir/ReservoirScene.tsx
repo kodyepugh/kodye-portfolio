@@ -1102,6 +1102,10 @@ export function ReservoirScene() {
     useRef<CollectionTransitionPoseSnapshot | null>(null);
   const restorationElapsedRef = useRef(0);
   const restorationProgressRef = useRef(0);
+  const pendingInspectionNavigationTargetRef = useRef<string | null>(null);
+  const requestDirectResourceRef = useRef<
+    (resourceAddress: string) => boolean
+  >(() => false);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const surfaceRef = useRef<THREE.Mesh | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -2185,12 +2189,33 @@ export function ReservoirScene() {
 
   const requestInspectionClose = useCallback(() => {
     setInspectionFooterReached(false);
+    if (interaction.current) {
+      interaction.current.dataset.inspectionExitIntent = pendingInspectionNavigationTargetRef.current
+        ? "support-resource-navigation"
+        : "close";
+      interaction.current.dataset.inspectionExitTarget =
+        pendingInspectionNavigationTargetRef.current ?? "";
+    }
     setTransitionState((currentState) =>
       currentState === "readingInspection"
         ? "closingInspection"
         : currentState,
     );
   }, []);
+
+  const requestInspectionNavigation = useCallback(
+    (resourceId: string) => {
+      if (transitionState !== "readingInspection") return;
+      pendingInspectionNavigationTargetRef.current = resourceId;
+      if (interaction.current) {
+        interaction.current.dataset.inspectionExitIntent =
+          "support-resource-navigation";
+        interaction.current.dataset.inspectionExitTarget = resourceId;
+      }
+      requestInspectionClose();
+    },
+    [requestInspectionClose, transitionState],
+  );
 
   useEffect(() => {
     if (
@@ -2202,6 +2227,18 @@ export function ReservoirScene() {
 
     const timeoutId = window.setTimeout(() => {
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      const navigationTarget =
+        pendingInspectionNavigationTargetRef.current ?? null;
+      if (navigationTarget) {
+        pendingInspectionNavigationTargetRef.current = null;
+        restorationElapsedRef.current = 0;
+        restorationProgressRef.current = 0;
+        setPreservedReservoirState(null);
+        setInspectedResourceId(null);
+        setTransitionState("idle");
+        requestDirectResourceRef.current(navigationTarget);
+        return;
+      }
       restorationElapsedRef.current = 0;
       restorationProgressRef.current = 0;
       setTransitionState("restoringInspection");
@@ -2640,6 +2677,7 @@ export function ReservoirScene() {
       return;
     }
 
+    pendingInspectionNavigationTargetRef.current = null;
     openingElapsedRef.current = 0;
     setInspectedResourceId(resourceId);
     setPreservedReservoirState(preservedState);
@@ -2647,6 +2685,10 @@ export function ReservoirScene() {
     setHoveredResourceId(null);
     setSelectedPressActive(false);
     setTransitionState("openingResource");
+    if (interaction.current) {
+      interaction.current.dataset.inspectionExitIntent = "close";
+      interaction.current.dataset.inspectionExitTarget = "";
+    }
   }
 
   function requestCollection(
@@ -3143,6 +3185,7 @@ export function ReservoirScene() {
       return false;
     }
 
+    pendingInspectionNavigationTargetRef.current = null;
     const returnContext = queryReservoirContext ?? collectionReservoirContext;
     const targetContext: ReservoirContext = {
       kind: "query",
@@ -3159,6 +3202,8 @@ export function ReservoirScene() {
     setTransitionState("idle");
     pendingCollectionResolutionRef.current = null;
     if (interaction.current) {
+      interaction.current.dataset.inspectionExitIntent = "";
+      interaction.current.dataset.inspectionExitTarget = "";
       interaction.current.dataset.directResourceRequest = resourceAddress;
       interaction.current.dataset.directResourceRequestResult = "accepted";
       interaction.current.dataset.directResourceResolvedId = resource.id;
@@ -3168,6 +3213,7 @@ export function ReservoirScene() {
     }
     return true;
   }
+  requestDirectResourceRef.current = requestDirectResource;
 
   function selectDirectArtifact(directArtifactId: DirectArtifactId) {
     if (menuState !== "open" || queryActivityRevision !== null) return;
@@ -3808,6 +3854,7 @@ export function ReservoirScene() {
           onDeployComplete={completeInspectionDeployment}
           onClose={requestInspectionClose}
           onFooterReachedChange={setInspectionFooterReached}
+          onNavigateToResource={requestInspectionNavigation}
         />
       ) : null}
     </>

@@ -58,6 +58,7 @@ const {
 } = require(path.join(projectRoot, "lib/reservoir/resource-selection.ts"));
 const {
   getResourceById,
+  getPublishedSupportingResourcesFromRegistry,
 } = require(path.join(projectRoot, "lib/content/selectors.ts"));
 const {
   validateContentRegistry,
@@ -114,6 +115,71 @@ const unsupportedResource = {
   inspectionKind: "video",
   content: undefined,
 };
+const supportSourceResource = {
+  objectType: "resource",
+  id: "qa-inspection-support-source",
+  slug: "qa-inspection-support-source",
+  title: "QA Inspection Support Source",
+  type: "report",
+  inspectionKind: "structured-document",
+  isArtifact: true,
+  published: true,
+};
+const supportTargetResource = {
+  objectType: "resource",
+  id: "qa-inspection-support-target",
+  slug: "qa-inspection-support-target",
+  title: "QA Inspection Support Target",
+  type: "document",
+  inspectionKind: "structured-document",
+  isArtifact: false,
+  published: true,
+};
+const supportHiddenTargetResource = {
+  objectType: "resource",
+  id: "qa-inspection-support-hidden-target",
+  slug: "qa-inspection-support-hidden-target",
+  title: "QA Inspection Support Hidden Target",
+  type: "document",
+  inspectionKind: "structured-document",
+  isArtifact: false,
+  published: false,
+};
+const supportRegistry = {
+  ...contentRegistry,
+  resources: [
+    ...contentRegistry.resources,
+    supportSourceResource,
+    supportTargetResource,
+    supportHiddenTargetResource,
+  ],
+  resourceSupportRelations: [
+    {
+      id: "qa-inspection-support-rel-hidden",
+      sourceResourceId: supportSourceResource.id,
+      targetResourceId: supportHiddenTargetResource.id,
+      relationshipType: "supporting",
+      order: 2,
+      published: true,
+      label: "Hidden",
+      role: "supporting-report",
+    },
+    {
+      id: "qa-inspection-support-rel-visible",
+      sourceResourceId: supportSourceResource.id,
+      targetResourceId: supportTargetResource.id,
+      relationshipType: "supporting",
+      order: 1,
+      published: true,
+      label: "Visible",
+      role: "supporting-report",
+    },
+  ],
+};
+const supportEntries = getPublishedSupportingResourcesFromRegistry(
+  supportRegistry,
+  supportSourceResource.id,
+);
 const validSyntheticRegistry = {
   ...contentRegistry,
   resources: [...contentRegistry.resources, nonArtifactDocument],
@@ -218,6 +284,20 @@ const checks = [
         resource: nonArtifactDocument,
         memberships: contentRegistry.memberships,
       }) === originalSnapshot,
+  ],
+  [
+    "L published supporting resources resolve through the canonical selector",
+    supportEntries.length === 1 &&
+      supportEntries[0].targetResourceId === supportTargetResource.id &&
+      supportEntries[0].resource === supportTargetResource &&
+      supportEntries[0].relationshipId ===
+        "qa-inspection-support-rel-visible" &&
+      supportEntries[0].relationship.published !== false,
+  ],
+  [
+    "M unsupported target resources remain filtered from public support rails",
+    supportEntries.every((entry) => entry.resource.published === true) &&
+      supportEntries.every((entry) => entry.resource.id !== supportHiddenTargetResource.id),
   ],
 ];
 

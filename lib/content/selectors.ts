@@ -5,10 +5,14 @@ import {
 } from "./references";
 import type {
   Artifact,
+  ContentRegistry,
   Collection,
   CollectionMembership,
+  ResourceInspectionKind,
   Resource,
   ResourceMembership,
+  ResourceSupportRelationship,
+  ResourceType,
 } from "../../types/content";
 
 const resourceById = new Map(
@@ -43,6 +47,20 @@ const assetById = new Map(
   contentRegistry.assets.map((asset) => [asset.id, asset] as const),
 );
 
+export type PublishedSupportingResource = {
+  relationshipId: string;
+  targetResourceId: string;
+  targetResourceTitle: string;
+  targetResourceType: ResourceType;
+  targetResourceInspectionKind: ResourceInspectionKind;
+  relationshipType: ResourceSupportRelationship["relationshipType"];
+  role?: string;
+  label?: string;
+  order?: number;
+  relationship: ResourceSupportRelationship;
+  resource: Resource;
+};
+
 export type ResolvedCollectionMember =
   | {
       kind: "artifact";
@@ -73,6 +91,17 @@ function compareMembershipOrder(
     (a.order ?? Number.MAX_SAFE_INTEGER) -
       (b.order ?? Number.MAX_SAFE_INTEGER) ||
     a.id.localeCompare(b.id)
+  );
+}
+
+function compareSupportOrder(
+  a: { order?: number; relationshipId: string },
+  b: { order?: number; relationshipId: string },
+) {
+  return (
+    (a.order ?? Number.MAX_SAFE_INTEGER) -
+      (b.order ?? Number.MAX_SAFE_INTEGER) ||
+    a.relationshipId.localeCompare(b.relationshipId)
   );
 }
 
@@ -219,11 +248,54 @@ export function getResourceSupportRelationships(resourceId: string) {
     .sort(compareMembershipOrder);
 }
 
+export function getPublishedSupportingResourcesFromRegistry(
+  registry: Pick<ContentRegistry, "resources" | "resourceSupportRelations">,
+  resourceId: string,
+) {
+  const resourceById = new Map(
+    registry.resources.map((resource) => [resource.id, resource] as const),
+  );
+
+  return registry.resourceSupportRelations
+    .filter((relationship) => relationship.sourceResourceId === resourceId)
+    .filter((relationship) => relationship.published !== false)
+    .flatMap((relationship) => {
+      const source = resourceById.get(relationship.sourceResourceId);
+      const resource = resourceById.get(relationship.targetResourceId);
+      if (!source || source.published !== true || !resource || resource.published !== true) {
+        return [];
+      }
+
+      return [
+        {
+          relationshipId: relationship.id,
+          targetResourceId: resource.id,
+          targetResourceTitle: resource.title,
+          targetResourceType: resource.type,
+          targetResourceInspectionKind: resource.inspectionKind,
+          relationshipType: relationship.relationshipType,
+          role: relationship.role,
+          label: relationship.label,
+          order: relationship.order,
+          relationship,
+          resource,
+        },
+      ];
+    })
+    .sort(compareSupportOrder);
+}
+
+export function getPublishedSupportingResources(resourceId: string) {
+  return getPublishedSupportingResourcesFromRegistry(
+    contentRegistry,
+    resourceId,
+  );
+}
+
 export function getSupportingResourcesForResource(resourceId: string) {
-  return getResourceSupportRelationships(resourceId).flatMap((relationship) => {
-    const resource = getResourceById(relationship.targetResourceId);
-    return resource ? [resource] : [];
-  });
+  return getPublishedSupportingResources(resourceId).map(
+    (supportingResource) => supportingResource.resource,
+  );
 }
 
 export function getAssetsForResource(resourceId: string) {

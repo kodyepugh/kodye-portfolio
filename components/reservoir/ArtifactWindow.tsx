@@ -12,12 +12,23 @@ type ArtifactWindowProps = {
   onDeployComplete: () => void;
   onClose: () => void;
   onFooterReachedChange: (reached: boolean) => void;
+  onNavigateToResource?: (resourceId: string) => void;
 };
 
 /**
  * Temporary compatibility entry point for older callers. New inspection
  * behavior belongs to the Resource-oriented InspectionWindow.
  */
-export function ArtifactWindow({ artifact, ...props }: ArtifactWindowProps) {
-  return <InspectionWindow resource={artifact} {...props} />;
+export function ArtifactWindow({
+  artifact,
+  onNavigateToResource,
+  ...props
+}: ArtifactWindowProps) {
+  return (
+    <InspectionWindow
+      resource={artifact}
+      onNavigateToResource={onNavigateToResource ?? (() => {})}
+      {...props}
+    />
+  );
 }
