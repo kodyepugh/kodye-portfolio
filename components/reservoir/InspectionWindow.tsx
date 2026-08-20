@@ -40,7 +40,10 @@ type InspectionRevealMeasurements = {
 export type InspectionWindowProps = {
   atmosphereBottom: number;
   resource: Resource;
-  exitIntent: "close" | "support-resource-navigation";
+  exitIntent:
+    | "close"
+    | "support-resource-navigation"
+    | "collection-navigation";
   initialReturnFrame: InspectionReturnFrame | null;
   phase: InspectionWindowPhase;
   reducedMotion: boolean;
@@ -51,6 +54,7 @@ export type InspectionWindowProps = {
     resourceId: string,
     returnFrame: InspectionReturnFrame,
   ) => void;
+  onNavigateToCollection: (collectionId: string) => void;
   onReadingStateRestored: (frame: InspectionReturnFrame) => void;
 };
 
@@ -117,6 +121,7 @@ export function InspectionWindow({
   onClose,
   onFooterReachedChange,
   onNavigateToResource,
+  onNavigateToCollection,
   onReadingStateRestored,
 }: InspectionWindowProps) {
   const backdropRef = useRef<HTMLDivElement | null>(null);
@@ -138,12 +143,12 @@ export function InspectionWindow({
   const [closeScrollY, setCloseScrollY] = useState(0);
   const titleId = `inspection-window-title-${resource.id}`;
   const bodyId = `inspection-window-body-${resource.id}`;
-  const connections = getPublishedSupportingResources(resource.id);
+  const resources = getPublishedSupportingResources(resource.id);
   const collections = getPublishedResourceCollections(resource.id);
   const deployDuration = getInspectionWindowDeployDuration(reducedMotion);
   const retractDuration = getInspectionWindowRetractDuration(reducedMotion);
   const contextTrayVisible =
-    connections.length > 0 || collections.length > 0;
+    resources.length > 0 || collections.length > 0;
   const totalRevealDistance =
     revealMeasurements.controlPlaneHeight + revealMeasurements.footerHeight;
   const controlPlaneOffset = Math.max(
@@ -553,7 +558,7 @@ export function InspectionWindow({
               className="artifact-window__body inspection-window__body-layout"
               data-context-tray-visible={contextTrayVisible}
               data-context-tray-interactive={phase === "reading"}
-              data-context-connections-count={connections.length}
+              data-context-resources-count={resources.length}
               data-context-collections-count={collections.length}
             >
               <div className="inspection-window__primary-body">
@@ -561,9 +566,10 @@ export function InspectionWindow({
               </div>
               <InspectionContextTray
                 phase={phase}
-                connections={connections}
+                resources={resources}
                 collections={collections}
                 onNavigateToResource={navigateToSupportingResource}
+                onNavigateToCollection={onNavigateToCollection}
               />
             </div>
           </article>

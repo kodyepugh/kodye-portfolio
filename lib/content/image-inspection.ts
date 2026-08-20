@@ -12,8 +12,16 @@ export type ImageInspectionResolution =
   | {
       status: "unavailable";
       reason: string;
-      details: readonly string[];
-    };
+    details: readonly string[];
+  };
+
+export function getImageAltText(
+  asset: Pick<Asset, "alt">,
+  caption: string | undefined,
+  resourceTitle: string,
+) {
+  return asset.alt?.trim() || caption?.trim() || resourceTitle;
+}
 
 function compareRepresentations(
   a: { order?: number; id: string },

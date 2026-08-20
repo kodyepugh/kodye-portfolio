@@ -32,6 +32,7 @@ export function ArtifactWindow({
       onNavigateToResource={(resourceId) =>
         onNavigateToResource?.(resourceId)
       }
+      onNavigateToCollection={() => {}}
       onReadingStateRestored={() => {}}
       {...props}
     />

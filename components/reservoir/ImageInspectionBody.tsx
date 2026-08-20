@@ -1,5 +1,9 @@
+import { useState } from "react";
 import type { Resource } from "@/types/content";
-import { resolveImageInspection } from "@/lib/content/image-inspection";
+import {
+  getImageAltText,
+  resolveImageInspection,
+} from "@/lib/content/image-inspection";
 
 type ImageInspectionBodyProps = {
   resource: Resource;
@@ -29,22 +33,31 @@ function ImageInspectionUnavailableState({
 
 export function ImageInspectionBody({ resource }: ImageInspectionBodyProps) {
   const resolution = resolveImageInspection(resource);
+  const imageSource = resolution.status === "ready" ? resolution.asset.src : null;
+  const imageSourceKey = `${resource.id}:${imageSource ?? ""}`;
+  const [imageLoadFailureKey, setImageLoadFailureKey] = useState<string | null>(
+    null,
+  );
   const titleId = `inspection-${resource.id}-image-heading`;
+  const imageLoadFailed = imageLoadFailureKey === imageSourceKey;
+  const unavailable = resolution.status === "unavailable" || imageLoadFailed;
 
   return (
     <section
       className="inspection-image"
       aria-labelledby={titleId}
-      data-image-resolution={resolution.status}
+      data-image-resolution={unavailable ? "unavailable" : resolution.status}
       data-image-resolution-source={
-        resolution.status === "ready" ? resolution.source : "unavailable"
+        !unavailable && resolution.status === "ready"
+          ? resolution.source
+          : "unavailable"
       }
     >
       <h2 id={titleId} className="sr-only">
         {resource.title}
       </h2>
 
-      {resolution.status === "ready" ? (
+      {!unavailable && resolution.status === "ready" ? (
         <figure className="inspection-image__figure">
           <div className="inspection-image__stage">
             <div className="inspection-image__frame">
@@ -52,11 +65,16 @@ export function ImageInspectionBody({ resource }: ImageInspectionBodyProps) {
               <img
                 className="inspection-image__image"
                 src={resolution.asset.src}
-                alt={resolution.asset.alt ?? resource.title}
+                alt={getImageAltText(
+                  resolution.asset,
+                  resolution.caption,
+                  resource.title,
+                )}
                 width={resolution.asset.width}
                 height={resolution.asset.height}
                 decoding="async"
                 loading="eager"
+                onError={() => setImageLoadFailureKey(imageSourceKey)}
               />
             </div>
           </div>
@@ -68,8 +86,14 @@ export function ImageInspectionBody({ resource }: ImageInspectionBodyProps) {
         </figure>
       ) : (
         <ImageInspectionUnavailableState
-          reason={resolution.reason}
-          details={resolution.details}
+          reason={
+            imageLoadFailed
+              ? "The image could not be loaded."
+              : resolution.status === "unavailable"
+                ? resolution.reason
+                : "The image could not be displayed."
+          }
+          details={resolution.status === "unavailable" ? resolution.details : []}
         />
       )}
     </section>

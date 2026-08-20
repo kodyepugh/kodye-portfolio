@@ -1130,6 +1130,7 @@ export function ReservoirScene() {
   const inspectionRecoveryStartTimeRef = useRef<number | null>(null);
   const inspectionRecoveryHandoffCommittedRef = useRef(false);
   const pendingInspectionNavigationTargetRef = useRef<string | null>(null);
+  const pendingInspectionCollectionTargetRef = useRef<string | null>(null);
   const pendingInspectionReturnFrameRef =
     useRef<InspectionReturnFrame | null>(null);
   const inspectionReturnFrameStoreRef = useRef<InspectionReturnFrameStore>(
@@ -1142,6 +1143,12 @@ export function ReservoirScene() {
     (
       resourceAddress: string,
       inspectionReturnFrame?: InspectionReturnFrame | null,
+    ) => boolean
+  >(() => false);
+  const requestCollectionRef = useRef<
+    (
+      destinationCollectionId: string,
+      allowDuringMenuOpen?: boolean,
     ) => boolean
   >(() => false);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -2344,6 +2351,7 @@ export function ReservoirScene() {
         return;
       }
       pendingInspectionNavigationTargetRef.current = resourceId;
+      pendingInspectionCollectionTargetRef.current = null;
       pendingInspectionReturnFrameRef.current = returnFrame;
       setInspectionReturnRuntime({
         queryContextKey: "",
@@ -2362,6 +2370,34 @@ export function ReservoirScene() {
       inspectedResourceId,
       requestInspectionClose,
       settledReservoirContext,
+      transitionState,
+    ],
+  );
+
+  const requestInspectionCollectionNavigation = useCallback(
+    (collectionId: string) => {
+      if (transitionState !== "readingInspection") return;
+
+      const targetContextKey = getReservoirContextKey({
+        kind: "collection",
+        collectionId,
+      });
+      if (targetContextKey === layoutOwnership.activeLayout.contextKey) {
+        requestInspectionClose();
+        return;
+      }
+
+      pendingInspectionCollectionTargetRef.current = collectionId;
+      if (interaction.current) {
+        interaction.current.dataset.inspectionExitIntent =
+          "collection-navigation";
+        interaction.current.dataset.inspectionExitTarget = collectionId;
+      }
+      requestInspectionClose();
+    },
+    [
+      layoutOwnership.activeLayout.contextKey,
+      requestInspectionClose,
       transitionState,
     ],
   );
@@ -2547,6 +2583,9 @@ export function ReservoirScene() {
           renderedSphere.quaternion.copy(expectedSphereQuaternion);
         }
         setReservoirZoom(snapshot.zoomLevel);
+        if (pendingInspectionCollectionTargetRef.current) {
+          setPreservedReservoirState(null);
+        }
         setInspectedResourceId(null);
         inspectionRecoveryStartTimeRef.current = null;
         setTransitionState("idle");
@@ -2558,7 +2597,28 @@ export function ReservoirScene() {
 
     animationFrameId = requestAnimationFrame(updateClosingRecovery);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [preservedReservoirState, reducedMotion, setReservoirZoom, transitionState]);
+  }, [
+    preservedReservoirState,
+    reducedMotion,
+    setReservoirZoom,
+    transitionState,
+  ]);
+
+  useEffect(() => {
+    if (transitionState !== "idle") return;
+
+    const collectionId = pendingInspectionCollectionTargetRef.current;
+    if (!collectionId) return;
+
+    pendingInspectionCollectionTargetRef.current = null;
+    pendingCollectionResolutionRef.current = {
+      history: [...collectionHistory, { collectionId }],
+      spatialSelectionId: null,
+    };
+    if (!requestCollectionRef.current(collectionId)) {
+      pendingCollectionResolutionRef.current = null;
+    }
+  }, [collectionHistory, transitionState]);
 
   useEffect(() => {
     if (
@@ -3129,6 +3189,8 @@ export function ReservoirScene() {
     }
     return true;
   }
+
+  requestCollectionRef.current = requestCollection;
 
   function requestAncestorCollection(targetCollectionId: string) {
     if (inputLocked || collectionHistory.length <= 1) return;
@@ -4404,6 +4466,8 @@ export function ReservoirScene() {
           exitIntent={
             pendingInspectionNavigationTargetRef.current
               ? "support-resource-navigation"
+              : pendingInspectionCollectionTargetRef.current
+                ? "collection-navigation"
               : "close"
           }
           initialReturnFrame={
@@ -4419,6 +4483,7 @@ export function ReservoirScene() {
           onClose={requestInspectionClose}
           onFooterReachedChange={setInspectionFooterReached}
           onNavigateToResource={requestInspectionNavigation}
+          onNavigateToCollection={requestInspectionCollectionNavigation}
           onReadingStateRestored={completeInspectionReturnReadingState}
         />
       ) : null}
