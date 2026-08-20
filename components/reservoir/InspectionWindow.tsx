@@ -107,7 +107,6 @@ export function InspectionWindow({
   onFooterReachedChange,
   onNavigateToResource,
 }: InspectionWindowProps) {
-  const backdropRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const contentRef = useRef<HTMLElement | null>(null);
@@ -179,7 +178,6 @@ export function InspectionWindow({
 
   useEffect(() => {
     const stage = stageRef.current;
-    const backdrop = backdropRef.current;
     const root = stage?.closest<HTMLElement>(".reservoir-study");
     if (!stage || !root) return;
     previouslyFocusedRef.current =
@@ -189,7 +187,7 @@ export function InspectionWindow({
 
     const restored = [...root.children].flatMap((child) => {
       if (!(child instanceof HTMLElement)) return [];
-      if (child === stage || child === backdrop || child.contains(stage)) return [];
+      if (child === stage || child.contains(stage)) return [];
       const previous = {
         element: child,
         inert: child.inert,
@@ -386,13 +384,6 @@ export function InspectionWindow({
 
   return (
     <>
-      <div
-        ref={backdropRef}
-        className="artifact-reading-backdrop"
-        aria-hidden="true"
-        data-inspection-window-phase={phase}
-        data-artifact-window-phase={phase}
-      />
       <div
         ref={stageRef}
         className="artifact-reading-stage inspection-reading-stage"
