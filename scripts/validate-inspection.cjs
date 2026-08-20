@@ -69,6 +69,18 @@ const {
   "lib/reservoir/inspection-support.ts",
 ));
 const {
+  associateInspectionReturnFrame,
+  consumeInspectionReturnFrame,
+  createInspectionReturnFrame,
+  discardInspectionReturnFrame,
+  getInspectionReturnFrame,
+  getInspectionReturnPostContentOffset,
+  getInspectionReturnScrollY,
+} = require(path.join(
+  projectRoot,
+  "lib/reservoir/inspection-return.ts",
+));
+const {
   validateContentRegistry,
 } = require(path.join(projectRoot, "lib/content/validation.ts"));
 
@@ -226,6 +238,43 @@ const openAction = getReservoirResourceSelectionAction(
   nonArtifactNode,
   nonArtifactNode.id,
 );
+const supportQueryContextKey =
+  "query:qa-inspection-support-target|return=collection:collection-work";
+const ordinaryQueryContextKey =
+  "query:artifact-about|return=collection:collection-root";
+const inspectionReturnStore = new Map();
+const inspectionReturnFrame = createInspectionReturnFrame(
+  supportSourceResource.id,
+  740,
+  0.5,
+);
+associateInspectionReturnFrame(
+  inspectionReturnStore,
+  supportQueryContextKey,
+  inspectionReturnFrame,
+);
+const boundedInspectionReturnFrame = createInspectionReturnFrame(
+  supportSourceResource.id,
+  -40,
+  1.8,
+);
+const homeDiscardStore = new Map(inspectionReturnStore);
+const failedSupportQueryStore = new Map();
+const unsupportedDestinationStore = new Map();
+associateInspectionReturnFrame(
+  unsupportedDestinationStore,
+  "query:qa-video-resource|return=collection:collection-work",
+  inspectionReturnFrame,
+);
+const consumedInspectionReturnFrame = consumeInspectionReturnFrame(
+  inspectionReturnStore,
+  supportQueryContextKey,
+);
+const inspectionReturnOwnershipSnapshot = JSON.stringify({
+  source: supportSourceResource,
+  target: supportTargetResource,
+  memberships: contentRegistry.memberships,
+});
 
 const checks = [
   [
@@ -327,6 +376,63 @@ const checks = [
         supportTargetResource.id,
       ) &&
       !canRequestInspectionSupportNavigation("closing", null),
+  ],
+  [
+    "Q Inspection return frames associate only with their support-query context",
+    consumedInspectionReturnFrame === inspectionReturnFrame &&
+      getInspectionReturnFrame(
+        inspectionReturnStore,
+        ordinaryQueryContextKey,
+      ) === null,
+  ],
+  [
+    "R Inspection return frames preserve canonical Resource identity",
+    inspectionReturnFrame.resourceId === supportSourceResource.id,
+  ],
+  [
+    "S Inspection return reading state is bounded and restores proportionally",
+    boundedInspectionReturnFrame.scrollY === 0 &&
+      boundedInspectionReturnFrame.postContentProgress === 1 &&
+      getInspectionReturnScrollY(inspectionReturnFrame, 400) === 400 &&
+      getInspectionReturnPostContentOffset(inspectionReturnFrame, 600) === 300,
+  ],
+  [
+    "T Home discards Inspection return state instead of restoring it",
+    discardInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) &&
+      getInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) ===
+        null,
+  ],
+  [
+    "U failed support queries leave no Inspection return frame",
+    getInspectionReturnFrame(
+      failedSupportQueryStore,
+      supportQueryContextKey,
+    ) === null,
+  ],
+  [
+    "V unsupported destinations do not invalidate the inspectable source frame",
+    !canInspectResource(unsupportedResource) &&
+      canInspectResource(supportSourceResource) &&
+      getInspectionReturnFrame(
+        unsupportedDestinationStore,
+        "query:qa-video-resource|return=collection:collection-work",
+      )?.resourceId === supportSourceResource.id,
+  ],
+  [
+    "W Inspection return frames are consumed exactly once",
+    consumedInspectionReturnFrame === inspectionReturnFrame &&
+      consumeInspectionReturnFrame(
+        inspectionReturnStore,
+        supportQueryContextKey,
+      ) === null,
+  ],
+  [
+    "X Inspection return state does not mutate Artifact status or membership",
+    JSON.stringify({
+      source: supportSourceResource,
+      target: supportTargetResource,
+      memberships: contentRegistry.memberships,
+    }) === inspectionReturnOwnershipSnapshot,
   ],
 ];
 

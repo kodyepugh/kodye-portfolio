@@ -17,6 +17,12 @@ import { ReservoirFooterContent } from "../navigation/ReservoirFooter";
 import { InspectionSupportRail } from "./InspectionSupportRail";
 import { InspectionWindowBody } from "./InspectionWindowBody";
 import { shouldShowInspectionSupportRail } from "@/lib/reservoir/inspection-support";
+import {
+  createInspectionReturnFrame,
+  getInspectionReturnPostContentOffset,
+  getInspectionReturnScrollY,
+  type InspectionReturnFrame,
+} from "@/lib/reservoir/inspection-return";
 
 export type InspectionWindowPhase = "deploying" | "reading" | "closing";
 
@@ -36,12 +42,17 @@ export type InspectionWindowProps = {
   atmosphereBottom: number;
   resource: Resource;
   exitIntent: "close" | "support-resource-navigation";
+  initialReturnFrame: InspectionReturnFrame | null;
   phase: InspectionWindowPhase;
   reducedMotion: boolean;
   onDeployComplete: () => void;
   onClose: () => void;
   onFooterReachedChange: (reached: boolean) => void;
-  onNavigateToResource: (resourceId: string) => void;
+  onNavigateToResource: (
+    resourceId: string,
+    returnFrame: InspectionReturnFrame,
+  ) => void;
+  onReadingStateRestored: (frame: InspectionReturnFrame) => void;
 };
 
 const INITIAL_REVEAL_MEASUREMENTS: InspectionRevealMeasurements = {
@@ -102,10 +113,12 @@ export function InspectionWindow({
   phase,
   reducedMotion,
   exitIntent,
+  initialReturnFrame,
   onDeployComplete,
   onClose,
   onFooterReachedChange,
   onNavigateToResource,
+  onReadingStateRestored,
 }: InspectionWindowProps) {
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -119,6 +132,7 @@ export function InspectionWindow({
   const closeStartedRef = useRef(false);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const closeIntentRef = useRef<InspectionWindowProps["exitIntent"]>(exitIntent);
+  const readingStateRestoredRef = useRef(false);
   const [postContentOffset, setPostContentOffset] = useState(0);
   const [revealMeasurements, setRevealMeasurements] =
     useState<InspectionRevealMeasurements>(INITIAL_REVEAL_MEASUREMENTS);
@@ -220,6 +234,61 @@ export function InspectionWindow({
 
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [phase]);
+
+  useEffect(() => {
+    if (
+      phase !== "reading" ||
+      !initialReturnFrame ||
+      readingStateRestoredRef.current
+    ) {
+      return;
+    }
+
+    let alignmentFrameId = 0;
+    const measurementFrameId = requestAnimationFrame(() => {
+      const measurements = revealMeasurementsRef.current;
+      const measuredRevealDistance =
+        measurements.controlPlaneHeight + measurements.footerHeight;
+      const restoredPostContentOffset =
+        getInspectionReturnPostContentOffset(
+          initialReturnFrame,
+          measuredRevealDistance,
+        );
+      updatePostContentOffset(restoredPostContentOffset);
+
+      alignmentFrameId = requestAnimationFrame(() => {
+        const restoredScrollY = getInspectionReturnScrollY(
+          initialReturnFrame,
+          getDocumentScrollBottom(),
+        );
+        window.scrollTo({
+          top: restoredScrollY,
+          left: 0,
+          behavior: "instant",
+        });
+        readingStateRestoredRef.current = true;
+        onReadingStateRestored(
+          createInspectionReturnFrame(
+            initialReturnFrame.resourceId,
+            restoredScrollY,
+            measuredRevealDistance > 0
+              ? restoredPostContentOffset / measuredRevealDistance
+              : 0,
+          ),
+        );
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(measurementFrameId);
+      cancelAnimationFrame(alignmentFrameId);
+    };
+  }, [
+    initialReturnFrame,
+    onReadingStateRestored,
+    phase,
+    updatePostContentOffset,
+  ]);
 
   useEffect(() => {
     if (phase !== "reading") return;
@@ -384,6 +453,20 @@ export function InspectionWindow({
     onDeployComplete();
   }
 
+  function navigateToSupportingResource(resourceId: string) {
+    const measurements = revealMeasurementsRef.current;
+    const measuredRevealDistance =
+      measurements.controlPlaneHeight + measurements.footerHeight;
+    const returnFrame = createInspectionReturnFrame(
+      resource.id,
+      window.scrollY,
+      measuredRevealDistance > 0
+        ? postContentOffsetRef.current / measuredRevealDistance
+        : 0,
+    );
+    onNavigateToResource(resourceId, returnFrame);
+  }
+
   return (
     <>
       <div
@@ -480,7 +563,7 @@ export function InspectionWindow({
               <InspectionSupportRail
                 phase={phase}
                 supportingResources={supportingResources}
-                onNavigateToResource={onNavigateToResource}
+                onNavigateToResource={navigateToSupportingResource}
               />
             </div>
           </article>

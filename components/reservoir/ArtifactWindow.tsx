@@ -27,8 +27,12 @@ export function ArtifactWindow({
   return (
     <InspectionWindow
       exitIntent="close"
+      initialReturnFrame={null}
       resource={artifact}
-      onNavigateToResource={onNavigateToResource ?? (() => {})}
+      onNavigateToResource={(resourceId) =>
+        onNavigateToResource?.(resourceId)
+      }
+      onReadingStateRestored={() => {}}
       {...props}
     />
   );
