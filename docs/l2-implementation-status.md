@@ -89,13 +89,43 @@ Implemented and merged:
 - support selection retracts the current Inspection Window and delegates to the existing canonical `requestDirectResource()` / Query Reservoir seam;
 - the target Resource surfaces through the existing temporary Query Reservoir coordinator, preserving canonical focal placement and selection behavior;
 - support navigation does not promote Resources to Artifact status and does not mutate Collection membership;
-- Query Reservoir Back/Home semantics remain unchanged at this checkpoint;
 - ordinary Inspection close preserves the current Collection/Query Reservoir context and restores the pre-inspection Reservoir presentation;
 - Inspection close/recovery lifecycle hardening prevents the previous full-viewport focus-ring regression and removes the earlier opaque-backdrop stuck/black-screen failure mode;
-- the shared Inspection Window now owns one fixed presentation-only backdrop that fades independently of window translation and does not own navigation/recovery state;
+- the shared Inspection Window owns one fixed presentation-only backdrop that fades independently of window translation and does not own navigation/recovery state;
 - the approved Inspection Window arrival position is dynamically tied to measured atmosphere height with the current compact header/content spacing relationship.
 
-### 5. Preserved Query Reservoir Closure Baseline
+### 5. Minimum Inspection Return Context
+
+Implemented, corrected, reviewed, and merged:
+
+- an Inspection-originated support Resource detour captures a minimal `InspectionReturnFrame` rather than introducing a second navigation-history architecture;
+- the return frame preserves the originating Resource ID, practical document `scrollY`, and proportional post-content/control-plane/footer reveal progress;
+- return frames are associated with the specific temporary support-query Reservoir context rather than stored as general Resource metadata;
+- Back from a support Resource detour first uses the existing directional Query Reservoir transition to restore the prior semantic Reservoir context;
+- after the returned Reservoir context is fully settled, the originating Resource is reselected and reopened through the normal Resource Inspection path;
+- the reopened Inspection restores a bounded practical reading position and proportional terminal-layer reveal state rather than promising pixel-perfect browser-history semantics;
+- return frames are consumed exactly once after a successful restoration;
+- failed or abandoned return paths discard their ephemeral frame rather than leaving stale navigation state;
+- ordinary Query Reservoirs that did not originate from an Inspection preserve their prior Back/Home behavior;
+- ordinary root-returning queries continue to hide Back when Home is semantically equivalent;
+- a root-returning query that owns a valid Inspection return frame explicitly shows Back because Back and Home are then semantically distinct;
+- Home remains an unconditional return to the root Reservoir, discards Inspection return state, and does not reopen the previous Inspection;
+- nested Query Reservoir return chains remain supported without expanding the canonical `ReservoirContext` model;
+- Inspection return state does not promote Resources to Artifact status, alter Collection membership, or duplicate Resource identity;
+- synthetic Inspection QA covers root/non-root Back visibility, frame ownership, bounded reading-state restoration, Home discard, failed-query cleanup, one-time consumption, and ontology preservation.
+
+### Integrated Manual QA Deferral
+
+The production registry does not yet contain the Bellabeat supporting-Resource graph required to exercise the complete Resource → supporting Resource → Back → reopened Inspection path manually.
+
+Accordingly:
+
+- this checkpoint is accepted on reviewed implementation plus synthetic/automated QA;
+- do not add fake production Resources, memberships, or support relationships solely to expose this path manually;
+- integrated manual QA of supporting-Resource navigation and Inspection return is deferred until Bellabeat and its approved supporting Resources are materialized in the production registry;
+- Bellabeat integration QA must then exercise both Back restoration and Home discard behavior with real semantic content.
+
+### 6. Preserved Query Reservoir Closure Baseline
 
 The above work preserves the approved v0.6 Query Reservoir baseline:
 
@@ -115,32 +145,30 @@ The above work preserves the approved v0.6 Query Reservoir baseline:
 
 ## Remaining L2-Enabling Architecture
 
-Supporting-Resource discovery/navigation is now implemented. The next bounded architecture pass is minimum Inspection return context.
+The Resource registry, direct Resource Query Reservoir seam, common Inspection Window, structured-document foundation, supporting-Resource navigation, and minimum Inspection return context are now implemented on `main`.
 
-### Immediate next pass — Minimum Inspection Return Context
+### Immediate next pass — Polished Image Inspection
 
-Extend the existing directional Query Reservoir return model so a supporting-Resource detour can restore the practical inspection state the user came from instead of returning only to the underlying Reservoir.
+The next bounded L2 implementation seam is the polished image Inspection surface already anticipated by the common `InspectionWindow` architecture.
 
-The first pass should remain deliberately narrow and establish:
+The pass should remain narrow and establish:
 
-- a minimal return-context representation for an Inspection-originated Resource query;
-- restoration of the prior semantic Reservoir context;
-- restoration of the previously inspected Resource selection;
-- reopening the prior Inspection Window when Back is invoked from the support Resource detour;
-- restoration of a practical reading position rather than requiring exact pixel-perfect browser-history semantics;
-- preservation of the existing normal Query Reservoir Back behavior for queries that did not originate from an Inspection Window;
-- Home remains an unconditional return to the root Reservoir rather than reopening a previous inspection;
-- no in-place renderer swap and no duplicate navigation state machine;
+- a production-quality image inspection renderer selected through `inspectionKind` rather than Artifact status;
+- canonical Resource/representation identity preservation;
+- appropriate image sizing, containment, aspect-ratio behavior, alt text, and responsive presentation inside the shared Inspection chassis;
+- compatibility with existing close, footer, support-resource rail, reduced-motion, and return-context behavior;
+- explicit handling of missing or invalid image representations without silently falling back to an unrelated renderer;
+- no duplicate image Resource identity for multiple representations;
 - no Bellabeat content ingestion unless separately authorized.
 
 ### Subsequent passes
 
-After minimum Inspection return context is stable:
+After polished image inspection is stable:
 
-1. polished image inspection;
-2. external-link / repository inspection;
-3. generic document/file/notebook fallback sufficient for Bellabeat;
-4. Bellabeat Resource/supporting-Resource materialization and approved content population.
+1. external-link / repository inspection;
+2. generic document/file/notebook fallback sufficient for Bellabeat;
+3. Bellabeat Resource/supporting-Resource materialization and approved content population;
+4. integrated manual QA of the now-real support-navigation / Inspection-return path.
 
 The exact grouping of these subsequent items may be adjusted if implementation evidence shows a cleaner bounded pass, but do not collapse them into production ingestion/search infrastructure.
 
@@ -152,7 +180,7 @@ The following item is explicitly non-blocking for the current L2 architecture an
 
 - **Inspection backdrop entry opacity choreography:** the shared fixed backdrop is functionally stable and no longer remains stuck/opaque after closure; Inspection Window arrival position is approved; backdrop exit behavior is acceptable. The remaining visual issue is that entry opacity can still appear to finish/jump near window settlement rather than manifesting with the desired perceptual relationship to window arrival. Revisit during final launch-polish/refinement rather than continuing architecture work now.
 
-Do not treat this pinned visual refinement as a reason to reopen support-resource navigation unless a functional regression appears.
+Do not treat this pinned visual refinement as a reason to reopen completed Inspection/navigation architecture unless a functional regression appears.
 
 ---
 
@@ -177,6 +205,6 @@ Do not treat the following as L2 prerequisites unless separately authorized:
 
 For new L2 implementation branches, read this file after the ontology and Bellabeat manifest to distinguish conceptual requirements from already-completed runtime work.
 
-Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, or supporting-Resource navigation unless a reviewed defect specifically requires correction.
+Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, supporting-Resource navigation, or minimum Inspection return context unless a reviewed defect specifically requires correction.
 
-The current next-task seam is minimum Inspection return context.
+The current next-task seam is polished image inspection.
