@@ -843,7 +843,7 @@ body.artifact-reading-mode .reservoir-study {
   opacity: 0;
   animation: inspection-reading-backdrop-enter
     var(--artifact-window-deploy-duration)
-    cubic-bezier(0.2, 0.76, 0.2, 1) both;
+    linear both;
 }
 
 .inspection-reading-backdrop[data-inspection-window-phase="reading"] {
@@ -854,13 +854,13 @@ body.artifact-reading-mode .reservoir-study {
   opacity: 0;
   animation: inspection-reading-backdrop-exit
     var(--artifact-window-retract-duration)
-    cubic-bezier(0.58, 0, 0.86, 0.42) both;
+    linear both;
 }
 
 .artifact-reading-stage {
-  --artifact-window-responsive-top: 24svh;
+  --artifact-window-responsive-top: 18svh;
   --artifact-window-atmosphere-bottom: 0px;
-  --artifact-window-atmosphere-gap: clamp(22px, 2.4vw, 38px);
+  --artifact-window-atmosphere-gap: clamp(16px, 1.6vw, 28px);
   --artifact-window-top: max(
     var(--artifact-window-responsive-top),
     calc(
@@ -1381,6 +1381,18 @@ body.artifact-reading-mode .reservoir-study {
     opacity: 0;
   }
 
+  20% {
+    opacity: 0.08;
+  }
+
+  55% {
+    opacity: 0.58;
+  }
+
+  80% {
+    opacity: 0.9;
+  }
+
   to {
     opacity: 1;
   }
@@ -1389,6 +1401,18 @@ body.artifact-reading-mode .reservoir-study {
 @keyframes inspection-reading-backdrop-exit {
   from {
     opacity: 1;
+  }
+
+  25% {
+    opacity: 0.86;
+  }
+
+  55% {
+    opacity: 0.5;
+  }
+
+  80% {
+    opacity: 0.12;
   }
 
   to {
