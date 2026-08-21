@@ -1,9 +1,9 @@
 # Digital Reservoir
 ## Codex Implementation Brief
-**Version:** 0.6 — Official Query Reservoir Closure Baseline
-**Status:** Persistent Developer Reference — Closure Baseline / L1 PASS / CLOSED
+**Version:** 0.7 — Public Launch Implementation Alignment
+**Status:** Persistent Developer Reference — V2/L2 foundation stable / public-launch preparation
 **Project:** kodyepugh.com
-**Primary reference:** `docs/digital-reservoir-interface-spec.md`
+**Primary references:** `docs/release-preparation-roadmap.md`, `docs/l2-implementation-status.md`, `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md`, and the Interface Specification
 
 ---
 
@@ -33,21 +33,25 @@ Codex should treat this file as a persistent operational reference.
 
 ---
 
-# 2. Source-of-Truth Hierarchy
+# 2. Source-of-Truth Responsibilities
 
-When implementing changes, use the following priority order:
+Do not treat one project document as overriding all others outside its domain.
 
-```text
-1. Explicit current task instruction
-2. Digital Reservoir Interface Specification
-3. This Codex Implementation Brief
-4. Existing repository conventions
-5. Codex judgment
-```
+Use these authorities:
 
-If an explicit task conflicts with the interface specification, do not silently reinterpret the request.
+1. **Explicit current user/task instruction** — highest authority for scope and direction.
+2. **`docs/release-preparation-roadmap.md`** — sequencing, launch priorities, blockers, and deferred work.
+3. **`docs/l2-implementation-status.md`** — what is implemented, accepted, and still technically open.
+4. **`docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md`** — semantic Object/Resource/Collection/Artifact-status rules, addressability, memberships, relationships, and inspection semantics.
+5. **Interface Specification** — accepted interaction, visual, spatial, accessibility, and experience behavior.
+6. **This Codex Implementation Brief** — implementation discipline and historical technical context.
+7. **Bellabeat manifest** — Bellabeat content/provenance/curatorial authority when Bellabeat is in scope.
+8. **Closeout documents** — accepted evidence for their bounded completed passes.
+9. **Current code and validation output** — runtime truth; reconcile documentation when behavior and docs diverge.
 
-Surface the conflict before making a major architectural change.
+If two authorities appear to conflict, identify the domain of the conflict before changing architecture.
+
+Do not use historical "next step" language in this brief or an older closeout to override the current release roadmap.
 
 ---
 
@@ -92,7 +96,7 @@ The Query Reservoir feature branch is closed for this development phase. Future 
 - a direct single-result Query Reservoir uses the canonical viewport-relative focal anchor regardless of the global Distributed / Focused preference;
 - query filter ownership is context-local, so a fresh Query Reservoir starts at `All` unless its own context is being restored;
 - staying nodes remain stationary; leaving nodes sink; entering nodes emerge; failed filters produce the red reservoir response rather than mutating state;
-- direct artifact Query Reservoirs auto-select on arrival, but the artifact window still requires a second click to open;
+- direct artifact Query Reservoirs auto-select on arrival, but the Inspection Window still requires a second click to open;
 - preserved quaternion / zoom behavior continues through exchange, but no historical geometry-restoration hierarchy should be reintroduced.
 
 ---
@@ -171,94 +175,84 @@ Unless directly instructed, do not implement:
 
 V2 does authorize the spatial substrate required for dynamic node layout, continuous spherical positions, centered scale-based zoom, a clean continuous reservoir surface, and active/destination collection transitions.
 
-# 7. Prototype-First Development
+# 7. Development Phase
 
-The Digital Reservoir remains prototype-first, but the next prototype is an architectural spatial revision rather than another additive interaction milestone.
+Historical milestones M1–M5 and V2.1–V2.6 established the interaction and spatial substrate.
 
-Historical milestones M1–M5 established and tested:
+The following are now accepted foundation, not active implementation milestones:
 
-- sphere traversal;
-- artifact identity / selection;
-- artifact reading;
-- collection transitions;
-- control plane, menu, footer, queries, and scrolling behaviors.
+- centered reservoir;
+- scale-based zoom;
+- continuous spherical layout;
+- population-aware node sizing/spacing;
+- adaptive inspectability and dynamic labels;
+- Distributed / Focused layout modes;
+- Active + Destination collection transitions;
+- Query Reservoir closure baseline;
+- Resource/Collection semantic registry;
+- Resource-oriented Inspection Window;
+- structured-document, image, and external-link/repository Inspection;
+- supporting-Resource navigation;
+- minimum Inspection return context;
+- Bellabeat initial materialization.
 
-Those experiments remain evidence, not immutable implementation constraints.
+### Current phase — Public Launch Preparation
 
-### Current phase — V2 Spatial Foundation
+Current work is sequenced by `docs/release-preparation-roadmap.md`.
 
-Validate in this order:
+The five current launch stages are:
 
 ```text
-V2.1  Centered reservoir reference frame
-V2.2  Scale-based zoom with simplified camera model
-V2.3  Continuous render-mesh-independent spherical node layout
-V2.4  Population-aware deterministic spacing and starting composition
-V2.5  COMPLETE  Active + Destination collection transition integration
-V2.6  COMPLETE  Query Reservoir closure baseline, documentation alignment, and regression QA
+1. Portfolio Content Cut
+2. Public Web Layer
+3. Integrated Reservoir QA
+4. Responsive + Accessibility + Regression Sweep
+5. Production Release
 ```
 
-Do not add semantic zoom, automatic relationship layout, or new product systems until this substrate is visually and technically validated.
+Do not automatically continue into the next conceptually interesting renderer, ingestion system, or product capability.
 
-The approved implementation already uses one authoritative `activeLayout` and one ephemeral `transitionPlan` per exchange in the persistent centered frame. Collection-node entry, Home, Back, ancestor/path selection, and direct collection requests resolve semantic destinations through the shared transition coordinator. Query Reservoir ancestry is directional through `returnContext`; query filters are context-local; direct single-result Query Reservoirs retain canonical focal placement regardless of the global Distributed / Focused preference; staying nodes remain stationary while leaving and entering nodes reconcile through the same choreography; direct results auto-select on arrival; and a second click is still required to open artifact content. Semantic navigation history is independent from geometry, and the implementation does not rely on a persistent reusable geometry-snapshot hierarchy.
+The launch portfolio takes priority over further Digital Reservoir product expansion unless an approved launch Resource requires that capability.
 
-### L1 Closeout
+### L1 / Query Reservoir closure
 
-L1 Release-Candidate QA on `qa/l1-release-candidate-baseline` is closed as **PASS / CLOSED**.
+L1 Release-Candidate QA and the Query Reservoir closure baseline remain accepted regression references.
 
-The sandbox production-build failure observed during the QA pass is recorded only as an environment-specific validation limitation. It is not a product defect.
+Do not reintroduce historical camera-path, reciprocal query ancestry, physical collection-slot, or mesh-semantic architecture.
 
-Local validation completed successfully and no confirmed L1 Blocker, Defect, or Serious Usability Failure remains open.
+---
 
-### Closure Note
+# 8. Current Implementation Goal
 
-`feat/query-reservoir-context` is complete and closed for this phase.
+The current goal is to **ship the first credible public portfolio release of the Digital Reservoir**.
 
-Query Reservoirs remain navigation state, not semantic collection records. They may hold 0, 1, or N results, and they preserve the distinction between collection context and query context.
+The implementation should preserve the accepted spatial/semantic foundation while completing the bounded launch work defined by the release roadmap.
 
-Do not reintroduce full search, semantic retrieval, database systems, or broader filter architecture unless a later explicit task authorizes it.
-
-# 8. Current Prototype Goal
-
-The V2 camera/path-centric spatial substrate work is complete for this prototype cycle, and the approved baseline should be treated as the current reference implementation while preserving validated higher-level interaction behavior.
-
-Target model:
+The system should already be treated as:
 
 ```text
-CURRENT COLLECTION
-        ↓
-node population
-        ↓
-deterministic spherical layout
-        ↓
-continuous spherical positions
-        ↓
-clean continuous reservoir surface
-        ↓
-centered reservoir
-        ↓
-rotate to traverse
+PERSISTENT CENTERED RESERVOIR
 +
-zoom to change reservoir scale / information resolution
-        ↓
-select artifact → inspect/open
-or
-select collection → destination contents replace active contents
+SEMANTIC COLLECTION / QUERY CONTEXT
++
+RESOURCE-ORIENTED INSPECTION
++
+CONVENTIONAL PUBLIC WEB ACCESS
 ```
 
-The active reservoir remains centered.
+The highest-priority implementation work is no longer substrate invention.
 
-Ordinary zoom must not require:
+Current tasks should generally fall into one of these categories:
 
-- cursor-directed inward travel;
-- surface locking;
-- camera dive paths;
-- inner/outer camera modes;
-- atmospheric retreat trajectories.
+- finishing approved professional content;
+- exposing that content through real public destinations and direct addresses;
+- correcting reproducible launch regressions;
+- responsive/accessibility validation and fixes;
+- production release validation/packaging.
 
-Collection navigation must not require physical parent/child sphere slots.
+Do not reopen accepted architecture merely because a launch task touches it.
 
-The system should feel more like inspecting a persistent globe at changing scales than moving a camera through a cinematic pathway.
+---
 
 # 9. Suggested Repository Boundaries
 
@@ -279,7 +273,7 @@ components/
     NodeLabel.tsx
 
   artifact/
-    ArtifactWindow.tsx
+    InspectionWindow.tsx
     ArtifactRenderer.tsx
 
   navigation/
@@ -387,7 +381,7 @@ Responsible for Home vs selected-artifact metadata presentation.
 
 Must compose around the centered reservoir without becoming the reason the sphere is vertically displaced.
 
-## ArtifactWindow
+## InspectionWindow
 
 Responsible for conventional 2D artifact content, opening, scrolling, closing, and bottom-panel reveal behavior.
 
@@ -535,67 +529,75 @@ Use restrained shading/material cues to preserve curvature and orientation durin
 
 Reservoir center should be derived from the usable 3D frame and remain stable through ordinary rotation, zoom, and collection transitions.
 
-# 14. Artifact Data Rules
+# 14. Resource / Artifact-Status Data Rules
 
-Keep semantic artifact data independent from generated spatial presentation.
+Keep semantic Resource data independent from generated spatial presentation.
 
-Conceptual artifact:
+Canonical persistent semantic Objects are:
+
+```text
+Object
+├── Collection
+└── Resource
+```
+
+Artifact is reversible curatorial status on a Resource rather than a peer entity class.
+
+Conceptually:
 
 ```typescript
-interface Artifact {
+interface Resource {
   id: string;
   slug: string;
   title: string;
   subtitle?: string;
-  type: string;
-  icon?: string;
-  category?: string;
-  categoryColor?: string;
-  // collection participation is conceptually represented through Membership records;
+  resourceType: string;
+  inspectionKind: string;
+  isArtifact: boolean;
+  published: boolean;
 }
 ```
 
+Collection participation is expressed through Membership records.
+
+Representations, support relationships, and provenance records must not create duplicate Resource identity.
+
 Generated reservoir layout should be stored separately or derived deterministically.
 
-Do not require each artifact to permanently carry:
+If legacy Artifact-oriented selectors or components remain for compatibility, isolate them behind adapters and do not extend the old semantic assumption.
 
-If legacy vertex placement remains temporarily during migration, isolate it behind an adapter and do not extend that dependency.
+# 14.1 Current Product Entity Boundaries
 
-# 14.1 Future Product Entity Boundaries
+Do not architect the frontend as though all future system concerns are fields on `Artifact`.
 
-The prototype may continue using simple local/static content records. However, do not architect the frontend as though all future system concerns are fields on `Artifact`.
-
-Future product architecture should conceptually distinguish:
+Current semantic boundaries are:
 
 ```text
-ARTIFACT
-logical inspectable item
+RESOURCE
+stable addressable content-bearing Object
+
+ARTIFACT STATUS
+reversible Resource curation status
 
 COLLECTION
-grouping object
+persistent curated Object
 
 MEMBERSHIP
-relationship connecting an artifact/collection to a collection
+Collection → Collection or Artifact-status Resource
 
-ASSET
-underlying stored file/media/content payload
+REPRESENTATION
+one form of a Resource, not a duplicate Resource
 
-SOURCE RECORD
-provenance describing where an artifact/asset was found or imported
+SUPPORT RELATIONSHIP
+Resource → Resource discovery/support relation
+
+SOURCE / PROVENANCE
+relationship or implementation record describing origin/evidence
 ```
 
-Important implications:
+Future database schemas, migration pipelines, hashing, deduplication, synchronization, cloud connectors, automated classification, and production ingestion remain deferred unless explicitly tasked.
 
-- artifact-to-collection organization is conceptually many-to-many;
-- imported folders should be representable as collections;
-- one logical artifact may have multiple collection memberships;
-- one asset may have multiple source records;
-- identical imported copies should eventually be deduplicable without discarding provenance;
-- related versions/derivatives should not be collapsed merely because they are similar.
-
-Do **not** implement production database schemas, migration pipelines, hashing, deduplication, synchronization, cloud connectors, or automated classification as part of V2 unless explicitly tasked.
-
-These boundaries exist so current prototype code does not hard-code assumptions that block a future relational product model.
+---
 
 # 15. Interaction Mode Separation
 
@@ -713,7 +715,7 @@ Expected conceptual order:
 ```text
 close control
 ↓
-artifact window retracts below viewport
+Inspection Window retracts below viewport
 ↓
 sphere visual state restores
 +
@@ -903,7 +905,7 @@ If prototype work requires temporary geometry, label it clearly as placeholder.
 
 # 30. Content Window Discipline
 
-The artifact window should prioritize readability and conventional browser behavior.
+The Inspection Window should prioritize readability and conventional browser behavior.
 
 Do not make long-form content depend on:
 
@@ -1272,119 +1274,85 @@ If not, remove it.
 
 # 49. Current Development Status
 
-The project has completed a broad V1 interaction exploration and is beginning the V2 spatial-foundation rewrite.
+The project has completed the V1 interaction exploration, V2 spatial-foundation work, Query Reservoir closure, and the L2 semantic/Inspection foundation required by the current Bellabeat launch material.
 
-Validated V1 work includes:
+Accepted foundation includes:
 
-- R3F/Three.js reservoir rendering;
-- artifact node identity, labels, selection, and surface-response behavior;
-- progressive artifact opening and conventional reading;
-- recursive collection experiments;
-- bottom control plane;
-- menu, direct navigation, queries, footer, and artifact-scroll coordination;
-- extensive transition and density testing.
+- centered R3F/Three.js Reservoir;
+- render-mesh-independent node layout;
+- population-aware node sizing/spacing;
+- Distributed / Focused modes;
+- progressive Resource selection and conventional Inspection;
+- recursive Collection navigation through Active + Destination state;
+- bottom control plane, menu, footer, and query coordination;
+- directional Query Reservoir ancestry;
+- Resource/Collection registry and addressability;
+- Resource-oriented Inspection Window;
+- structured-document, image, and external-link/repository Inspection;
+- supporting-Resource navigation and practical Inspection return;
+- Bellabeat initial materialization.
 
-These remain valuable product evidence.
-
-### V2 superseding spatial assumptions
-
-The following historical mechanics should no longer constrain architecture:
+Historical mechanics that remain retired:
 
 - lower-frame sphere composition;
-- visible detail-15 structural grid/topology;
-- permanent render-mesh vertex placement as artifact identity;
-- cursor-directed inward camera travel as zoom;
-- locked surface point / inner camera state;
-- atmospheric camera retreat;
-- physical Active / Ancestor / Child collection sphere slots;
-- collection traversal dependent on camera push/pull through those slots.
+- semantic mesh topology;
+- permanent render-mesh vertex placement;
+- cursor-directed camera dive as ordinary zoom;
+- locked surface/inner camera state;
+- physical Active / Ancestor / Child Collection spheres;
+- Collection traversal dependent on camera push/pull through those slots.
 
-### V2 target
+### Current target
 
-The current implementation should converge on:
+Current implementation should preserve the accepted foundation while completing the public launch roadmap.
 
-```text
-CENTERED RESERVOIR
-+
-ORIENTATION Q
-+
-ZOOM Z
-+
-GENERATED SPHERICAL LAYOUT L
-+
-CONTINUOUS SURFACE PRESENTATION S
-+
-ACTIVE COLLECTION C
-```
+Do not treat V2 spatial work as an unfinished current milestone.
 
-with:
+---
+
+# 50. Current Checkpoint — Public Launch Preparation
+
+V1/V2 milestones remain historical checkpoints and regression references.
+
+The current sequencing authority is `docs/release-preparation-roadmap.md`.
+
+Current stages:
 
 ```text
-R = f(viewport, safeZones, Z)
-S = dense sphere surface/material presentation; presentation-only, no semantic topology
-L = f(collection membership, population, spacing, seed)
-Q = user rotation
-C = semantic navigation state
+1. Portfolio Content Cut
+2. Public Web Layer
+3. Integrated Reservoir QA
+4. Responsive, Accessibility, and Interaction Regression Sweep
+5. Production Release
 ```
 
-The immediate goal is to establish this substrate without regressing validated artifact and UI behavior.
+### Preserve during launch work
 
-# 50. Milestone Checkpoint
+- centered reservoir;
+- scale-based zoom;
+- current node sizing/spacing;
+- adaptive inspectability;
+- dynamic label behavior;
+- Distributed / Focused layouts;
+- Active + Destination Collection transitions;
+- directional Query Reservoir ancestry;
+- context-local query filters;
+- Resource identity and Artifact-status semantics;
+- shared InspectionWindow architecture;
+- Inspection return context;
+- menu/footer independence;
+- reduced-motion and accessibility behavior already established.
 
-V1 milestones remain historical checkpoints and regression references.
+### Do not reopen by default
 
-They should not be treated as reasons to preserve superseded spatial architecture.
+Do not restart V2.1–V2.6, rebuild L2 registry architecture, or add new renderer families merely because the current task touches these systems.
 
-## Current checkpoint — V2 Spatial Foundation Authorized
+A completed foundation may be changed only for:
 
-Recommended implementation order:
+- a reproducible defect;
+- an explicitly approved design change;
+- a launch requirement that cannot be satisfied within the accepted abstraction.
 
-```text
-V2.1
-Center reservoir in the usable 3D frame and isolate responsive safe zones.
+### Definition of launch-preparation completion
 
-V2.2
-Replace camera-dive zoom with bounded reservoir-scale zoom.
-
-V2.3
-Introduce continuous render-mesh-independent spherical node positions and deterministic population layout.
-
-V2.4
-Tune deterministic population-aware node spacing and initial composition while validating the clean continuous reservoir surface without the V1 grid, using the approved continuous sizing curve (`7.0×` for 1-2 nodes, `5.5×` at 6 nodes, `1.0×` at 24 nodes) without reintroducing a minimum-size floor, and preserve the adaptive inspectability / dynamic-labels MVP that raises zoom only when smaller active nodes need more resolution.
-
-The adaptive inspectability and dynamic-labels MVP has these implementation rules:
-
-- keep `2.15` as the ordinary baseline maximum and `4` as an absolute guard only;
-- derive a responsive transform-safe maximum from camera-space depth, the near plane, responsive base scale, the sphere and largest active node extent, node center elevation, and a clearance margin;
-- select the smallest resolved node kind that actually exists in the active semantic collection, without using query-filtered visibility or a current-orientation projection pass;
-- solve the required zoom with a bounded nonlinear projection search at the canonical viewer-facing center for a separate `24px` node-inspectability target;
-- keep target reachability explicit and never allow active zoom above the transform-safe or hard maximum;
-- use allocation-light central projection helpers and do not update React state per frame for labels;
-- drive label hysteresis from projected node size; raw zoom is not an independent label gate, inspection requires active hover/focus intent, and persistent labels do not;
-- treat node labels as screen-space annotations constrained by child-node and reservoir surface geometry, using sphere occlusion for child visibility and keeping accepted directions in the reservoir-exterior hemisphere;
-- evaluate full screen-space label rectangles with the correct ray-to-rectangle support distance, use a surface-authoritative outward candidate fan for viewport edges, and keep the existing canvas typography approximately screen-bounded;
-- place final anchors camera-side of visible geometry or on a surface-safe fallback plane, render eligible labels as whole foreground annotations, and align the dynamic hover bridge from the visible node edge to the label-facing rectangle edge;
-- preserve centered zoom, current node sizing, Distributed and Focused layouts, query semantics, and Active + Destination transitions without adding semantic zoom or camera redesign.
-
-V2.5 COMPLETE
-Active + Destination collection transitions are already implemented and validated in the persistent centered frame.
-
-V2.6 COMPLETE
-Run regression / density / responsive / performance QA across artifacts, queries, menu, footer, content-window interactions, and presentation-pattern surface legibility.
-```
-
-### Definition of V2 spatial-foundation completion
-
-The foundation is ready when:
-
-- sphere centering is stable across representative viewports;
-- zoom feels natural without camera dive/retreat;
-- node layout responds soundly to collection population;
-- node positions remain stable across zoom and collection transitions;
-- reservoir surface presentation remains stable, performant, and independent from node population;
-- collection changes no longer depend on physical sphere slots;
-- existing artifact interaction remains intact;
-- existing control-plane/menu/footer/query behavior remains coherent;
-- TypeScript, lint, build, and visual QA pass.
-
-These criteria are satisfied for the approved baseline. Future work should preserve them rather than reopening retired geometry or navigation models.
+Use the release roadmap's completion conditions rather than the historical V2 milestone checklist.

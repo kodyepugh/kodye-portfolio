@@ -25,6 +25,6 @@ The final user review accepted the external-link/repository surface, universal t
 
 The earlier close-X latency issue was materially improved after removing special positioning and pointer-geometry behavior. Preserve existing diagnostics for the launch/regression sweep, but do not reopen this checkpoint absent a reproducible functional regression.
 
-## Next L2 Seam
+## Historical Next L2 Seam at Closeout
 
-The previous L2 sequence identifies the next bounded renderer seam as a generic document/file/notebook fallback sufficient for Bellabeat support material. Before implementation, reconcile that seam with the current release-preparation roadmap so further renderer work does not unnecessarily delay the public portfolio launch.
+At closeout, the previous L2 sequence identified a generic document/file/notebook fallback as a possible next renderer seam. The current repository has implemented the notebook surface needed by Bellabeat, while unsupported non-launch kinds remain explicit. Follow `docs/release-preparation-roadmap.md` for current sequencing; release validation takes priority over additional renderer expansion.

@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KP Website / Digital Reservoir
 
-## Getting Started
+This repository contains the KP Website portfolio and its Digital Reservoir interface: a spatial portfolio experience where Collections organize work and Resources provide directly addressable, inspectable content.
 
-First, run the development server:
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`. Use the following checks before a reviewable implementation checkpoint:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run typecheck
+npm run lint
+npm run validate:content
+npm run validate:inspection
+npm run validate:label-geometry
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Documentation index
 
-## Learn More
+- [`AGENTS.md`](AGENTS.md) — repository and implementation instructions.
+- [`docs/release-preparation-roadmap.md`](docs/release-preparation-roadmap.md) — current public-launch objective, priorities, and deferrals.
+- [`docs/l2-implementation-status.md`](docs/l2-implementation-status.md) — implemented L2 foundation and remaining runtime work.
+- [`docs/l2-bellabeat-manual-ingestion-manifest.md`](docs/l2-bellabeat-manual-ingestion-manifest.md) — approved Bellabeat content and curatorial boundaries.
+- [`docs/l2-external-link-repository-inspection-closeout.md`](docs/l2-external-link-repository-inspection-closeout.md) — accepted external-link/repository pass.
+- [`docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md`](docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md) — authoritative semantic object and Resource model.
+- [`docs/digital-reservoir-interface-spec-v0.4-v2-prototype-foundation.md`](docs/digital-reservoir-interface-spec-v0.4-v2-prototype-foundation.md) — approved interface and interaction specification.
+- [`docs/digital-reservoir-codex-brief-v0.4-v2-prototype-foundation.md`](docs/digital-reservoir-codex-brief-v0.4-v2-prototype-foundation.md) — implementation brief and foundation context.
+- [`docs/operating/Shared Operating Contract.md`](docs/operating/Shared%20Operating%20Contract.md) — stable cross-agent operating rules.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Current sequencing follows the roadmap; detailed architecture and accepted behavior remain in the linked source documents above.

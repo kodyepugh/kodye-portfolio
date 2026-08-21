@@ -1,7 +1,7 @@
 # Digital Reservoir
 ## Interface & Experience Specification
-**Version:** 0.6 — Official Query Reservoir Closure Baseline
-**Status:** Foundational Design Specification / Living Document — Closure Baseline / L1 PASS / CLOSED
+**Version:** 0.7 — Resource Ontology + Public Launch Alignment
+**Status:** Foundational Design Specification / Living Document — V2 + Query Reservoir baseline preserved / L2 launch preparation
 **Established:** 2026
 **Project:** kodyepugh.com
 **Working concept:** *Digital Reservoir — A collection of all things Kodye Pugh*
@@ -29,6 +29,20 @@ It is intended to serve as the central reference for:
 - instructions given to ChatGPT, Codex, or other development tools.
 
 This document should be treated as a **living specification**, not an immutable contract.
+
+### Current semantic-authority note
+
+The authoritative persistent object model is defined by `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md` revision 0.7.1.
+
+Where older sections of this specification use `Artifact`, `Asset`, `Source Record`, or `Inspection Window` as if they were peer entity classes, interpret them through the current ontology:
+
+- persistent `Object = Collection | Resource`;
+- Artifact is reversible curatorial status on a Resource;
+- Asset and Source describe supporting/provenance roles or implementation records rather than mandatory peer public Object classes;
+- Resource inspection is provided by the shared `InspectionWindow`, with renderer selection driven by `inspectionKind`;
+- public routing/deep links map onto stable Object identity and do not redefine that identity.
+
+Historical interaction language remains useful where it describes accepted behavior, but it must not override the current ontology.
 
 However, not every decision carries equal weight.
 
@@ -67,7 +81,7 @@ The approved runtime contract is:
 - `Home` always returns to the root reservoir;
 - `Explore` filter state belongs to the reservoir context, so a new Query Reservoir starts at `All` unless its own context is being restored;
 - staying nodes remain stationary, leaving nodes sink, entering nodes emerge, and an empty target uses the red reservoir response rather than destroying state;
-- direct artifacts auto-select on arrival, but the artifact window still requires a second click to open.
+- direct artifacts auto-select on arrival, but the Inspection Window still requires a second click to open.
 
 ---
 
@@ -110,21 +124,39 @@ The current professional portfolio is the first public implementation of this la
 
 # 2. Foundational Conceptual Model
 
-The primary conceptual units are:
+The current conceptual units are:
 
-1. **Artifact**
+1. **Object**
 2. **Collection**
-3. **Reservoir**
-4. **Inspection Window**
-5. **Control Plane**
+3. **Resource**
+4. **Artifact status**
+5. **Query Reservoir**
+6. **Reservoir**
+7. **Inspection Window**
+8. **Control Plane**
 
----
+The semantic model is relational rather than a fixed hierarchy.
 
-## 2.1 Artifact
+```text
+OBJECT
+├── COLLECTION
+└── RESOURCE
+      └── may hold ARTIFACT STATUS
+```
 
-An artifact is an individually inspectable object.
+Artifact is not a peer Object type beside Collection and Resource. It is curatorial status granted to a Resource when persistent Collection membership is useful.
 
-Examples:
+For interface shorthand, this specification may still say "artifact" when referring to an Artifact-status Resource already participating persistently in the portfolio.
+
+### Foundational rule
+
+> **Addressability is universal. Membership is selective.**
+
+## 2.1 Resource and Artifact Status
+
+A Resource is an independently addressable, inspectable content-bearing Object.
+
+Examples include:
 
 - Bellabeat case study;
 - resume;
@@ -132,82 +164,52 @@ Examples:
 - essay;
 - film;
 - external link;
+- repository;
+- notebook;
 - project;
 - painting;
 - observation;
-- video;
 - document.
 
-Within the spatial interface, an artifact is represented by an **orb positioned on the reservoir surface in continuous spherical space**. Its position is defined independently from the reservoir's rendered sphere mesh and is not authored to mesh vertices.
+A Resource may remain non-Artifact while still being directly queryable and inspectable.
 
-An artifact may carry:
+When a Resource is granted Artifact status, it becomes eligible for persistent Collection membership and therefore for persistent Reservoir placement.
 
-- title;
-- subtitle;
-- icon;
-- category;
-- category color;
-- type;
-- dates;
-- descriptive metadata;
-- media;
-- content;
-- relationships;
-- collection membership.
+Within the spatial interface, an Artifact-status Resource is represented by an orb positioned in continuous spherical space independently from the reservoir's render-mesh vertices.
 
-Artifact interaction uses progressive disclosure.
+Artifact-status interaction uses progressive disclosure:
 
-A first selection keeps the visitor in the reservoir and exposes richer artifact information in the atmospheric region. A second selection of the already-selected artifact opens its conventional inspection window.
+1. first selection keeps the visitor in the Reservoir and exposes richer Resource information in the atmosphere;
+2. second deliberate selection opens the Resource's type-appropriate Inspection Window.
 
-Selecting an artifact does **not** transform the reservoir into another reservoir and does not require the artifact orb to detach from its surface position or travel into the identity mark.
+Selecting an Artifact-status Resource does not transform the Reservoir into another persistent Reservoir.
 
 ### Foundational rule
 
-> **Artifacts open windows.**
+> **Resources are inspected. Artifact status determines persistent curation.**
 
 ## 2.2 Collection
 
-A collection is an object containing other artifacts and/or collections.
+A Collection is a persistent curated Object that may contain:
 
-A collection is represented in the reservoir as a sphere-like node.
+- Collections;
+- Artifact-status Resources.
 
-Selecting a collection does not open a conventional page.
+A Collection is represented in the Reservoir as a sphere-like node.
 
-Instead, the interface transitions into that collection, and the collection becomes the new spatial reservoir.
+Selecting a Collection changes the active persistent Reservoir context rather than opening a conventional page.
 
-A collection may contain:
-
-- artifacts;
-- subcollections;
-- both simultaneously.
-
-Examples:
-
-```text
-Root
-└── Work
-    ├── Data
-    │   ├── Bellabeat
-    │   └── Future Project
-    ├── Web
-    └── Film
-```
+Supporting Resources without Artifact status do not receive ordinary Collection membership merely because they support another Resource.
 
 ### Foundational rule
 
 > **Collections change the world.**
 
----
-
 ## 2.3 Query Reservoir
 
-Queries answer “show me what matches.”
+Queries answer "show me what matches."
 
-A Query Reservoir is an ephemeral result context created from a query result set.
-
-It is not a stored Collection entity and does not alter artifact membership.
-
-Query Reservoir exchange uses the same departure / handoff / arrival choreography as collection exchange, but the query context owns its own local presentation state.
+A Query Reservoir is an ephemeral navigation context created from a query result set. It is not a stored Collection Object and does not alter Resource identity, Artifact status, or Collection membership.
 
 A Query Reservoir may contain:
 
@@ -215,74 +217,48 @@ A Query Reservoir may contain:
 - 1 result;
 - N results.
 
-The temporary query result set itself becomes the active reservoir context and is rendered through the existing reservoir layout system.
+A direct Resource request resolves through a temporary Query Reservoir. A directly addressed Collection resolves to that Collection's persistent Reservoir.
 
-Direct artifact requests should resolve through a temporary Query Reservoir rather than routing to an arbitrary collection merely because that collection contains the requested artifact.
+Direct single-result queries use the canonical viewport-relative focal placement. Artifact-status Resources may auto-select on arrival while Inspection still requires deliberate confirmation.
 
-When a direct Query Reservoir contains exactly one artifact, that artifact uses the canonical viewport-relative focal placement even if the user's global layout preference remains Distributed.
+Back follows directional `returnContext`. Home returns to the root Reservoir.
 
-Query filter state is context-local. A new Query Reservoir begins at `All` unless its own context is being restored from `returnContext` or Back navigation.
+### Foundational rule
 
-The interface should preserve progressive disclosure:
-
-1. resolve matching artifact(s) / collection(s);
-2. create temporary Query Reservoir;
-3. render the result set using the existing reservoir layout system;
-4. allow the user to deliberately open the artifact.
-
-Back returns to the reservoir/context from which the query was issued. Home returns directly to the root Digital Reservoir.
-
-Back follows the immutable query ancestry chain expressed by `returnContext`; it does not rewrite the restored context to point forward toward the departed query.
-
-Query chains are directional and must not form reciprocal loops.
-
----
+> **Collections organize. Queries retrieve. Inspection reveals.**
 
 ## 2.4 Reservoir
 
-A reservoir is the spatial representation of a collection.
+A Reservoir is the spatial presentation of an active persistent Collection or an active ephemeral Query context.
 
-The root/home environment is therefore simply the highest-level collection.
-
-Conceptually:
+For persistent Collection context:
 
 ```text
 Home Reservoir = Root Collection
 ```
 
-There is no special architectural distinction between the home sphere and other collection spheres.
+Root and nested Collections use the same recursive spatial system.
 
-The home sphere is simply the root instance of the same recursive system.
-
-### Foundational rule
-
-> **Every reservoir is a collection, and every collection can become a reservoir.**
-
----
+Query Reservoirs reuse the spatial presentation system without becoming persistent Collections.
 
 ## 2.5 Inspection Window
 
-Artifact content should not itself be forced into spatial 3D interaction.
+Long-form or type-specific Resource consumption remains conventional 2D UI rather than being forced into WebGL.
 
-Once an artifact is selected, its contents are displayed in a conventional, readable 2D content layer.
+The shared Resource-oriented `InspectionWindow` chooses a renderer from the Resource's `inspectionKind`.
 
-This content layer may contain:
+Implemented launch surfaces include:
 
-- text;
-- images;
-- data visualizations;
-- embedded media;
-- interactive charts;
-- tables;
-- links;
-- documents;
-- calls to action.
+- structured document;
+- image;
+- external link/repository;
+- the notebook/code treatment required by Bellabeat.
+
+The atmosphere owns concise Resource identity/metadata. The renderer owns primary content. The shared Inspection context tray exposes related Resources and Collections after the primary content.
 
 ### Foundational rule
 
-> **Exploration may be spatial. Reading should remain natural.**
-
----
+> **Exploration may be spatial. Inspection and reading should remain natural.**
 
 ## 2.6 Persistent Control Plane
 
@@ -527,7 +503,7 @@ L0  MENU / FOOTER REVEAL LAYERS
 
 Actual CSS/WebGL z-order may differ according to implementation requirements.
 
-The artifact window must visually enter **above the reservoir interface**, while still feeling like it rises from below the viewport. The selected-artifact metadata belongs to the atmospheric information layer rather than the node-label layer.
+The Inspection Window must visually enter **above the reservoir interface**, while still feeling like it rises from below the viewport. The selected-artifact metadata belongs to the atmospheric information layer rather than the node-label layer.
 
 # 5. Home Reservoir State
 
@@ -600,9 +576,9 @@ Contextual controls should appear only when relevant.
 
 When an artifact is open, the symbol and wordmark remain the stable center identity block.
 
-Artifact title and descriptive metadata are not required to expand laterally from the symbol. Their primary preview location is the atmospheric information region during the selected state, while the opened artifact window owns the full reading hierarchy.
+Artifact title and descriptive metadata are not required to expand laterally from the symbol. Their primary preview location is the atmospheric information region during the selected state, while the opened Inspection Window owns the full reading hierarchy.
 
-A close control belongs to the artifact window.
+A close control belongs to the Inspection Window.
 
 A future Home control may occupy the reserved space beneath the symbol/wordmark, but its semantics remain unresolved.
 
@@ -778,7 +754,7 @@ The active reservoir is a persistent spherical reference frame centered in the u
 
 The reservoir should no longer be composed as a sphere intentionally displaced toward the lower portion of the screen in order to create a dedicated atmospheric band above it. The sphere itself is the primary spatial reference and should remain geometrically centered within the visual frame available to reservoir exploration.
 
-The surrounding atmosphere, metadata, control plane, artifact window, menu, and footer should compose around this centered reference rather than determine its world-space position.
+The surrounding atmosphere, metadata, control plane, Inspection Window, menu, and footer should compose around this centered reference rather than determine its world-space position.
 
 ### Foundational rule
 
@@ -996,7 +972,7 @@ Pointer drag             rotate/traverse reservoir
 Wheel                    change reservoir scale / zoom
 Hover                    focus node
 First click artifact     select / inspect artifact metadata
-Second click selected    open artifact window
+Second click selected    open Inspection Window
 Click elsewhere          deselect where appropriate
 Select collection        transition active semantic reservoir
 ```
@@ -1013,7 +989,7 @@ Preferred conceptual mapping:
 Swipe                  rotate reservoir
 Pinch                  change reservoir scale / zoom
 First tap artifact     select / inspect artifact metadata
-Second tap selected    open artifact window
+Second tap selected    open Inspection Window
 Tap collection         transition active semantic reservoir
 ```
 
@@ -1269,7 +1245,7 @@ The sphere itself should not automatically rotate or reframe as part of opening.
 
 ## 16.3 Beat C — Content Deployment
 
-The artifact window slides upward from the bottom of the screen **above the reservoir interface**.
+The Inspection Window slides upward from the bottom of the screen **above the reservoir interface**.
 
 Its initial top edge should settle approximately around the viewport's upper-third line, using the intentionally preserved atmospheric space as part of the composition.
 
@@ -1277,7 +1253,7 @@ The exact top offset should respond to viewport dimensions rather than rely on o
 
 The window may extend beyond the bottom of the viewport according to its content length.
 
-Once deployed, the artifact window becomes the primary interaction and reading surface.
+Once deployed, the Inspection Window becomes the primary interaction and reading surface.
 
 # 17. Artifact Open State
 
@@ -1292,11 +1268,11 @@ Keyboard   normal document navigation
 Pointer    text/media/chart interaction
 ```
 
-Sphere navigation becomes inactive while the artifact window is open.
+Sphere navigation becomes inactive while the Inspection Window is open.
 
 ## 17.2 Content Window
 
-The artifact window is a conventional 2D document surface that enters from below the viewport above the reservoir.
+The Inspection Window is a conventional 2D document surface that enters from below the viewport above the reservoir.
 
 Current specification:
 
@@ -1334,8 +1310,8 @@ Artifact exit should be simple and preserve context.
 
 Sequence:
 
-1. visitor chooses the artifact window's close control;
-2. artifact window slides downward and exits below the viewport;
+1. visitor chooses the Inspection Window's close control;
+2. Inspection Window slides downward and exits below the viewport;
 3. reservoir returns from its darkened/receded presentation;
 4. artifact nodes rise back to their normal surface positions;
 5. reservoir input is restored;
@@ -1365,7 +1341,7 @@ Return from a nested collection to root.
 ### Option C
 Reveal navigation path.
 
-The artifact window itself already has a dedicated close control, so Home should **not** be required merely to close an artifact.
+The Inspection Window itself already has a dedicated close control, so Home should **not** be required merely to close an artifact.
 
 This remains an **open decision**.
 
@@ -1517,68 +1493,73 @@ For V1, a single primary category may be used for simplicity.
 
 ---
 
-# 23. Artifact Content Model
+# 23. Resource / Artifact-Status Content Model
 
-Provisional conceptual structure:
+The canonical semantic model is owned by the ontology addendum rather than by this provisional TypeScript sketch.
+
+Conceptually:
 
 ```typescript
-Artifact {
+Resource {
   id
   slug
   title
   subtitle
   description
 
-  type
-
-  icon
-  category
-  categoryColor
+  resourceType
+  inspectionKind
+  isArtifact
 
   content
+  representations[]
+  supportRelationships[]
 
-  collections[]
-  relationships[]
-
-  featured
   published
   createdAt
   updatedAt
+}
 
-  spatialPlacement
+Collection {
+  id
+  slug
+  title
+  description
+}
+
+Membership {
+  collectionId
+  targetKind // "resource" | "collection"
+  targetId
 }
 ```
 
-Not every field needs implementation in V1.
+Important constraints:
+
+- only Artifact-status Resources and Collections receive ordinary persistent Collection membership;
+- Resource identity is stable across Artifact promotion/demotion;
+- representations do not create duplicate Resources;
+- layout/spatial placement is generated presentation state rather than permanent Resource identity;
+- support and provenance relationships do not imply Collection membership.
+
+Exact implementation types may differ. The ontology addendum controls semantics.
 
 ---
 
 # 24. Collection Content Model
 
-Provisional structure:
+Collections are persistent curated Objects.
 
-```typescript
-Collection {
-  id
-  slug
-  title
-  subtitle
-  description
+Their canonical membership targets are:
 
-  icon
-  category
-  categoryColor
+- Collections;
+- Artifact-status Resources.
 
-  artifacts[]
-  collections[]
+Collection membership is many-to-many and relational rather than a strict tree identity model.
 
-  spatialLayout
+Imported or nested hierarchies may be represented through Collection membership without making parent path part of Object identity.
 
-  parentCollections[]
-}
-```
-
-The data model should not force all content into strict tree hierarchy if future relational navigation is anticipated.
+Exact implementation shape is owned by the current registry and ontology.
 
 ---
 
@@ -1638,43 +1619,34 @@ The layout engine may later incorporate:
 
 V2 foundation should permit those inputs without implementing them prematurely.
 
-# 25.1 Future System Entity Model
+# 25.1 Current Semantic Entity Model
 
-The current prototype may continue using lightweight static data, but future product architecture should conceptually distinguish the following system-level entities. These are **not** all properties of an artifact.
+The current ontology supersedes the older future-product model that treated Artifact, Asset, and Source Record as peer conceptual entities.
 
-### Artifact
+Current persistent semantic Objects are:
 
-The logical item a user can inspect, organize, relate, and reference.
+```text
+Object
+├── Collection
+└── Resource
+```
 
-### Collection
+Additional concepts are relational or status-bearing:
 
-A grouping object that can contain artifacts and/or other collections. Collections may originate from user-created organization, imported folder structures, suggested starter domains, or future rule/query-driven systems.
+- **Artifact status** — reversible curatorial status on a Resource; grants Collection-membership eligibility;
+- **Membership** — relationship connecting a Collection to an Artifact-status Resource or another Collection;
+- **Representation** — one presentation/storage form of a Resource without creating duplicate Resource identity;
+- **Support relationship** — Resource-to-Resource relation expressing supporting context;
+- **Asset role** — a Resource's supporting use relative to another Resource;
+- **Source/provenance role** — supporting/evidentiary origin, with implementation SourceRecords allowed where technically useful.
 
-The product may offer an optional starter set of broadly understood life-domain collections — for example Identity, Personal, Health, Fitness, Finance, Career, Business, Projects, Creative, Research, Learning, Travel, Legal, and Assets. This set is a product/onboarding aid rather than a mandatory ontology; users may keep, rename, remove, merge, nest, or replace these collections. Archive is better treated as a potential lifecycle state unless later product testing establishes it as a true domain collection.
-
-### Membership
-
-A relationship expressing that an artifact or collection participates in a collection. Membership is conceptually many-to-many so that one artifact may appear in multiple collections without duplication.
-
-### Asset
-
-The stored file, media payload, or underlying content backing an artifact where applicable. Artifact identity and binary storage should not be assumed to be identical.
-
-### Source Record
-
-A provenance record describing where an artifact or asset was encountered or imported from, such as an original filesystem path, cloud file identifier, source account, or import context. Multiple source records may point to the same logical artifact or asset.
+Migration, hashing, deduplication, synchronization, persistence, and automated ingestion remain deferred product concerns unless explicitly authorized.
 
 ### Migration principle
 
-Imported folders should be capable of becoming collections so existing hierarchical organization can be preserved as one relational path through the Reservoir. Preservation of source structure should not make that hierarchy permanent or exclusive.
+Imported folder structures should be representable as Collections and memberships so prior hierarchy can be preserved as one relational path without making that path permanent or exclusive.
 
-Duplicate handling should eventually distinguish at least:
-
-- identical underlying assets;
-- multiple source occurrences of the same asset;
-- versions or derivatives that are related but not identical.
-
-The prototype does **not** implement production ingestion, hashing, deduplication, database persistence, synchronization, or migration pipelines. This section establishes conceptual boundaries so the frontend does not hard-code assumptions that would make those systems difficult to introduce later.
+---
 
 # 26. Future Relational Capability
 
@@ -1789,7 +1761,7 @@ Important architectural requirements:
 - staying nodes remain stationary during exchange;
 - leaving nodes sink and entering nodes emerge;
 - failed filter requests return the red reservoir response rather than mutating the semantic model;
-- direct artifact Query Reservoirs auto-select on arrival, and the artifact window still requires a second click to open;
+- direct artifact Query Reservoirs auto-select on arrival, and the Inspection Window still requires a second click to open;
 - artifact-selected and artifact-open remain distinct states;
 - menu and footer remain independent states.
 
@@ -1808,7 +1780,7 @@ HOME RESERVOIR
 │      ├── Back follows returnContext
 │      ├── Home returns to root reservoir
 │      ├── direct artifact requests may emerge already selected
-│      └── a second selection opens the artifact window
+│      └── a second selection opens the Inspection Window
 │
 ├── ARTIFACT SELECTED
 │      │
@@ -1903,7 +1875,7 @@ Pinch should map to the same continuous zoom model where supported.
 
 ## Artifact Mode
 
-Once the artifact window opens, wheel/trackpad becomes conventional document scrolling.
+Once the Inspection Window opens, wheel/trackpad becomes conventional document scrolling.
 
 Reservoir zoom is disabled.
 
@@ -2017,7 +1989,7 @@ Reduced-motion behavior should replace motion-heavy transitions with:
 - direct state changes;
 - limited translation;
 - immediate or shortened node sink/restore;
-- immediate or shortened artifact-window deployment/retraction;
+- immediate or shortened Inspection-Window deployment/retraction;
 - no unnecessary ambient pulsing.
 
 For the selected-hover confirmation cue, reduced-motion mode may replace the pulse with a stable white emphasis while hovered.
@@ -2137,41 +2109,41 @@ Because the experience relies heavily on WebGL and pointer interaction, Safari t
 
 # 41. Routing and URLs
 
-Even though the interface behaves as one spatial system, artifacts should still have addressable URLs.
+The spatial interface remains one system, but important public Objects should also support conventional web addresses.
 
-Examples:
+Semantic Object identity and public URL routing are related but distinct:
 
 ```text
-/
- /work
- /work/data
- /work/data/bellabeat
- /about
- /resume
+stable Object identity
+        ↓
+public route/address mapping
+        ↓
+resolve Collection or Resource
 ```
 
-or another logical structure.
+For the first public portfolio release, practical direct addresses should exist at minimum for:
 
-Benefits:
+- Bellabeat;
+- Resume;
+- About;
+- Digital Reservoir project/case study.
 
+A directly addressed Collection resolves to its persistent Collection Reservoir.
+
+A directly addressed Resource resolves through the established direct Resource Query Reservoir seam and may then be deliberately inspected.
+
+Benefits include:
+
+- recruiter convenience;
 - direct linking;
 - search indexing;
 - browser history;
 - social sharing;
 - refresh persistence;
-- accessibility;
-- recruiter convenience.
+- accessibility.
 
-A visitor loading a deep artifact URL should still be able to enter the interface coherently.
+The first release does not require every future Resource to have a polished human-readable route, but route mapping must preserve stable Resource/Collection identity rather than creating a parallel content model.
 
-Potential behavior:
-
-1. application initializes;
-2. correct collection context resolves;
-3. reservoir state loads;
-4. artifact opens.
-
-For reduced-motion contexts, it may open directly.
 
 ---
 
@@ -2570,7 +2542,7 @@ Build / revise only what is required to establish:
 9. population-aware node layout and spacing independent from sphere tessellation;
 10. stable node identity and position independent from the render mesh;
 11. generated initial orientation that exposes a useful visible population without flattening distribution to one hemisphere;
-12. preservation of the existing artifact first-select / second-select / artifact-window interaction where compatible;
+12. preservation of the existing artifact first-select / second-select / Inspection-Window interaction where compatible;
 13. preservation of the persistent control plane, menu, footer, query system, and artifact scroll behavior unless directly affected by the spatial rewrite;
 14. collection transitions using active/destination semantic state rather than physical ancestor/child sphere slots or camera pathways;
 15. reduced-motion and performance-safe spatial transitions.
@@ -2597,121 +2569,62 @@ Do not preserve as architectural requirements:
 
 Visual effects developed during V1/M4/M5 may be reused selectively if they reinforce the new semantic transition without restoring the retired navigation model.
 
-# 62. Explicitly Excluded From Prototype 1
+# 62. Historical Prototype Scope Notes
 
-Do **not** initially build:
+Sections 62–66 originally described pre-V2 prototype sequencing.
 
-- recursive collections;
-- production menu;
-- footer behavior;
-- full mobile implementation;
-- database integration;
-- search;
-- filters;
-- timeline;
-- relationship visualization;
-- dynamic node-layout algorithm;
-- complete Bellabeat case study;
-- all categories;
-- final color system;
-- final typography;
-- advanced accessibility system;
-- complex loading sequences;
-- production SEO;
-- full routing architecture.
+They are retained only as historical context and are **not current sequencing authority**.
 
-These follow only after the primary loop is validated.
+Many items once listed as excluded or future — recursive collections, menu/footer behavior, dynamic layout, Bellabeat content architecture, responsive work, Query Reservoirs, and Inspection systems — have since been implemented or materially advanced.
 
----
+Current sequencing is controlled by:
 
-# 63. Prototype Success Criteria
+`docs/release-preparation-roadmap.md`
 
-Prototype 1 should answer:
+Current implementation-completion state is controlled by:
 
-### Visual
+`docs/l2-implementation-status.md`
 
-Does the reservoir have a distinctive identity without becoming theatrical?
+Do not use historical prototype exclusions to defer a current launch requirement, and do not use them to reopen completed architecture.
 
-### Spatial
+# 63. Historical Prototype Success Criteria
 
-Does rotating and zooming the sphere feel intuitive?
+The original prototype success criteria remain useful as regression questions:
 
-### Interaction
+- distinctive but restrained visual identity;
+- intuitive rotation/zoom;
+- understandable node selection;
+- progressive disclosure;
+- clear second-selection confirmation;
+- coherent Inspection opening/closing;
+- conventional readable content;
+- preservation of spatial context;
+- realistic-device performance.
 
-Does the visitor understand that nodes are selectable objects?
+These are quality checks, not current milestone definitions.
 
-### Progressive disclosure
+# 64. Historical Phase 2
 
-Does first selection provide enough artifact information in the atmosphere to reduce friction before opening?
+Historical only. The work described here has largely been implemented or superseded.
 
-### Confirmation
+# 65. Historical Phase 3
 
-Does the selected-state treatment — including the gentle hover-only white pulse — make the second selection understandable without instructional clutter?
+Historical only. Current production work is defined by the release-preparation roadmap.
 
-### Opening
+# 66. Long-Term Product Development
 
-Does sinking the nodes, darkening the sphere, and raising the artifact window feel direct and coherent rather than gimmicky?
+Long-term reservoir development may include:
 
-### Reading
-
-Does conventional scrolling and content interaction feel natural?
-
-### Continuity
-
-Does closing return the visitor to the same selected artifact, orientation, and zoom without disorientation?
-
-### Performance
-
-Can the interaction remain smooth on realistic hardware?
-
-If several of these fail, fix the interaction before expanding features.
-
-# 64. Phase 2
-
-After primary interaction validation:
-
-- collection node prototype;
-- collection-entry animation;
-- nested reservoir;
-- basic path/navigation depth;
-- menu prototype;
-- footer reveal;
-- production Bellabeat artifact;
-- responsive behavior.
-
----
-
-# 65. Phase 3
-
-Potential production expansion:
-
-- full artifact content model;
-- multiple professional artifacts;
-- category system;
-- search/index;
-- accessibility improvements;
-- 2D fallback;
-- route persistence;
-- SEO;
-- production performance tuning.
-
----
-
-# 66. Phase 4
-
-Long-term reservoir development:
-
-- personal artifact database;
+- personal Resource database;
 - automated ingestion;
-- metadata;
-- multiple collections;
+- metadata enrichment;
 - relational references;
 - temporal views;
 - dynamic curation;
 - semantic relationships;
 - public/private publishing layers.
 
-These are explicitly outside the immediate job-portfolio implementation.
+These remain outside the immediate public-portfolio release unless explicitly promoted into scope.
 
 ---
 
@@ -2759,7 +2672,7 @@ Potential conceptual component structure:
     <NodeLabel />
   </ReservoirScene>
 
-  <ArtifactWindow />
+  <InspectionWindow />
 
   <BottomControlPlane>
     <BrandSymbol />
@@ -2774,7 +2687,7 @@ Potential conceptual component structure:
 
 `AtmosphereContent` conceptually owns the swap between Home memoir content and selected-artifact metadata.
 
-`ArtifactWindow` owns long-form content, document scrolling, and its close control.
+`InspectionWindow` owns long-form content, document scrolling, and its close control.
 
 The brand symbol should not own artifact-open transition orchestration.
 
@@ -2799,7 +2712,7 @@ components/
     NodeLabel.tsx
 
   artifact/
-    ArtifactWindow.tsx
+    InspectionWindow.tsx
     ArtifactRenderer.tsx
 
   navigation/
@@ -2938,7 +2851,7 @@ The following remain intentionally unresolved after establishing the V2 spatial 
 - literal vs implied dome;
 - featured artifact behavior.
 
-### Artifact Window
+### Inspection Window
 - final width and responsive margins;
 - exact upper boundary treatment;
 - short / long artifact edge cases.
@@ -3021,7 +2934,7 @@ nodes sink into sphere
 +
 sphere darkens
    ↓
-artifact window rises from below
+Inspection Window rises from below
    ↓
 read / inspect with normal scrolling
    ↓
@@ -3078,7 +2991,7 @@ Artifacts remain spatially anchored while the visitor progressively reveals more
 
 The atmosphere provides lightweight artifact understanding before opening.
 
-The artifact window provides conventional long-form reading when the visitor chooses to go deeper.
+The Inspection Window provides conventional long-form reading when the visitor chooses to go deeper.
 
 The identity mark anchors the interface but does not need to become an animated transfer mechanism.
 
@@ -3100,7 +3013,7 @@ Artifacts and collections occupy stable continuous spherical positions generated
 
 Selecting a collection changes the semantic contents of the persistent centered reservoir. The active/destination collection model replaces physical ancestor/child sphere slots and camera push/pull traversal as the default architecture. Current nodes transition out, the destination layout resolves, destination contents appear, and exploration continues in the same stable frame.
 
-Artifact interaction remains progressive: first selection reveals richer atmospheric information; second selection opens a conventional artifact window. Reading remains a 2D document interaction and closing restores the selected reservoir context.
+Artifact interaction remains progressive: first selection reveals richer atmospheric information; second selection opens a conventional Inspection Window. Reading remains a 2D document interaction and closing restores the selected reservoir context.
 
 The Kodye Pugh symbol and wordmark remain the stable bottom-centered identity anchor. Menu, footer, direct navigation, queries, and artifact-reading layers remain UI-space systems rather than camera-navigation mechanisms.
 
@@ -3112,62 +3025,48 @@ V2 adds a spatial corollary:
 
 > **The reservoir remains the reference frame. Zoom changes spatial and informational resolution. Layout serves the information; the surface stays visually continuous.**
 
-# 80. Status at Version 0.2
+# 80. Current Status — August 21, 2026
 
-## Version 0.3 / V2 Spatial Foundation — 2026-08-14
+The Digital Reservoir has moved beyond the V2 spatial-foundation build phase.
 
-The Digital Reservoir has completed this interaction-development phase, and the Query Reservoir branch is formally closed as the approved baseline for this prototype cycle.
+### Closed / stable foundation
 
-### Preserved from V1
+The current repository line has completed and accepted:
 
-The following concepts remain established:
+- centered reservoir reference frame;
+- scale-based zoom;
+- continuous render-mesh-independent spherical layout;
+- population-aware deterministic spacing and sizing;
+- adaptive inspectability and dynamic labels;
+- Distributed / Focused presentation modes;
+- Active + Destination Collection transitions;
+- Query Reservoir closure baseline and directional return context;
+- Resource/Collection semantic registry foundation;
+- direct Resource Query Reservoir surfacing;
+- Resource-oriented Inspection Window and structured-document rendering;
+- supporting-Resource navigation and minimum Inspection return context;
+- image Inspection;
+- external-link/repository Inspection;
+- Bellabeat's initial approved Resource/support graph and launch materialization.
 
-- Digital Reservoir identity;
-- artifacts vs collections;
-- progressive artifact selection and conventional artifact reading;
-- atmospheric artifact metadata;
-- persistent bottom control plane;
-- recursive semantic collections;
-- explicit UI state;
-- menu/footer independence;
-- spatial exploration with conventional content access;
-- restrained, meaningful motion;
-- accessibility and fallback requirements.
+These systems should not be reopened without a reproducible defect or explicit design decision.
 
-### V2 foundational changes
+### Current phase
 
-The following supersede earlier navigation assumptions:
+The project is in **public-launch preparation**.
 
-- the reservoir sphere is centered in the usable visual frame;
-- zoom changes reservoir scale rather than camera depth/path progress;
-- camera dive / retreat is retired from ordinary zoom;
-- the visible structural surface topology/grid is no longer treated as semantic structure;
-- node layout is generated from current collection population and spacing requirements;
-- node layout is generated in continuous spherical space rather than permanently authored to render-mesh vertex IDs;
-- node layout is independent from the reservoir render mesh;
-- future sphere-mesh/tessellation changes must not redefine node identity;
-- collection traversal uses Active + Destination semantic state rather than physical ancestor/child sphere slots;
-- collection changes preserve the centered reservoir reference frame;
-- initial orientation becomes part of the generated collection composition.
+Sequencing is controlled by `docs/release-preparation-roadmap.md`, whose current stages are:
 
-### Historical implementation note
+1. Portfolio Content Cut;
+2. Public Web Layer;
+3. Integrated Reservoir QA;
+4. Responsive, Accessibility, and Interaction Regression Sweep;
+5. Production Release.
 
-The accepted V1 detail-15 visible grid is retired from V2. The underlying sphere may use whatever tessellation is appropriate for rendering quality and performance, but that mesh is not exposed as interface structure. Deterministic vertex-bound placement, camera-dive mechanics, three-slot collection choreography, and related transition experiments are likewise no longer architectural requirements where they conflict with the V2 foundation.
+The immediate objective is no longer to prove the V2 spatial substrate. It is to turn the validated Digital Reservoir into a credible, populated, conventionally reachable professional portfolio that can be used in job applications.
 
-### Immediate objective
+### Product boundary
 
-The next implementation pass should establish the V2 spatial substrate before additional commercial/product expansion:
+The public portfolio is the first live manifestation of the broader Digital Reservoir product.
 
-```text
-center reservoir
-→ simplify camera model
-→ scale-based zoom
-→ continuous spherical layout positions
-→ population-aware continuous node layout
-→ clean reservoir surface presentation
-→ scale-based zoom with stable node positions
-→ active/destination collection switching
-→ integration QA with existing artifact/menu/footer systems
-```
-
-This specification should be updated again after the spatial substrate is validated in the running interface.
+Do not delay launch for production ingestion infrastructure, database persistence, automated migration, semantic search, relationship visualization, broad renderer expansion, or other deferred product systems unless an approved launch Resource actually requires them.

@@ -1,10 +1,10 @@
 # Digital Reservoir — L2 Bellabeat Manual Ingestion Manifest
 
-**Status:** Manual ingestion review complete / implementation pending  
-**Target branch:** `feat/l2-bellabeat-ingestion`  
-**Source repository:** `kodyepugh/bellabeat-wellness-analysis`  
-**Source branch:** `main`  
-**Source tree reviewed:** `30543d0a0d7a9a377279d59be7ccf107ab42e472`  
+**Status:** Manual ingestion review complete / initial website materialization complete; integrated QA pending
+**Historical implementation branch:** `feat/l2-bellabeat-ingestion`
+**Source repository:** `kodyepugh/bellabeat-wellness-analysis`
+**Source branch:** `main`
+**Source tree reviewed:** `30543d0a0d7a9a377279d59be7ccf107ab42e472`
 **Ontology authority:** `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md` — revision 0.7.1
 
 ---
@@ -28,17 +28,17 @@ Every Collection and every materialized Resource in this ingestion must receive 
 
 ## 2. Primary Bellabeat Object
 
-**Existing ID:** `artifact-bellabeat-wellness-analysis`  
-**Recommended persistent Resource address:** preserve the existing semantic ID/slug where practical rather than creating a second identity during migration  
-**Recommended title:** `Bellabeat Wellness-Behavior Analysis`  
-**Recommended subtitle:** `From Public Fitbit Files to Testable App Strategy`  
-**Artifact type:** `case-study`  
-**Inspection kind:** `structured-document`  
-**Category:** `Data / Analytics`  
-**Date:** `August 2026`  
-**Medium:** `Data analysis`  
-**Format:** `Case study`  
-**Featured:** `true`  
+**Existing ID:** `artifact-bellabeat-wellness-analysis`
+**Recommended persistent Resource address:** preserve the existing semantic ID/slug where practical rather than creating a second identity during migration
+**Recommended title:** `Bellabeat Wellness-Behavior Analysis`
+**Recommended subtitle:** `From Public Fitbit Files to Testable App Strategy`
+**Artifact type:** `case-study`
+**Inspection kind:** `structured-document`
+**Category:** `Data / Analytics`
+**Date:** `August 2026`
+**Medium:** `Data analysis`
+**Format:** `Case study`
+**Featured:** `true`
 **Published:** `true`
 
 ### Interpretation boundary that must remain visible
@@ -93,20 +93,22 @@ The initial structured block model should be capable of expressing at least:
 
 The Artifact window should remain recruiter-readable. Do not inline the entire comprehensive technical appendix into the primary reading flow.
 
-### 3.3 Supporting Resource rail
+### 3.3 Shared Inspection context
 
-Bellabeat should expose supporting Resources in the common side rail, visually as compact stacked / bubbling bricks beneath the close control or toward the lower portion of that same rail.
+Bellabeat should expose related Resources and Collections through the accepted shared Inspection context tray beneath the primary structured-document content.
 
-The rail is secondary to the article.
+The historical side-rail / bubbling-brick concept is superseded by the shared `Resources | Collections` grammar.
 
-Each brick should resolve to the supporting Resource's **own stable address** and may show, where useful:
+Resource context entries should:
 
-- short title;
-- Resource kind/icon;
-- relationship role;
-- concise descriptor.
+- resolve each supporting Resource's own stable identity/address;
+- remain secondary to the article;
+- preserve canonical Resource-query behavior;
+- preserve Inspection return context when the visitor detours from the open Bellabeat Inspection.
 
-On smaller viewports, the rail may become a bottom stack, collapsible section, or another touch-appropriate presentation while preserving the same relationships.
+Collection context entries should derive from real Collection membership, not from support relationships.
+
+On smaller viewports, the same semantic context should remain available without changing the relationship model.
 
 ---
 
@@ -116,10 +118,10 @@ The following Resources have sufficient independent inspection value to receive 
 
 ### A. Comprehensive report
 
-**Logical Resource:** Bellabeat Comprehensive Case Study  
-**Inspection kind:** `structured-document` or `generic-file` for the first implementation, depending on whether the portable report is rendered natively or offered as an approved file/open action  
-**Primary source representation:** `reports/portfolio/bellabeat_portfolio_case_study.html`  
-**Supporting representation:** `reports/portfolio/bellabeat_portfolio_case_study.md`  
+**Logical Resource:** Bellabeat Comprehensive Case Study
+**Inspection kind:** `structured-document` for the approved launch presentation; use another renderer only if a later approved representation requires it
+**Primary source representation:** `reports/portfolio/bellabeat_portfolio_case_study.html`
+**Supporting representation:** `reports/portfolio/bellabeat_portfolio_case_study.md`
 **Support role:** `supporting-report`
 
 Its HTML and Markdown forms are representations of one logical Resource, not separate Resources.
@@ -153,51 +155,51 @@ The canonical figure bytes, meaning, labels, and analytical claims must not be m
 
 ### C. Analytical methodology
 
-**Logical Resource:** Bellabeat Methodology Appendix  
-**Inspection kind:** `structured-document` or initial generic-document fallback  
-**Source:** `reports/analysis/methodology_appendix.md`  
+**Logical Resource:** Bellabeat Methodology Appendix
+**Inspection kind:** `structured-document`
+**Source:** `reports/analysis/methodology_appendix.md`
 **Support role:** `methodology`
 
 ### D. Identifier / population audit
 
-**Logical Resource:** Bellabeat Identifier Population Audit  
-**Inspection kind:** `structured-document` or initial generic-document fallback  
-**Source:** `reports/analysis/identifier_population_audit.md`  
+**Logical Resource:** Bellabeat Identifier Population Audit
+**Inspection kind:** `structured-document`
+**Source:** `reports/analysis/identifier_population_audit.md`
 **Support role:** `validation-evidence`
 
 ### E. Analytical decision record
 
-**Logical Resource:** Bellabeat Analysis Decision Memo  
-**Inspection kind:** `structured-document` or initial generic-document fallback  
-**Source:** `reports/analysis/analysis_decision_memo.md`  
+**Logical Resource:** Bellabeat Analysis Decision Memo
+**Inspection kind:** `structured-document`
+**Source:** `reports/analysis/analysis_decision_memo.md`
 **Support role:** `decision-record`
 
 ### F. Recommendations evidence
 
-**Logical Resource:** Bellabeat Marketing Recommendations  
-**Inspection kind:** `structured-document` or initial generic-document fallback  
-**Source:** `reports/analysis/marketing_recommendations.md`  
+**Logical Resource:** Bellabeat Marketing Recommendations
+**Inspection kind:** `structured-document`
+**Source:** `reports/analysis/marketing_recommendations.md`
 **Support role:** `recommendation-evidence`
 
 ### G. Final validation
 
-**Logical Resource:** Bellabeat Final Validation Report  
-**Inspection kind:** `structured-document` or initial generic-document fallback  
-**Source:** `reports/analysis/final_validation_report.md`  
+**Logical Resource:** Bellabeat Final Validation Report
+**Inspection kind:** `structured-document`
+**Source:** `reports/analysis/final_validation_report.md`
 **Support role:** `validation-evidence`
 
 ### H. Executed notebook
 
-**Logical Resource:** Fitbit Identifier Revision Audit Notebook  
-**Inspection kind:** `notebook-code` or initial generic-file fallback  
-**Source:** `notebooks/fitbit_identifier_revision_audit.ipynb`  
+**Logical Resource:** Fitbit Identifier Revision Audit Notebook
+**Inspection kind:** `notebook-code` using the notebook treatment implemented for the current launch material
+**Source:** `notebooks/fitbit_identifier_revision_audit.ipynb`
 **Support role:** `reproducibility`
 
 ### I. GitHub repository
 
-**Logical Resource:** Bellabeat Wellness Analysis Repository  
-**Inspection kind:** `repository` / `external-link`  
-**Source:** public GitHub repository `kodyepugh/bellabeat-wellness-analysis`  
+**Logical Resource:** Bellabeat Wellness Analysis Repository
+**Inspection kind:** `repository` / `external-link`
+**Source:** public GitHub repository `kodyepugh/bellabeat-wellness-analysis`
 **Support role:** `reproducibility-repository`
 
 ---
@@ -316,11 +318,11 @@ Home remains unchanged: it returns to the root Reservoir and does not need to re
 
 ---
 
-## 11. Current Website-Registry Gap Exposed by Ingestion
+## 11. Historical Website-Registry Gap Exposed by Ingestion
 
-The current registry can store `Artifact`, `Collection`, `Membership`, `Asset`, and `SourceRecord`, but it does not yet express the revised ontology completely.
+This section records the historical registry gap that motivated the L2 work. The current implementation status and runtime evidence are maintained in `docs/l2-implementation-status.md`; do not treat the following completed-foundation list as an unimplemented current task.
 
-Before Bellabeat can be implemented cleanly, the L2 branch needs the minimum practical support for:
+The Bellabeat ingestion review originally exposed the following minimum website-registry requirements. They are now historical requirements, and `docs/l2-implementation-status.md` controls which are implemented:
 
 1. stable direct semantic addresses for all persistent Collections and Resources;
 2. a general Resource identity broader than the current media-focused `Asset` type;
@@ -333,8 +335,8 @@ Before Bellabeat can be implemented cleanly, the L2 branch needs the minimum pra
 9. structured-document rendering from reusable document blocks;
 10. image inspection;
 11. external-link/repository inspection;
-12. a generic document/file/notebook fallback sufficient for Bellabeat support material;
-13. the supporting-resource brick/stack rail;
+12. the notebook/code treatment required by Bellabeat support material, with unsupported generic file kinds remaining explicit unless later required;
+13. the shared Resource/Collection Inspection context tray;
 14. minimum inspection-return context for Back;
 15. preservation of existing Query Reservoir Home/Back/history/transition behavior.
 
@@ -379,25 +381,43 @@ If sources conflict, validated analytical sources control. Website adaptation ma
 
 ---
 
-## 14. L2 Bellabeat Definition of Done
+## 14. L2 Bellabeat Completion State
 
-Bellabeat ingestion is complete when:
+### Initial materialization — complete
 
-- the placeholder Bellabeat record is replaced with approved content;
-- Bellabeat is represented as one stable Resource with Artifact status rather than duplicated Resource/Artifact identities;
-- date/title/subtitle/metadata match the August 2026 portfolio package;
-- Work and Data / Analytics Collection memberships remain intact;
-- all participating persistent Objects have stable direct semantic addresses;
-- the recruiter-readable structured-document body is implemented from reusable document blocks;
-- approved inline figures render correctly;
-- the comprehensive report and selected technical evidence exist as independently addressable supporting Resources;
-- supporting Resources have no Collection membership unless explicitly promoted;
-- supporting-resource bricks resolve to each Resource's own address;
-- direct Resource queries preserve the approved Query Reservoir transition and Home semantics;
-- Back from a supporting Resource restores practical Bellabeat inspection context;
-- Resource inspection chooses renderer from inspection kind rather than Artifact status;
-- duplicate publication representations do not create duplicate Resources;
-- non-public/internal repository files are not unnecessarily copied into the portfolio repo;
-- the interpretation boundary remains visible and accurate;
-- source authority is preserved;
-- content validation, TypeScript, lint, production build, and interactive QA pass.
+The current repository line records the initial Bellabeat website materialization as complete.
+
+Completed materialization includes:
+
+- Bellabeat represented as one stable Resource with Artifact status rather than duplicate Resource/Artifact identities;
+- current approved title/subtitle/date/metadata;
+- Work and Data / Analytics memberships;
+- stable semantic addresses for participating Collections and Resources;
+- recruiter-readable structured-document content built from reusable blocks;
+- approved inline figures;
+- independently addressable supporting Resources;
+- no default Collection membership for non-Artifact support Resources;
+- shared Inspection context for related Resources/Collections;
+- canonical direct Resource query behavior;
+- Resource renderer selection by `inspectionKind`;
+- preserved representation identity without duplicate Resources;
+- non-public/internal repository detail kept below the current curatorial resolution;
+- preserved interpretation boundary and source authority;
+- Bellabeat repository Resource and external-link/repository Inspection.
+
+### Integrated launch QA — pending
+
+Bellabeat should not be considered fully launch-validated until the real production content graph is exercised in-browser.
+
+Required integrated QA includes:
+
+- open Bellabeat from intended launch entry points;
+- inspect the structured document and figures;
+- navigate to supporting Resources and the repository Resource;
+- verify Back restores Bellabeat Inspection and practical reading context;
+- verify Home discards the Inspection return frame and returns to root;
+- verify Collection context remains membership-derived;
+- verify responsive behavior, focus restoration, reduced motion, and unavailable-target handling;
+- run the established content, typecheck, lint, build, and relevant Inspection/geometry validations.
+
+The release-preparation roadmap controls when this QA occurs relative to the Portfolio Content Cut and Public Web Layer.

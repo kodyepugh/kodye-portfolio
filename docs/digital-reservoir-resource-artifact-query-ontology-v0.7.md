@@ -559,7 +559,7 @@ The architecture must simply avoid making such a future query impossible.
 
 # 13. Inspection System
 
-The earlier phrase **Artifact Window** is now understood as one use of a broader **Inspection Window / Inspection Surface** system.
+The historical phrase **Artifact Window** is now understood as a compatibility name for the broader **Inspection Window / Inspection Surface** system.
 
 Curatorial status and inspection behavior are independent concerns:
 
@@ -583,147 +583,112 @@ A document does not change renderer merely because it is currently only a suppor
 
 # 14. Stable Inspection Chassis
 
-Inspection surfaces should share one recognizable chassis so different Resource kinds feel like adaptations of one system rather than unrelated modal interfaces.
+Inspection surfaces share one recognizable Resource-oriented chassis so different Resource kinds feel like adaptations of one system rather than unrelated modal interfaces.
+
+The current accepted chassis separates three responsibilities:
+
+- the **atmosphere** owns Resource identity and concise metadata;
+- the **renderer body** owns the inspected content;
+- the shared **Inspection context tray** exposes related Resources and Collections after the primary content.
 
 The common chassis should preserve, where appropriate:
 
 - entrance from below the viewport;
-- common close-control location;
-- stable title/metadata conventions;
-- primary inspection body;
-- supporting-resource region;
+- one coherent modal/focus boundary;
+- an ordinary in-flow close control near the beginning of the Inspection document;
+- a universal three-column coordinate frame whose center column defines primary-content placement independently of renderer width;
+- renderer-specific primary content;
+- the shared `Resources | Collections` context tray beneath primary content;
+- terminal/control-plane/footer reveal behavior;
+- a semantic Back-to-Top control only near the actual bottom of long Inspection content where needed;
 - common exit behavior;
 - responsive translation;
 - reduced-motion equivalents;
 - restoration of the prior Reservoir context when closed normally.
 
-Conceptually:
+The side-rail / bubbling-brick concept from earlier planning is historical. The accepted implementation uses the shared context tray beneath the primary content rather than requiring a permanent support rail beside every renderer.
 
-```text
-┌──────────────────────────────────────────────────────┐
-│                                           CLOSE      │
-│                                                      │
-│     PRIMARY INSPECTION BODY        SUPPORT RAIL      │
-│     -----------------------        ------------      │
-│                                    ▰ Resource A      │
-│                                    ▰ Resource B      │
-│                                    ▰ Resource C      │
-│                                    ▰ Source D        │
-│                                                      │
-└──────────────────────────────────────────────────────┘
-```
+### Foundational rule
 
-The exact proportions may vary by inspection kind and viewport.
+> **Identity belongs to the atmosphere; inspected content belongs to the renderer; relationships belong to the shared context tray.**
 
 ---
 
 # 15. Inspection Kinds
 
-A Resource should expose an `inspectionKind` or equivalent semantic renderer contract independent of Artifact status.
+A Resource exposes an `inspectionKind` or equivalent renderer contract independent of Artifact status.
 
-The initial renderer families are:
+### Implemented launch surfaces
+
+The current repository line implements the inspection surfaces required by the approved launch material:
+
+- **structured-document** — reusable ordered document blocks;
+- **image** — dedicated image inspection;
+- **external-link / repository** — external-link inspection with repository-aware presentation;
+- **notebook/code treatment required by Bellabeat** — sufficient for the current approved notebook Resource.
+
+Unsupported kinds must remain explicit. Do not silently route an unsupported Resource through a semantically unrelated renderer merely to avoid an unavailable state.
+
+### Conceptual future renderer families
+
+The ontology still permits future Resource kinds such as:
+
+- video;
+- audio;
+- dataset/table;
+- generic file;
+- richer notebook/code surfaces;
+- other materially useful Resource types.
+
+Those contracts are conceptual until a current task or approved launch Resource requires them.
 
 ## 15.1 Structured document
 
-Examples:
-
-- case study;
-- report;
-- essay;
-- profile;
-- methodology document;
-- resume where structured rendering is preferred.
+Examples include case studies, reports, essays, profiles, methodology documents, and resumes where structured rendering is preferred.
 
 Preferred composition:
 
 - editorial central article/body;
-- structure-driven headings and content blocks;
-- supporting-resource rail alongside the article on large viewports.
+- structure-driven headings and reusable content blocks;
+- shared Resource/Collection context tray after the primary content.
 
 ## 15.2 Image / photograph
 
-Preferred composition:
+Current accepted composition:
 
 - image is the dominant inspection object;
+- intrinsic aspect ratio is preserved;
+- unavailable or invalid image payloads resolve explicitly;
 - metadata/caption remains secondary;
-- supporting-resource rail remains available where relevant;
-- zoom/pan may be considered later only if useful.
+- shared context follows beneath the image.
 
-## 15.3 Video
+## 15.3 External link / website / repository
 
-Preferred composition:
+Current accepted composition:
 
-- dominant video player;
-- concise contextual metadata;
-- supporting-resource rail;
-- standard accessible media controls.
-
-## 15.4 Audio
-
-Preferred composition:
-
-- playback-focused primary area;
-- artwork/waveform only where useful;
-- title/context/metadata;
-- supporting-resource rail;
-- standard accessible media controls.
-
-## 15.5 External link / website / repository
-
-Preferred composition:
-
-- object identity and description;
-- destination/domain metadata;
-- explicit external-open action;
-- optional preview imagery or repository metadata;
-- supporting-resource rail.
+- atmosphere carries Resource identity and concise metadata;
+- renderer presents the target and explicit external-open action;
+- repository-aware presentation remains a variant of the external-link surface rather than a separate semantic object system;
+- malformed, unsafe, unavailable, or unsupported targets resolve explicitly;
+- shared context follows beneath the renderer.
 
 Do not iframe arbitrary external sites by default.
 
-## 15.6 Dataset / table
+## 15.4 Notebook / code
 
-Preferred composition:
+The current launch implementation supports the Bellabeat notebook requirement without creating a separate semantic system.
 
-- dataset identity and context;
-- grain/schema/coverage metadata where relevant;
-- bounded preview or table where useful;
-- provenance and related Resource access;
-- supporting-resource rail.
+Future richer treatment may add readable technical previews, language/runtime/source metadata, and repository/download/open-original actions where useful.
 
-## 15.7 Notebook / code
+## 15.5 Future media / data / generic-file kinds
 
-Preferred composition:
+Video, audio, dataset/table, generic-file, and other renderer families remain valid future extensions.
 
-- readable technical preview where feasible;
-- language/runtime/source metadata;
-- repository/download/open-original actions where useful;
-- supporting-resource rail.
+Do not build them merely because they are defined conceptually. Implement them only when approved current content requires them.
 
-Do not force source code into prose-oriented layouts.
+### Foundational rule
 
-## 15.8 Generic file
-
-Safe fallback when no richer renderer exists.
-
-Preferred composition:
-
-- file identity;
-- type/size/format metadata where available;
-- explicit open/download action where appropriate;
-- supporting relationships.
-
-### L2 implementation rule
-
-Pin all renderer contracts conceptually, but implement only the kinds required by the current launch material unless a later task explicitly expands scope.
-
-For Bellabeat, the first implementation should fully exercise:
-
-- structured document;
-- image;
-- external link/repository;
-- generic document/file or notebook treatment as needed.
-
-Do not build polished video/audio/dataset systems merely because their contracts are now defined.
+> **Status determines curation; kind determines inspection.**
 
 ---
 
@@ -770,51 +735,48 @@ to share one renderer without sharing one fixed content template.
 
 ---
 
-# 17. Supporting Resource Rail
+# 17. Shared Inspection Context Tray
 
-An inspected Artifact may expose the Resources that support it through a dedicated supporting-resource region.
+An inspected Resource may expose related Resources and Collections through the shared Inspection context tray.
 
-Current visual direction:
+The accepted grammar is:
 
-- stacked compact blocks/cards beneath the close control or in the lower portion of the same side rail;
-- visually related to "bubbling bricks" rather than a conventional flat attachment list;
-- each block carries enough identity to understand what will be queried;
-- Resource kind/icon, short title, and relationship role may be shown where useful;
-- the stack must remain secondary to the primary inspection body.
+```text
+Resources | Collections
+```
 
-The supporting-resource region may contain:
+The tray appears after the primary inspected content rather than as a mandatory permanent side rail.
 
-- images;
-- reports;
-- charts;
-- datasets;
-- sources;
-- references;
-- code;
-- notebooks;
-- repositories;
-- media;
-- external URLs;
-- any other materialized Resource.
+## 17.1 Resource context
 
-A supporting Resource does not need Artifact status to appear here.
+Resource entries:
 
-A Resource that does have Artifact status may appear in the same rail without losing its other Collection memberships.
+- resolve canonical Resource identity;
+- may represent supporting or supported-by discovery paths;
+- do not require Artifact status;
+- may be Artifact-status Resources without losing their Collection memberships;
+- issue canonical Resource queries rather than swapping the current renderer in place;
+- preserve Inspection return semantics where the navigation originated from an open Inspection.
 
-## 17.1 Responsive behavior
+A single directional support relationship may be presented from either endpoint for discovery without creating duplicate reciprocal semantic edges.
 
-On smaller viewports, the side rail may become:
+## 17.2 Collection context
 
-- a bottom stack;
-- collapsible section;
-- bottom drawer;
-- or another touch-appropriate presentation.
+Collection entries are derived from actual Collection membership, not inferred from support relationships.
 
-The relationship model must remain the same even when the visual placement changes.
+Selecting a Collection from Inspection delegates to the canonical Collection-navigation system and preserves return ownership on the appropriate history hop.
+
+## 17.3 Presentation
+
+Context entries use restrained semantic-object pills/cards with enough identity to understand the destination.
+
+The context layer remains secondary to the Resource being inspected.
+
+On small viewports, the same semantic relationships should remain available without changing the underlying relationship model.
 
 ### Foundational rule
 
-> **Supporting Resources remain directly reachable without promoting the source Artifact into a Collection.**
+> **Inspection reveals the Resource first; shared context exposes where it relates without mutating identity or membership.**
 
 ---
 
@@ -1021,29 +983,33 @@ Bellabeat is the first L2 ingestion pilot.
 
 ---
 
-# 24. Minimum L2-Enabling Architecture
+# 24. L2-Enabling Architecture — Implemented Baseline
 
-Bellabeat ingestion has exposed the minimum implementation needed before the Artifact can be populated cleanly.
+Bellabeat ingestion exposed the minimum semantic and inspection architecture required for the current launch material.
 
-L2 should implement the smallest practical extension that supports:
+The current repository line now implements the launch-required baseline:
 
 1. universal stable semantic addresses for persistent Collections and Resources;
-2. a general query-addressable Resource identity broader than the current media-focused Asset record;
-3. Artifact status as the Collection-membership eligibility layer for Resources;
-4. Resource representations so one logical Resource may have HTML/Markdown or other variants without duplication;
-5. Artifact → Resource support relationships with role/order/publication metadata;
-6. Source as a specialized supporting/provenance role;
-7. direct Resource queries using the approved Query Reservoir transition coordinator;
-8. a reusable Inspection Window chassis;
+2. general query-addressable Resource identity;
+3. Artifact status as the Collection-membership eligibility layer;
+4. Resource representations without duplicate semantic identity;
+5. Resource support relationships with role/order/publication metadata;
+6. Source/provenance relationships and implementation records;
+7. direct Resource queries using the approved Query Reservoir coordinator;
+8. a reusable Resource-oriented Inspection Window chassis;
 9. structured-document rendering from reusable content blocks;
-10. image inspection;
-11. external-link/repository inspection;
-12. generic document/file/notebook fallback sufficient for Bellabeat's support material;
-13. the supporting-resource brick/stack rail;
-14. minimum inspection-return context for Back after a resource query issued from an open window;
-15. preservation of Home semantics, query ancestry, quaternion/zoom behavior, and all existing Query Reservoir closure rules.
+10. image Inspection;
+11. external-link/repository Inspection;
+12. the notebook treatment required by the current Bellabeat launch material;
+13. the shared Resource/Collection Inspection context tray;
+14. minimum Inspection-return context for Resource and Collection detours issued from an open Inspection;
+15. preservation of Home, Back, query ancestry, quaternion/zoom behavior, and the approved Query Reservoir closure contract.
 
-Do not interpret this list as authorization to build search, unassigned-resource inbox UI, automated ingestion, or all future media renderers during Bellabeat.
+`docs/l2-implementation-status.md` controls completion state. This ontology defines the semantic requirements but must not be used to infer that a conceptually listed future renderer is still an active implementation task.
+
+A generic-file, video, audio, dataset, or richer notebook renderer should be added only when an approved current Resource requires it.
+
+Do not interpret this baseline as authorization to build search, an Unassigned Resources inbox, automated ingestion, database persistence, or other deferred product infrastructure.
 
 ---
 

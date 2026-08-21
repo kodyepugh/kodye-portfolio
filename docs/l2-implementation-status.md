@@ -1,27 +1,27 @@
 # Digital Reservoir — L2 Implementation Status
 
-**Status:** Active L2 implementation checkpoint  
-**Updated:** August 20, 2026  
-**Ontology authority:** `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md` revision 0.7.1  
+**Status:** Active L2 / public-launch preparation checkpoint
+**Updated:** August 21, 2026
+**Ontology authority:** `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md` revision 0.7.1
 **Bellabeat ingestion authority:** `docs/l2-bellabeat-manual-ingestion-manifest.md`
 
 ---
 
 ## Purpose
 
-This document records which portions of the L2-enabling architecture described in the ontology and Bellabeat ingestion manifest are already implemented on `main`.
+This document records which portions of the L2-enabling architecture described in the ontology and Bellabeat ingestion manifest are implemented in the current repository line.
 
 It is an implementation-status companion only. It does not supersede ontology, content, or interaction rules.
 
-Where the Bellabeat manifest's section describing the "Current Website-Registry Gap" still lists already-completed foundation work, this status document controls only the implementation-completion state.
+Where the Bellabeat manifest's historical registry-gap section still lists already-completed foundation work, this status document controls only the implementation-completion state.
 
 ---
 
-## Completed on Main
+## Completed in Current Repository Line
 
 ### 1. Canonical Object / Resource Registry Foundation
 
-Implemented and merged:
+Implemented in the current repository line:
 
 - persistent semantic `Object = Collection | Resource`;
 - canonical Resource identity with Artifact represented as `isArtifact: true` status rather than a peer semantic entity;
@@ -37,7 +37,7 @@ Implemented and merged:
 
 ### 2. Direct Resource → Query Reservoir Surfacing
 
-Implemented and merged:
+Implemented in the current repository line:
 
 - published non-Artifact Resources can be adapted into Query Reservoir nodes without Collection membership;
 - semantic Query Reservoir nodes distinguish `artifact`, `resource`, and `collection`;
@@ -53,7 +53,7 @@ Implemented and merged:
 
 ### 3. Common Inspection Window + Structured-Document Foundation
 
-Implemented and merged:
+Implemented in the current repository line:
 
 - one Resource-oriented `InspectionWindow` is the canonical reading/inspection chassis;
 - the former `ArtifactWindow` remains only as a compatibility wrapper for older callers;
@@ -73,7 +73,7 @@ Implemented and merged:
 
 ### 4. Supporting-Resource Navigation
 
-Implemented and merged:
+Implemented in the current repository line:
 
 - the common `InspectionWindow` resolves published supporting Resources from canonical Resource-support relationships;
 - support entries preserve canonical Resource identity rather than duplicating Resource metadata into UI-specific records;
@@ -87,7 +87,7 @@ Implemented and merged:
 
 ### 5. Minimum Inspection Return Context
 
-Implemented, corrected, reviewed, and merged:
+Implemented, corrected, reviewed, and accepted in the current repository line:
 
 - an Inspection-originated Resource detour captures a minimal `InspectionReturnFrame` rather than introducing a second navigation-history architecture;
 - the frame preserves originating Resource ID, practical document `scrollY`, and proportional post-content/control-plane/footer reveal progress;
@@ -103,16 +103,16 @@ Implemented, corrected, reviewed, and merged:
 - current-Collection selection performs an ordinary Inspection close without creating a redundant return hop;
 - return state does not promote Resources to Artifact status, mutate Collection membership, or duplicate semantic identity.
 
-### Integrated Manual QA Deferral
+### Integrated Manual QA Pending
 
-The production registry does not yet contain the Bellabeat supporting-Resource graph required to exercise the complete Resource → supporting Resource → Back → reopened Inspection path manually.
+The production registry now contains the approved Bellabeat supporting-Resource graph required to exercise the complete Resource → supporting Resource → Back → reopened Inspection path manually.
 
 Accordingly:
 
 - this checkpoint is accepted on reviewed implementation plus synthetic/automated QA;
 - do not add fake production Resources, memberships, or support relationships solely to expose this path manually;
-- integrated manual QA of supporting-Resource navigation and Inspection return is deferred until Bellabeat and its approved supporting Resources are materialized in the production registry;
-- Bellabeat integration QA must then exercise both Back restoration and Home discard behavior with real semantic content.
+- integrated manual QA of supporting-Resource navigation and Inspection return is the next launch-preparation priority;
+- Bellabeat integration QA must exercise both Back restoration and Home discard behavior with the real semantic content now in the registry.
 
 ### 6. Polished Image Inspection + Shared Inspection Context Grammar
 
@@ -155,36 +155,72 @@ The above work preserves the approved v0.6 Query Reservoir baseline:
 - Home to root;
 - no Collection-membership mutation from queries.
 
+### 8. External-Link / Repository Inspection
+
+Implemented in the current repository line and accepted in the external-link/repository closeout:
+
+- `inspectionKind: "external-link"` dispatches to a dedicated Inspection surface;
+- published external representations resolve deterministically, with compatible external-link content as fallback;
+- malformed, unsafe, unavailable, or unsupported targets resolve to an explicit unavailable state;
+- repository presentation remains a variant of the external-link surface rather than a separate semantic system;
+- the Bellabeat Wellness Analysis Repository is a published non-Artifact Resource with a canonical external representation, provenance SourceRecord, and published support relationship;
+- the shared three-column Inspection frame, Resource/Collection context, return context, reduced-motion behavior, terminal reveal, and Query Reservoir navigation are preserved;
+- the close X and semantic Back-to-Top behavior were simplified and accepted in final user review.
+
+See `docs/l2-external-link-repository-inspection-closeout.md` for the bounded pass's detailed acceptance record.
+
 ---
 
-## Remaining L2-Enabling Architecture
+## Remaining L2 / Public-Launch Preparation
 
-The Resource registry, direct Resource Query Reservoir seam, common Inspection Window, structured-document foundation, supporting-Resource navigation, minimum Inspection return context, and polished image Inspection surface are now complete.
+The L2-enabling architecture required by the currently approved launch content is complete in the current repository line:
 
-### Immediate next pass — External-Link / Repository Inspection
+- canonical Resource / Collection registry foundation;
+- direct Resource Query Reservoir surfacing;
+- common Inspection Window and structured-document rendering;
+- supporting-Resource navigation;
+- minimum Inspection return context;
+- image Inspection;
+- external-link / repository Inspection;
+- Bellabeat's initial approved Resource/support graph and launch materialization.
 
-The next bounded L2 implementation seam is the external-link / repository Inspection surface.
+This document records completion state only. **`docs/release-preparation-roadmap.md` is the sequencing authority for what should be worked on next.**
 
-The pass should remain narrow and establish:
+The remaining work is public-release preparation rather than expansion of the L2 ontology.
 
-- production `external-link` Inspection dispatch through `inspectionKind` rather than Artifact status;
-- canonical Resource identity with external URL/representation data treated as representation/presentation rather than a duplicate Resource;
-- a restrained shared Inspection presentation consistent with the current grammar: atmosphere for identity/concise metadata, renderer for the inspected object, shared Resources/Collections context tray beneath;
-- repository-aware presentation where Resource type/representation data identifies a repository, without creating a separate repository semantic system;
-- explicit unavailable/invalid external-target handling;
-- safe external navigation behavior and accessibility;
-- preservation of close, footer, Resource/Collection context tray, return-context, reduced-motion, and Query Reservoir behavior;
-- no Bellabeat ingestion unless separately authorized.
+### Public-launch work still open
 
-### Subsequent passes
+The roadmap currently groups the remaining launch work into five stages:
 
-After external-link / repository inspection is stable:
+1. **Portfolio Content Cut** — finalize the launch portfolio content set and hide/unpublish unfinished public objects.
+2. **Public Web Layer** — production identity/metadata, real outbound destinations, and practical direct public addresses for major portfolio Resources.
+3. **Integrated Reservoir QA** — exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
+4. **Responsive, Accessibility, and Interaction Regression Sweep** — representative devices/input modes, semantic DOM access, reduced motion, focus behavior, and functional regression cleanup.
+5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.
 
-1. generic document/file/notebook fallback sufficient for Bellabeat;
-2. Bellabeat Resource/supporting-Resource materialization and approved content population;
-3. integrated manual QA of the now-real support-navigation / Inspection-return path.
+Implementation work should follow that roadmap rather than treating a technically logical next renderer or ingestion seam as automatically higher priority.
 
-The exact grouping of these subsequent items may be adjusted if implementation evidence shows a cleaner bounded pass, but do not collapse them into production ingestion/search infrastructure.
+### L2 capability not required for the current launch cut
+
+The following remain valid future capabilities but are not required merely to finish L2 for the current launch registry:
+
+- polished generic-file, dataset, video, and audio renderers not required by approved launch content;
+- production ingestion/admin UI;
+- database persistence;
+- content hashing/deduplication;
+- full-text or semantic search;
+- an Unassigned Resources inbox/query UI;
+- automated migration;
+- automatic Artifact promotion;
+- automatic Collection creation.
+
+The notebook treatment required by the Bellabeat launch material is implemented. Unsupported Resource kinds should remain explicit rather than being forced through an unrelated renderer.
+
+### Public routing is no longer an L2 deferral
+
+Final public URL/deep-link behavior remains outside the semantic ontology, but it is now part of the **launch-blocking Public Web Layer** defined by the release-preparation roadmap.
+
+Do not classify public routing/address mapping as deferred product work when evaluating launch readiness.
 
 ---
 
@@ -208,7 +244,6 @@ Do not treat the following as L2 prerequisites unless separately authorized:
 - content hashing/deduplication engine;
 - full-text or semantic search;
 - Unassigned Resources inbox/query UI;
-- final public URL routing;
 - automated migration;
 - polished video/audio/dataset renderers;
 - automatic Artifact promotion;
@@ -218,8 +253,14 @@ Do not treat the following as L2 prerequisites unless separately authorized:
 
 ## Current Handoff Rule
 
-For new L2 implementation branches, read this file after the ontology and Bellabeat manifest to distinguish conceptual requirements from already-completed runtime work.
+For new implementation or debugging branches:
 
-Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, supporting-Resource navigation, minimum Inspection return context, or polished image Inspection unless a reviewed defect specifically requires correction.
+1. read `docs/release-preparation-roadmap.md` for sequencing and launch priority;
+2. read this file for implementation-completion state;
+3. read the ontology for semantic rules;
+4. read the interface specification for accepted interaction behavior;
+5. read the Bellabeat manifest when the task touches Bellabeat content, provenance, or curatorial boundaries.
 
-The current next-task seam is external-link / repository inspection.
+Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, supporting-Resource navigation, minimum Inspection return context, image Inspection, or external-link/repository Inspection without a reviewed defect that specifically requires correction.
+
+Current work is public-launch preparation. Do not expand into additional renderer families, ingestion infrastructure, or future product systems merely because they are conceptually adjacent.
