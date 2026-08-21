@@ -1753,6 +1753,15 @@ const checks = [
         "utf8",
       ).includes("${resource.id}:image:0"),
   ],
+  [
+    "BE image navigation controls bypass stage gesture capture",
+    inspectionViewerSource.includes(
+      'onPointerDown={(event) => event.stopPropagation()}',
+    ) &&
+      inspectionViewerSource.match(
+        /inspection-image-viewer__nav[\s\S]*?onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g,
+      )?.length === 2,
+  ],
 ];
 
 const failures = checks.filter(([, passed]) => !passed);

@@ -432,6 +432,7 @@ function InspectionImageViewer({
           <button
             className="inspection-image-viewer__nav inspection-image-viewer__nav--previous"
             type="button"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={() => changeBy(-1)}
             aria-label="Previous image"
           >
@@ -464,6 +465,7 @@ function InspectionImageViewer({
           <button
             className="inspection-image-viewer__nav inspection-image-viewer__nav--next"
             type="button"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={() => changeBy(1)}
             aria-label="Next image"
           >
