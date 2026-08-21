@@ -46,7 +46,7 @@ Implemented in the current repository line:
 - direct About/Resume requests use the same generic Resource-query seam;
 - single-result Resource queries use existing canonical focal placement and auto-selection behavior;
 - selection state is Resource-native;
-- Query Reservoir Back/Home and context-local state restoration remain unchanged;
+- Query Reservoir `returnContext` ancestry, Home semantics, and context-local presentation restoration remain preserved beneath unified Reservoir history;
 - Resource atmosphere metadata and diagnostics are status-aware;
 - non-Artifact Resources are not falsely reported as Artifacts in query-node, adaptive-zoom, or traversal diagnostics;
 - synthetic QA covers non-Artifact Resource adaptation without adding fake production content.
@@ -89,30 +89,49 @@ Implemented in the current repository line:
 
 Implemented, corrected, reviewed, and accepted in the current repository line:
 
-- an Inspection-originated Resource detour captures a minimal `InspectionReturnFrame` rather than introducing a second navigation-history architecture;
+- an Inspection-originated Resource or Collection detour captures a minimal `InspectionReturnFrame` on the unified history frame for the Reservoir visit being left;
 - the frame preserves originating Resource ID, practical document `scrollY`, and proportional post-content/control-plane/footer reveal progress;
 - Back restores the prior semantic Reservoir context before reselecting and reopening the originating Resource;
 - reopened Inspection restores bounded practical reading position rather than promising pixel-perfect browser-history semantics;
-- return frames are consumed exactly once after successful restoration;
+- return frames are visit-specific and consumed exactly once after successful restoration;
 - failed or abandoned paths discard ephemeral state;
 - ordinary Query Reservoir Back/Home behavior remains unchanged when no Inspection return state exists;
 - root-returning queries with an Inspection return frame expose Back because Back and Home are semantically distinct;
 - Home remains an unconditional root return, discards Inspection return state, and does not reopen the prior Inspection;
-- Collection detours launched from Inspection now reuse the same `InspectionReturnFrame` semantics through the specific Collection-history hop rather than global Collection identity;
+- Collection detours launched from Inspection reuse the same visit-specific `InspectionReturnFrame` ownership as Resource-query detours;
 - nested Collection traversal only reopens the Inspection when Back crosses the original Inspection-originated Collection boundary;
 - current-Collection selection performs an ordinary Inspection close without creating a redundant return hop;
 - return state does not promote Resources to Artifact status, mutate Collection membership, or duplicate semantic identity.
 
-### Integrated Manual QA Pending
+### 5.1 Unified Reservoir History
 
-The production registry now contains the approved Bellabeat supporting-Resource graph required to exercise the complete Resource → supporting Resource → Back → reopened Inspection path manually.
+Implemented in the current repository line:
 
-Accordingly:
+- one ordered visit-based `ReservoirHistoryFrame[]` records persistent Collection and ephemeral Query Reservoir arrivals;
+- frames preserve unique visit identity, semantic context, user-facing label, and optional Inspection reading state without geometry/layout snapshots;
+- repeated visits to the same Resource or Collection remain distinct;
+- Back selects the immediately preceding frame without asking callers to distinguish Collection ancestry from Query ancestry;
+- selecting an older visible frame performs one direct transition and truncates the later active branch;
+- Home performs one direct root transition, resets history to root, clears pending auto-open/return state, and never reopens Inspection;
+- the control-panel projection shows at most five prior non-Home visits and a leading ellipsis when older visits are hidden;
+- Collection titles and single-Resource titles provide semantic labels, while unlabeled multi-result Queries use `Query · N results`;
+- recursive Query `returnContext` remains intact for semantic ancestry and transition helpers;
+- existing context-keyed Explore/selection presentation stores and continuous quaternion/zoom transition behavior remain separate from semantic history;
+- input locks, transition-plan ownership, pending-intent clearing, visit-ID checks, and branch truncation prevent repeated or stale navigation from reopening the wrong Inspection.
 
-- this checkpoint is accepted on reviewed implementation plus synthetic/automated QA;
-- do not add fake production Resources, memberships, or support relationships solely to expose this path manually;
-- integrated manual QA of supporting-Resource navigation and Inspection return is the next launch-preparation priority;
-- Bellabeat integration QA must exercise both Back restoration and Home discard behavior with the real semantic content now in the registry.
+### Integrated Manual QA
+
+The production Bellabeat graph has now exercised mixed Collection/Query history and Inspection return behavior in-browser:
+
+- Home → Work → Data / Analytics established Collection traversal in the unified history;
+- real relationship navigation exercised Bellabeat, Comprehensive Case Study, Methodology Appendix, Identifier Population Audit, Notebook, and Final Validation Query visits without adding convenience edges;
+- the authored graph does not contain a direct Methodology → Identifier Audit edge, so the valid source-backed path returns through Comprehensive Case Study before entering Identifier Audit;
+- a seven-visit path exposed exactly five prior non-Home frames plus the leading hidden-history ellipsis;
+- random access returned directly to an older Comprehensive Case Study visit, truncated all later frames, reopened Inspection, and restored a nonzero practical reading position;
+- Bellabeat → Methodology → Bellabeat → Methodology → Bellabeat preserved both Bellabeat Query visits as distinct frames, and selecting the earlier Bellabeat frame truncated the later branch and restored that visit;
+- unified Back restored the immediately preceding report visit and reading state;
+- Home reset history to the root Collection, cleared Inspection-return state, and did not reopen Inspection;
+- the final browser console contained no warnings or errors.
 
 ### 6. Polished Image Inspection + Shared Inspection Context Grammar
 

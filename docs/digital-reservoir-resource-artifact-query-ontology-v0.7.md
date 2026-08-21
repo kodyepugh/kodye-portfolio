@@ -491,7 +491,7 @@ Creating this Query Reservoir does **not**:
 
 The Query Reservoir remains temporary navigation context.
 
-Back follows the established directional `returnContext` ancestry.
+The recursive Query `returnContext` remains the established directional semantic ancestry. User-facing Back is coordinated by the unified visit-based Reservoir history, whose immediately preceding frame may be either a Collection or Query context.
 
 Home returns to the root Digital Reservoir.
 
@@ -822,18 +822,19 @@ The query does not alter persistent membership.
 
 A supporting-resource query may originate from inside an already-open inspection surface.
 
-For that case, Back should be capable of restoring the meaningful inspection context, not merely the underlying Collection/Query Reservoir.
+For that case, the history frame for the Reservoir visit being left owns the meaningful Inspection reading state. Returning to that frame by Back or random-access history selection restores the semantic Reservoir before reopening the inspected Resource.
 
 Desired restoration payload may include:
 
 ```text
-returnContext
-+
-inspectionReturnContext:
-  inspectedObjectAddress
-  inspectionOpen = true
-  documentScrollPosition
-  relevant local inspection state
+ReservoirHistoryFrame:
+  visitId
+  context
+  label
+  inspectionReturn:
+    inspectedObjectAddress
+    scrollY
+    postContentProgress
 ```
 
 Expected user experience:
@@ -853,7 +854,7 @@ Home
 → no requirement to restore the previous inspection window
 ```
 
-This extends the approved directional Query Reservoir ancestry model; it must not reintroduce reciprocal query loops or historical geometry hierarchies.
+Reading state is visit-specific rather than one global last-known value for a Resource. It is consumed after successful restoration and replaced by a fresh capture when that active visit launches another detour. This extends the approved directional Query Reservoir ancestry model; it must not reintroduce reciprocal query loops or historical geometry hierarchies.
 
 ### L2 implementation guidance
 

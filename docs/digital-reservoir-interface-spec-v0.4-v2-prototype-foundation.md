@@ -75,13 +75,13 @@ The approved runtime contract is:
 - one authoritative `activeLayout` at rest;
 - one ephemeral `transitionPlan` during a transition, then `null` again on completion;
 - collection and query changes share the same exchange choreography: departure → semantic handoff → arrival;
-- semantic history is separate from geometry and must not depend on reusable historical geometry snapshots;
+- visit-based Reservoir history is separate from geometry and must not depend on reusable historical geometry snapshots;
 - direct single-result Query Reservoirs use the canonical viewport-relative focal anchor regardless of global Distributed / Focused preference;
-- query ancestry is directional through `returnContext`, and `Back` follows that directed ancestry;
+- query ancestry remains directional through `returnContext`, while the unified Reservoir history coordinator makes `Back` the immediately preceding Collection or Query visit;
 - `Home` always returns to the root reservoir;
 - `Explore` filter state belongs to the reservoir context, so a new Query Reservoir starts at `All` unless its own context is being restored;
 - staying nodes remain stationary, leaving nodes sink, entering nodes emerge, and an empty target uses the red reservoir response rather than destroying state;
-- direct artifacts auto-select on arrival, but the Inspection Window still requires a second click to open.
+- direct Resource requests auto-select at canonical focal arrival and automatically open the Resource Inspection surface.
 
 ---
 
@@ -219,9 +219,9 @@ A Query Reservoir may contain:
 
 A direct Resource request resolves through a temporary Query Reservoir. A directly addressed Collection resolves to that Collection's persistent Reservoir.
 
-Direct single-result queries use the canonical viewport-relative focal placement. Artifact-status Resources may auto-select on arrival while Inspection still requires deliberate confirmation.
+Direct single-result queries use the canonical viewport-relative focal placement. Direct Resource requests, whether or not the Resource has Artifact status, auto-select on arrival and open the Resource Inspection surface.
 
-Back follows directional `returnContext`. Home returns to the root Reservoir.
+Every Collection or Query arrival appends a visit-specific frame to one ordered Reservoir history. Back selects the immediately preceding frame; selecting any older visible frame performs one direct transition and truncates the later branch. Query `returnContext` remains valid semantic ancestry for transition helpers. Home returns directly to the root Reservoir, resets active history to root, and discards pending Inspection resume state.
 
 ### Foundational rule
 
@@ -1144,9 +1144,13 @@ Each collection may produce its own:
 - orientation state;
 - zoom state where preservation is desired.
 
-## 15.4 Collection State Preservation
+## 15.4 Reservoir History and Presentation Preservation
 
-When traversing among collections, preserve semantic history independently from physical scene choreography.
+Collection and Query traversal share one visit-based semantic history independently from physical scene choreography. A history frame stores a unique visit ID, the Reservoir context, a user-facing label, and optional `InspectionReturnFrame` reading state captured for the visit being left. Repeated visits to the same Collection or Resource Query remain distinct. Geometry and layout snapshots do not belong in history frames.
+
+The control plane projects at most the five most recent prior non-Home visits, excludes the current and root Reservoirs, and shows a leading non-interactive ellipsis when older visits are hidden. The newest prior visit appears nearest Back/Home. Collection labels use Collection titles; single-Resource Query labels use Resource titles; labeled multi-result queries use their explicit label, otherwise `Query · N results`.
+
+Back and random-access selection perform one direct transition to the chosen frame and truncate all later frames. Home is a stronger direct reset to the root frame with no Inspection reopening. No Forward or persistent cross-session history is implied.
 
 Potential preserved state per collection:
 
@@ -1155,7 +1159,7 @@ Potential preserved state per collection:
 - selected node;
 - generated layout seed / stable node positions.
 
-Exact persistence policy remains open, but V2 architecture should make it possible without restoring camera-path state.
+Context-keyed presentation stores continue to own orientation, zoom, layout/Explore state, and selection snapshots where implemented. History references context identity and optional Inspection reading state rather than embedding presentation or camera-path state.
 
 ## 15.5 Query Reservoir Navigation
 
@@ -1166,7 +1170,7 @@ Queries answer “show me what matches.”
 
 Query Reservoirs are ephemeral navigation state, not semantic collection records.
 
-Query ancestry is directional: each Query Reservoir may point back to the context that created it through `returnContext`.
+Query ancestry is directional: each Query Reservoir may point back to the context that created it through `returnContext`. This recursive contract remains semantic ancestry; the visit-based Reservoir history is the higher-level coordinator for Back and random-access traversal across mixed Collection and Query paths.
 
 Direct single-result Query Reservoirs use the canonical focal anchor regardless of the active Distributed / Focused preference.
 
@@ -1688,6 +1692,7 @@ type ReservoirContext =
       kind: "query"
       resultIds: string[]
       returnContext: ReservoirContext
+      label?: string
     }
 
 interface ReservoirState {
@@ -1703,7 +1708,16 @@ interface ReservoirState {
   } | null
 
   currentCollectionId: string
-  collectionHistory: string[]
+  reservoirHistory: Array<{
+    id: string
+    context: ReservoirContext
+    label: string
+    inspectionReturn?: {
+      resourceId: string
+      scrollY: number
+      postContentProgress: number
+    }
+  }>
   reservoirContext: ReservoirContext
 
   activeExploreFilterByContextKey: Record<string, ActiveExploreFilter>
@@ -1761,7 +1775,7 @@ Important architectural requirements:
 - staying nodes remain stationary during exchange;
 - leaving nodes sink and entering nodes emerge;
 - failed filter requests return the red reservoir response rather than mutating the semantic model;
-- direct artifact Query Reservoirs auto-select on arrival, and the Inspection Window still requires a second click to open;
+- direct Resource Query Reservoirs auto-select on arrival and automatically open the Inspection Window;
 - artifact-selected and artifact-open remain distinct states;
 - menu and footer remain independent states.
 
@@ -1777,10 +1791,10 @@ HOME RESERVOIR
 ├── QUERY RESERVOIR
 │      ├── result set is ephemeral navigation state
 │      ├── returnContext is directional ancestry
-│      ├── Back follows returnContext
+│      ├── unified history records the visit
+│      ├── Back selects the preceding Reservoir visit
 │      ├── Home returns to root reservoir
-│      ├── direct artifact requests may emerge already selected
-│      └── a second selection opens the Inspection Window
+│      └── direct Resource requests auto-open Inspection on arrival
 │
 ├── ARTIFACT SELECTED
 │      │
@@ -2525,7 +2539,7 @@ The MVP should not attempt to prove every future feature.
 
 The completed V1 prototype validated the primary artifact interaction and earlier spatial experiments. V2 now authorizes a focused spatial-foundation overhaul.
 
-The approved implementation already uses one authoritative `activeLayout` and one ephemeral `transitionPlan` per exchange in the persistent centered frame. Collection-node entry, Home, Back, ancestor/path selection, and direct collection requests resolve semantic destinations through the shared transition coordinator. Query Reservoir ancestry is directional through `returnContext`; query filters are context-local; direct single-result Query Reservoirs retain canonical focal placement regardless of the global Distributed / Focused preference; staying nodes remain stationary while leaving and entering nodes reconcile through the same choreography; direct results auto-select on arrival; and a second click is still required to open artifact content. Semantic navigation history is independent from geometry, and the implementation does not rely on a persistent reusable geometry-snapshot hierarchy.
+The approved implementation already uses one authoritative `activeLayout` and one ephemeral `transitionPlan` per exchange in the persistent centered frame. Collection-node entry, Home, Back, random-access history selection, and direct Collection or Resource requests resolve semantic destinations through the shared transition coordinator. One visit-based Reservoir history records both persistent Collection and ephemeral Query arrivals; Query Reservoir ancestry remains directional through `returnContext`; query filters are context-local; direct single-result Query Reservoirs retain canonical focal placement regardless of the global Distributed / Focused preference and auto-open Resource Inspection; staying nodes remain stationary while leaving and entering nodes reconcile through the same choreography. Semantic navigation history is independent from geometry, and the implementation does not rely on a persistent reusable geometry-snapshot hierarchy.
 
 ### V2 foundation implementation scope
 

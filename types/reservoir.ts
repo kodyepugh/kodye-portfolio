@@ -11,6 +11,7 @@ export type ReservoirContext =
       kind: "query";
       resultIds: string[];
       returnContext: ReservoirContext;
+      label?: string;
     };
 
 export type ReservoirArtifact = {

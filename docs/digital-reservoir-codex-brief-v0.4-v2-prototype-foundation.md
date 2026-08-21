@@ -91,12 +91,12 @@ The Query Reservoir feature branch is closed for this development phase. Future 
 - one ephemeral `transitionPlan` during a transition, then `null` again on completion;
 - semantic history is separate from geometry and must not depend on persistent reusable geometry snapshots;
 - collection and query changes share the same exchange choreography: departure → semantic handoff → arrival;
-- `returnContext` defines directional query ancestry, `Back` follows that ancestry, and query chains must not form reciprocal loops;
+- `returnContext` defines directional query ancestry, while unified visit-based Reservoir history coordinates Back across Collection and Query contexts; query chains must not form reciprocal loops;
 - `Home` always returns to the root reservoir;
 - a direct single-result Query Reservoir uses the canonical viewport-relative focal anchor regardless of the global Distributed / Focused preference;
 - query filter ownership is context-local, so a fresh Query Reservoir starts at `All` unless its own context is being restored;
 - staying nodes remain stationary; leaving nodes sink; entering nodes emerge; failed filters produce the red reservoir response rather than mutating state;
-- direct artifact Query Reservoirs auto-select on arrival, but the Inspection Window still requires a second click to open;
+- direct Resource Query Reservoirs auto-select on arrival and automatically open the Inspection Window;
 - preserved quaternion / zoom behavior continues through exchange, but no historical geometry-restoration hierarchy should be reintroduced.
 
 ---
@@ -410,7 +410,12 @@ type TransitionState =
 
 interface ReservoirState {
   currentCollectionId: string;
-  collectionHistory: string[];
+  reservoirHistory: Array<{
+    id: string;
+    context: ReservoirContext;
+    label: string;
+    inspectionReturn?: InspectionReturnFrame;
+  }>;
 
   focusedNodeId: string | null;
   selectedArtifactId: string | null;

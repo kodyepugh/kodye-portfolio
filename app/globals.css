@@ -217,7 +217,7 @@ body.artifact-reading-mode .reservoir-study {
   font-weight: 300;
 }
 
-.collection-navigation {
+.reservoir-navigation {
   position: fixed;
   z-index: 6;
   bottom: 18px;
@@ -231,7 +231,7 @@ body.artifact-reading-mode .reservoir-study {
     );
 }
 
-.collection-navigation__control {
+.reservoir-navigation__control {
   appearance: none;
   padding: 2px 0;
   border: 0;
@@ -246,17 +246,17 @@ body.artifact-reading-mode .reservoir-study {
   cursor: pointer;
 }
 
-.collection-navigation__control:hover:not(:disabled),
-.collection-navigation__control:focus-visible {
+.reservoir-navigation__control:hover:not(:disabled),
+.reservoir-navigation__control:focus-visible {
   color: var(--foreground);
 }
 
-.collection-navigation__control:focus-visible {
+.reservoir-navigation__control:focus-visible {
   outline: 1px solid currentColor;
   outline-offset: 6px;
 }
 
-.collection-navigation__control:disabled {
+.reservoir-navigation__control:disabled {
   cursor: default;
   opacity: 0.36;
 }
@@ -324,7 +324,7 @@ body.artifact-reading-mode .reservoir-study {
   height: 21px;
 }
 
-.collection-ancestry {
+.reservoir-history {
   position: fixed;
   z-index: 6;
   right: calc(50% + var(--brand-symbol-half-width) + 28px);
@@ -334,54 +334,42 @@ body.artifact-reading-mode .reservoir-study {
   align-items: center;
   height: var(--control-panel-height);
   min-width: 0;
+  overflow: hidden;
   pointer-events: none;
   transform: translateY(
     calc(-1 * var(--control-stack-translation))
   );
 }
 
-.collection-ancestry__viewport {
-  width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    black 14px,
-    black calc(100% - 14px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    black 14px,
-    black calc(100% - 14px),
-    transparent 100%
-  );
-}
-
-.collection-ancestry__viewport::-webkit-scrollbar {
-  display: none;
-}
-
-.collection-ancestry__list {
+.reservoir-history__list {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: clamp(14px, 1.7vw, 30px);
-  width: max-content;
+  width: 100%;
   margin: 0;
   padding: 8px 16px;
   list-style: none;
 }
 
-.collection-ancestry__item {
+.reservoir-history__item {
+  flex: 0 1 168px;
+  min-width: 0;
+}
+
+.reservoir-history__hidden-indicator {
   flex: none;
 }
 
-.collection-ancestry__control {
+.reservoir-history__hidden-indicator {
+  color: color-mix(in srgb, var(--foreground-muted) 64%, transparent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.reservoir-history__control {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -397,11 +385,18 @@ body.artifact-reading-mode .reservoir-study {
   line-height: 1.4;
   text-transform: uppercase;
   white-space: nowrap;
+  width: 100%;
   cursor: pointer;
   pointer-events: auto;
 }
 
-.collection-ancestry__symbol {
+.reservoir-history__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reservoir-history__symbol {
   color: color-mix(in srgb, currentColor 68%, transparent);
   font-family: var(--font-geist-mono), monospace;
   font-size: 9px;
@@ -409,17 +404,17 @@ body.artifact-reading-mode .reservoir-study {
   transform: translateY(-0.5px);
 }
 
-.collection-ancestry__control:hover:not(:disabled),
-.collection-ancestry__control:focus-visible {
+.reservoir-history__control:hover:not(:disabled),
+.reservoir-history__control:focus-visible {
   color: var(--foreground);
 }
 
-.collection-ancestry__control:focus-visible {
+.reservoir-history__control:focus-visible {
   outline: 1px solid currentColor;
   outline-offset: 6px;
 }
 
-.collection-ancestry__control:disabled {
+.reservoir-history__control:disabled {
   cursor: default;
   opacity: 1;
 }
@@ -689,7 +684,7 @@ body.artifact-reading-mode .reservoir-study {
   color: color-mix(in srgb, var(--foreground) 86%, transparent);
 }
 
-.collection-navigation,
+.reservoir-navigation,
 .interaction-note,
 .reservoir-menu-trigger,
 .reservoir-layout-switch {
@@ -700,7 +695,7 @@ body.artifact-reading-mode .reservoir-study {
 
 .reservoir-study:has(
   .reservoir-control-state[data-secondary-dimmed="true"]
-) .collection-navigation,
+) .reservoir-navigation,
 .reservoir-study:has(
   .reservoir-control-state[data-secondary-dimmed="true"]
 ) .interaction-note,
@@ -2249,7 +2244,7 @@ body.artifact-reading-mode .reservoir-study {
     right: 16px;
   }
 
-  .collection-ancestry {
+  .reservoir-history {
     right: calc(50% + var(--brand-symbol-half-width) + 20px);
     left: 16px;
   }

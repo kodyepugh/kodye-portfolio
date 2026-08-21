@@ -4,19 +4,6 @@ export type InspectionReturnFrame = {
   postContentProgress: number;
 };
 
-export type CollectionHistoryFrame = {
-  collectionId: string;
-  inspectionReturn?: InspectionReturnFrame;
-};
-
-export function getCollectionInspectionReturnFrame(
-  history: readonly CollectionHistoryFrame[],
-) {
-  return history.at(-1)?.inspectionReturn ?? null;
-}
-
-export type InspectionReturnFrameStore = Map<string, InspectionReturnFrame>;
-
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
@@ -37,37 +24,6 @@ export function createInspectionReturnFrame(
       ? clamp(postContentProgress, 0, 1)
       : 0,
   };
-}
-
-export function associateInspectionReturnFrame(
-  store: InspectionReturnFrameStore,
-  queryContextKey: string,
-  frame: InspectionReturnFrame,
-) {
-  store.set(queryContextKey, frame);
-}
-
-export function getInspectionReturnFrame(
-  store: InspectionReturnFrameStore,
-  queryContextKey: string,
-) {
-  return store.get(queryContextKey) ?? null;
-}
-
-export function consumeInspectionReturnFrame(
-  store: InspectionReturnFrameStore,
-  queryContextKey: string,
-) {
-  const frame = getInspectionReturnFrame(store, queryContextKey);
-  if (frame) store.delete(queryContextKey);
-  return frame;
-}
-
-export function discardInspectionReturnFrame(
-  store: InspectionReturnFrameStore,
-  queryContextKey: string,
-) {
-  return store.delete(queryContextKey);
 }
 
 export function getInspectionReturnScrollY(

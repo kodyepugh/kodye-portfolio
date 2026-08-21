@@ -127,12 +127,7 @@ const {
   "lib/reservoir/inspection-support.ts",
 ));
 const {
-  associateInspectionReturnFrame,
-  consumeInspectionReturnFrame,
   createInspectionReturnFrame,
-  discardInspectionReturnFrame,
-  getCollectionInspectionReturnFrame,
-  getInspectionReturnFrame,
   getInspectionReturnPostContentOffset,
   getInspectionReturnScrollY,
 } = require(path.join(
@@ -140,8 +135,15 @@ const {
   "lib/reservoir/inspection-return.ts",
 ));
 const {
-  shouldShowBackNavigationForQueryContext,
-} = require(path.join(projectRoot, "lib/reservoir/navigation.ts"));
+  MAX_VISIBLE_PRIOR_RESERVOIRS,
+  appendReservoirHistoryFrame,
+  getPreviousReservoirHistoryFrame,
+  getQueryReservoirHistoryLabel,
+  getVisibleReservoirHistory,
+  resetReservoirHistory,
+  setInspectionReturnForReservoirVisit,
+  truncateReservoirHistoryAtVisit,
+} = require(path.join(projectRoot, "lib/reservoir/history.ts"));
 const {
   validateContentRegistry,
 } = require(path.join(projectRoot, "lib/content/validation.ts"));
@@ -184,6 +186,13 @@ const directIntent = createDirectResourceInspectionIntent(
 );
 const reservoirSceneSource = fs.readFileSync(
   path.join(projectRoot, "components/reservoir/ReservoirScene.tsx"),
+  "utf8",
+);
+const reservoirHistoryNavigationSource = fs.readFileSync(
+  path.join(
+    projectRoot,
+    "components/navigation/ReservoirHistoryNavigation.tsx",
+  ),
   "utf8",
 );
 const inspectionCssSource = fs.readFileSync(
@@ -814,87 +823,180 @@ const openAction = getReservoirResourceSelectionAction(
   nonArtifactNode,
   nonArtifactNode.id,
 );
-const supportQueryContextKey =
-  "query:qa-inspection-support-target|return=collection:collection-work";
-const ordinaryQueryContextKey =
-  "query:artifact-about|return=collection:collection-root";
-const ordinaryRootQueryContext = {
-  kind: "query",
-  resultIds: [about.id],
-  returnContext: {
-    kind: "collection",
-    collectionId: ROOT_COLLECTION_ID,
-  },
-};
-const ordinaryNestedQueryContext = {
-  kind: "query",
-  resultIds: [about.id],
-  returnContext: {
-    kind: "collection",
-    collectionId: "collection-work",
-  },
-};
-const inspectionReturnQueryContext = {
-  kind: "query",
-  resultIds: [supportSourceResource.id],
-  returnContext: {
-    kind: "collection",
-    collectionId: ROOT_COLLECTION_ID,
-  },
-};
-const inspectionReturnStore = new Map();
 const inspectionReturnFrame = createInspectionReturnFrame(
   supportSourceResource.id,
   740,
   0.5,
-);
-associateInspectionReturnFrame(
-  inspectionReturnStore,
-  supportQueryContextKey,
-  inspectionReturnFrame,
 );
 const boundedInspectionReturnFrame = createInspectionReturnFrame(
   supportSourceResource.id,
   -40,
   1.8,
 );
-const homeDiscardStore = new Map(inspectionReturnStore);
-const failedSupportQueryStore = new Map();
-const unsupportedDestinationStore = new Map();
-associateInspectionReturnFrame(
-  unsupportedDestinationStore,
-  "query:qa-video-resource|return=collection:collection-work",
-  inspectionReturnFrame,
-);
-const consumedInspectionReturnFrame = consumeInspectionReturnFrame(
-  inspectionReturnStore,
-  supportQueryContextKey,
-);
 const inspectionReturnOwnershipSnapshot = JSON.stringify({
   source: supportSourceResource,
   target: supportTargetResource,
   memberships: contentRegistry.memberships,
 });
-const ordinaryCollectionHistory = [
-  { collectionId: ROOT_COLLECTION_ID },
-  { collectionId: "collection-web" },
-];
-const inspectionCollectionHistory = [
-  { collectionId: ROOT_COLLECTION_ID },
-  {
-    collectionId: "collection-about-self",
-    inspectionReturn: inspectionReturnFrame,
-  },
-];
-const nestedInspectionCollectionHistory = [
-  ...inspectionCollectionHistory,
-  { collectionId: "collection-digital-reservoir" },
-];
-const collectionReturnFrame = getCollectionInspectionReturnFrame(
-  inspectionCollectionHistory,
+const rootContext = {
+  kind: "collection",
+  collectionId: ROOT_COLLECTION_ID,
+};
+const workContext = {
+  kind: "collection",
+  collectionId: "collection-work",
+};
+const dataContext = {
+  kind: "collection",
+  collectionId: "collection-data-analytics",
+};
+const bellabeatQueryContext = {
+  kind: "query",
+  resultIds: [bellabeat.id],
+  returnContext: dataContext,
+};
+const comprehensiveQueryContext = {
+  kind: "query",
+  resultIds: [comprehensiveCaseStudy.id],
+  returnContext: bellabeatQueryContext,
+};
+const methodologyQueryContext = {
+  kind: "query",
+  resultIds: ["resource-bellabeat-methodology-appendix"],
+  returnContext: comprehensiveQueryContext,
+};
+const auditQueryContext = {
+  kind: "query",
+  resultIds: ["resource-bellabeat-identifier-population-audit"],
+  returnContext: methodologyQueryContext,
+};
+const notebookQueryContext = {
+  kind: "query",
+  resultIds: [notebookResource.id],
+  returnContext: auditQueryContext,
+};
+const collectionFromQueryContext = {
+  kind: "collection",
+  collectionId: "collection-about-self",
+};
+const makeHistoryFrame = (id, context, label, inspectionReturn) => ({
+  id,
+  context,
+  label,
+  ...(inspectionReturn ? { inspectionReturn } : {}),
+});
+const rootHistoryFrame = makeHistoryFrame("visit-root", rootContext, "Home");
+const workHistoryFrame = makeHistoryFrame("visit-work", workContext, "Work");
+const dataHistoryFrame = makeHistoryFrame(
+  "visit-data",
+  dataContext,
+  "Data / Analytics",
 );
-const nestedFirstBackHistory = nestedInspectionCollectionHistory.slice(0, -1);
-const nestedSecondBackHistory = nestedFirstBackHistory.slice(0, -1);
+const bellabeatHistoryFrame = makeHistoryFrame(
+  "visit-bellabeat-1",
+  bellabeatQueryContext,
+  bellabeat.title,
+);
+const methodologyHistoryFrame = makeHistoryFrame(
+  "visit-methodology",
+  methodologyQueryContext,
+  "Bellabeat Methodology Appendix",
+);
+const comprehensiveHistoryFrame = makeHistoryFrame(
+  "visit-comprehensive",
+  comprehensiveQueryContext,
+  comprehensiveCaseStudy.title,
+);
+const auditHistoryFrame = makeHistoryFrame(
+  "visit-audit",
+  auditQueryContext,
+  "Bellabeat Identifier Population Audit",
+);
+const notebookHistoryFrame = makeHistoryFrame(
+  "visit-notebook",
+  notebookQueryContext,
+  notebookResource.title,
+);
+const baseHistory = [rootHistoryFrame, workHistoryFrame, dataHistoryFrame];
+const bellabeatArrivalHistory = appendReservoirHistoryFrame(
+  baseHistory,
+  bellabeatHistoryFrame,
+);
+const bellabeatReadingHistory = setInspectionReturnForReservoirVisit(
+  bellabeatArrivalHistory,
+  bellabeatHistoryFrame.id,
+  inspectionReturnFrame,
+);
+const resourceQueryChain = [
+  ...bellabeatReadingHistory,
+  comprehensiveHistoryFrame,
+  methodologyHistoryFrame,
+  auditHistoryFrame,
+  notebookHistoryFrame,
+];
+const visibleResourceQueryHistory = getVisibleReservoirHistory(
+  resourceQueryChain,
+  ROOT_COLLECTION_ID,
+);
+const bellabeatJumpHistory = truncateReservoirHistoryAtVisit(
+  resourceQueryChain,
+  bellabeatHistoryFrame.id,
+);
+const branchedHistory = appendReservoirHistoryFrame(
+  bellabeatJumpHistory,
+  makeHistoryFrame(
+    "visit-branch",
+    {
+      kind: "query",
+      resultIds: [repositoryResource.id],
+      returnContext: bellabeatQueryContext,
+    },
+    repositoryResource.title,
+  ),
+);
+const duplicateBellabeatHistory = appendReservoirHistoryFrame(
+  resourceQueryChain,
+  makeHistoryFrame(
+    "visit-bellabeat-2",
+    {
+      kind: "query",
+      resultIds: [bellabeat.id],
+      returnContext: notebookQueryContext,
+    },
+    bellabeat.title,
+  ),
+);
+const duplicateBellabeatReadingHistory = setInspectionReturnForReservoirVisit(
+  duplicateBellabeatHistory,
+  "visit-bellabeat-2",
+  boundedInspectionReturnFrame,
+);
+const staleInspectionWriteHistory = setInspectionReturnForReservoirVisit(
+  resourceQueryChain,
+  bellabeatHistoryFrame.id,
+  boundedInspectionReturnFrame,
+);
+const consumedBellabeatHistory = setInspectionReturnForReservoirVisit(
+  bellabeatJumpHistory,
+  bellabeatHistoryFrame.id,
+  null,
+);
+const queryToCollectionHistory = appendReservoirHistoryFrame(
+  resourceQueryChain,
+  makeHistoryFrame(
+    "visit-about-collection",
+    collectionFromQueryContext,
+    "Self / About",
+  ),
+);
+const nestedCollectionHistory = appendReservoirHistoryFrame(
+  queryToCollectionHistory,
+  makeHistoryFrame(
+    "visit-nested-collection",
+    { kind: "collection", collectionId: "collection-digital-reservoir" },
+    "Digital Reservoir",
+  ),
+);
 
 const checks = [
   [
@@ -1342,123 +1444,164 @@ const checks = [
       !canRequestInspectionSupportNavigation("closing", null),
   ],
   [
-    "Z Inspection return frames associate only with their support-query context",
-    consumedInspectionReturnFrame === inspectionReturnFrame &&
-      getInspectionReturnFrame(
-        inspectionReturnStore,
-        ordinaryQueryContextKey,
+    "Z Reservoir history appends Collection and Query visits in stable order",
+    resourceQueryChain.map((frame) => frame.id).join(",") ===
+      "visit-root,visit-work,visit-data,visit-bellabeat-1,visit-comprehensive,visit-methodology,visit-audit,visit-notebook" &&
+      resourceQueryChain[2].context.kind === "collection" &&
+      resourceQueryChain[3].context.kind === "query",
+  ],
+  [
+    "AA Back resolves to the immediately preceding Reservoir visit",
+    getPreviousReservoirHistoryFrame(resourceQueryChain)?.id ===
+      auditHistoryFrame.id,
+  ],
+  [
+    "AB Home resets history to root and discards resume state",
+    resetReservoirHistory(resourceQueryChain).length === 1 &&
+      resetReservoirHistory(resourceQueryChain)[0].id === rootHistoryFrame.id &&
+      resetReservoirHistory(resourceQueryChain)[0].inspectionReturn ===
+        undefined,
+  ],
+  [
+    "AC random-access history jump truncates later visits",
+    bellabeatJumpHistory.length === 4 &&
+      bellabeatJumpHistory.at(-1)?.id === bellabeatHistoryFrame.id &&
+      !bellabeatJumpHistory.some(
+        (frame) => frame.id === notebookHistoryFrame.id,
+      ),
+  ],
+  [
+    "AD new navigation after a jump creates a new branch",
+    branchedHistory.at(-2)?.id === bellabeatHistoryFrame.id &&
+      branchedHistory.at(-1)?.id === "visit-branch" &&
+      !branchedHistory.some((frame) => frame.id === methodologyHistoryFrame.id),
+  ],
+  [
+    "AE no more than five prior non-Home visits are visible",
+    MAX_VISIBLE_PRIOR_RESERVOIRS === 5 &&
+      visibleResourceQueryHistory.frames.length === 5 &&
+      visibleResourceQueryHistory.hasHiddenHistory === true,
+  ],
+  [
+    "AF current and Home Reservoirs are excluded from visible history",
+    !visibleResourceQueryHistory.frames.some(
+      (frame) => frame.id === notebookHistoryFrame.id,
+    ) &&
+      !visibleResourceQueryHistory.frames.some(
+        (frame) => frame.id === rootHistoryFrame.id,
+      ) &&
+      visibleResourceQueryHistory.frames.at(-1)?.id === auditHistoryFrame.id,
+  ],
+  [
+    "AG Query labels prefer explicit and single-result semantic titles",
+    getQueryReservoirHistoryLabel([bellabeat.title]) === bellabeat.title &&
+      getQueryReservoirHistoryLabel([bellabeat.title], "Analysis path") ===
+        "Analysis path",
+  ],
+  [
+    "AH multi-result Query labels use a restrained result-count fallback",
+    getQueryReservoirHistoryLabel(["A", "B", "C"]) ===
+      "Query · 3 results" &&
+      getQueryReservoirHistoryLabel([]) === "Query · 0 results",
+  ],
+  [
+    "AI duplicate Resource visits remain distinct",
+    duplicateBellabeatReadingHistory.filter(
+      (frame) => frame.label === bellabeat.title,
+    ).length === 2 &&
+      duplicateBellabeatReadingHistory.at(-1)?.id === "visit-bellabeat-2",
+  ],
+  [
+    "AJ Inspection reading state belongs to the specific visit being left",
+    duplicateBellabeatReadingHistory.find(
+      (frame) => frame.id === bellabeatHistoryFrame.id,
+    )?.inspectionReturn === inspectionReturnFrame &&
+      duplicateBellabeatReadingHistory.find(
+        (frame) => frame.id === "visit-bellabeat-2",
+      )?.inspectionReturn === boundedInspectionReturnFrame,
+  ],
+  [
+    "AK stale Inspection state cannot overwrite an older non-current visit",
+    staleInspectionWriteHistory.find(
+      (frame) => frame.id === bellabeatHistoryFrame.id,
+    )?.inspectionReturn === inspectionReturnFrame &&
+      staleInspectionWriteHistory.at(-1)?.inspectionReturn === undefined,
+  ],
+  [
+    "AL Inspection resume state is consumed from its visit exactly once",
+    consumedBellabeatHistory.at(-1)?.inspectionReturn === undefined &&
+      setInspectionReturnForReservoirVisit(
+        consumedBellabeatHistory,
+        bellabeatHistoryFrame.id,
+        null,
+      ).at(-1)?.inspectionReturn === undefined,
+  ],
+  [
+    "AM Resource Query to Resource Query ancestry remains recursive",
+    notebookQueryContext.returnContext === auditQueryContext &&
+      auditQueryContext.returnContext === methodologyQueryContext &&
+      methodologyQueryContext.returnContext === comprehensiveQueryContext &&
+      comprehensiveQueryContext.returnContext === bellabeatQueryContext,
+  ],
+  [
+    "AN Collection to Query to Query uses one unified visit chain",
+    resourceQueryChain[2].context === dataContext &&
+      resourceQueryChain[3].context.returnContext === dataContext &&
+      resourceQueryChain[4].context.returnContext === bellabeatQueryContext &&
+      resourceQueryChain[5].context.returnContext ===
+        comprehensiveQueryContext,
+  ],
+  [
+    "AO Query to Collection and nested Collection visits share history",
+    queryToCollectionHistory.at(-2)?.context === notebookQueryContext &&
+      queryToCollectionHistory.at(-1)?.context === collectionFromQueryContext &&
+      nestedCollectionHistory.at(-1)?.context.kind === "collection" &&
+      nestedCollectionHistory.length === queryToCollectionHistory.length + 1,
+  ],
+  [
+    "AP invalid or current history selections fail closed",
+    truncateReservoirHistoryAtVisit(resourceQueryChain, "missing-visit") ===
+      null &&
+      truncateReservoirHistoryAtVisit(
+        resourceQueryChain,
+        notebookHistoryFrame.id,
       ) === null,
   ],
   [
-    "AA ordinary non-root queries keep Back available",
-    shouldShowBackNavigationForQueryContext(
-      ordinaryNestedQueryContext,
-      false,
-    ) === true,
-  ],
-  [
-    "AB ordinary root-returning queries keep Back hidden",
-    shouldShowBackNavigationForQueryContext(ordinaryRootQueryContext, false) ===
-      false,
-  ],
-  [
-    "AC inspection-originated root-returning support queries show Back",
-    shouldShowBackNavigationForQueryContext(
-      inspectionReturnQueryContext,
-      true,
-    ) === true,
-  ],
-  [
-    "AD Inspection return frames preserve canonical Resource identity",
-    inspectionReturnFrame.resourceId === supportSourceResource.id,
-  ],
-  [
-    "AE Inspection return reading state is bounded and restores proportionally",
+    "AQ Inspection return reading state is bounded and restores proportionally",
     boundedInspectionReturnFrame.scrollY === 0 &&
       boundedInspectionReturnFrame.postContentProgress === 1 &&
       getInspectionReturnScrollY(inspectionReturnFrame, 400) === 400 &&
       getInspectionReturnPostContentOffset(inspectionReturnFrame, 600) === 300,
   ],
   [
-    "AF Home discards Inspection return state instead of restoring it",
-    discardInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) &&
-      getInspectionReturnFrame(homeDiscardStore, supportQueryContextKey) ===
-        null,
+    "Reservoir control plane exposes mixed visit history without an Inspection overlay control",
+    reservoirSceneSource.includes("<ReservoirHistoryNavigation") &&
+      reservoirSceneSource.includes(
+        "onHistorySelect={requestReservoirHistoryVisit}",
+      ) &&
+      !reservoirSceneSource.includes(
+        'from "../navigation/CollectionNavigation"',
+      ) &&
+      !inspectionSource.includes("ReservoirHistoryNavigation"),
   ],
   [
-    "AG failed support queries leave no Inspection return frame",
-    getInspectionReturnFrame(
-      failedSupportQueryStore,
-      supportQueryContextKey,
-    ) === null,
+    "hidden history is a leading non-interactive ellipsis",
+    reservoirHistoryNavigationSource.includes(
+      'className="reservoir-history__hidden-indicator"',
+    ) &&
+      reservoirHistoryNavigationSource.includes("…") &&
+      /<li[\s\S]*?reservoir-history__hidden-indicator[\s\S]*?>\s*…\s*<\/li>/.test(
+        reservoirHistoryNavigationSource,
+      ),
   ],
   [
-    "AH unsupported destinations do not invalidate the inspectable source frame",
-    !canInspectResource(unsupportedResource) &&
-      canInspectResource(supportSourceResource) &&
-      getInspectionReturnFrame(
-        unsupportedDestinationStore,
-        "query:qa-video-resource|return=collection:collection-work",
-      )?.resourceId === supportSourceResource.id,
-  ],
-  [
-    "AI Inspection return frames are consumed exactly once",
-    consumedInspectionReturnFrame === inspectionReturnFrame &&
-      consumeInspectionReturnFrame(
-        inspectionReturnStore,
-        supportQueryContextKey,
-      ) === null,
-  ],
-  [
-    "AJ Inspection return state does not mutate Artifact status or membership",
+    "Inspection return state does not mutate Artifact status or membership",
     JSON.stringify({
       source: supportSourceResource,
       target: supportTargetResource,
       memberships: contentRegistry.memberships,
     }) === inspectionReturnOwnershipSnapshot,
-  ],
-  [
-    "AK ordinary Collection history has no Inspection return ownership",
-    getCollectionInspectionReturnFrame(ordinaryCollectionHistory) === null &&
-      ordinaryCollectionHistory.slice(0, -1).at(-1)?.collectionId ===
-        ROOT_COLLECTION_ID,
-  ],
-  [
-    "AL Inspection-originated Collection history retains its frame on the arrival hop",
-    collectionReturnFrame === inspectionReturnFrame &&
-      collectionReturnFrame.resourceId === supportSourceResource.id,
-  ],
-  [
-    "AM nested Collection Back consumes the outer hop before reopening",
-    getCollectionInspectionReturnFrame(nestedFirstBackHistory) ===
-        inspectionReturnFrame &&
-      getCollectionInspectionReturnFrame(nestedSecondBackHistory) ===
-        null &&
-      nestedFirstBackHistory.at(-1)?.collectionId ===
-        "collection-about-self" &&
-      nestedSecondBackHistory.at(-1)?.collectionId === ROOT_COLLECTION_ID,
-  ],
-  [
-    "AN nested Collection Back preserves the originating frame until its boundary is crossed",
-    getCollectionInspectionReturnFrame(nestedInspectionCollectionHistory) ===
-      null &&
-      nestedFirstBackHistory.at(-1)?.inspectionReturn === inspectionReturnFrame,
-  ],
-  [
-    "AO Home discards Collection Inspection return ownership",
-    nestedSecondBackHistory.length === 1 &&
-      getCollectionInspectionReturnFrame(nestedSecondBackHistory) === null,
-  ],
-  [
-    "AP current Collection selection does not create a new history hop",
-    inspectionCollectionHistory.length === 2 &&
-      inspectionCollectionHistory.at(-1)?.collectionId ===
-        "collection-about-self",
-  ],
-  [
-    "AQ invalid Collection return sources fail closed without reopening",
-    !canInspectResource(unsupportedResource) &&
-      collectionReturnFrame.resourceId === supportSourceResource.id,
   ],
   [
     "AR external-link inspection dispatches to the dedicated surface",
