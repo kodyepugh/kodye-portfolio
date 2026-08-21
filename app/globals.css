@@ -1171,28 +1171,51 @@ body.artifact-reading-mode .reservoir-study {
 .inspection-context-tray__panels {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .inspection-context-tray__panel {
-  display: grid;
-  gap: 0;
+  min-width: 0;
+  min-height: 182px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.inspection-context-tray__panel:focus-visible {
+  outline: 2px solid var(--artifact-focus);
+  outline-offset: 5px;
 }
 
 .inspection-context-tray__pills {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-rows: repeat(4, 38px);
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  align-content: start;
+  justify-content: start;
   gap: 10px;
+  width: max-content;
+  min-width: 100%;
   margin: 0;
-  padding: 0;
+  padding: 0 0 12px;
   list-style: none;
+}
+
+.inspection-context-tray__pills li {
+  min-width: 0;
+  scroll-snap-align: start;
 }
 
 .inspection-context-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
+  width: min(260px, calc(100vw - 56px));
+  height: 38px;
   max-width: 100%;
   padding: 8px 13px 8px 10px;
   color: inherit;
@@ -1368,6 +1391,34 @@ body.artifact-reading-mode .reservoir-study {
   min-height: 0;
   height: var(--inspection-image-stage-height);
   padding: var(--inspection-image-stage-padding);
+  background: transparent;
+}
+
+.inspection-image__frame {
+  --inspection-image-aspect-ratio: 1;
+  --inspection-image-available-height: max(
+    0px,
+    calc(
+      var(--inspection-image-stage-height) -
+        var(--inspection-image-stage-padding) -
+        var(--inspection-image-stage-padding)
+    )
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(
+    100%,
+    1000px,
+    calc(
+      var(--inspection-image-available-height) *
+        var(--inspection-image-aspect-ratio)
+    )
+  );
+  max-width: 100%;
+  min-height: 0;
+  aspect-ratio: var(--inspection-image-aspect-ratio);
+  overflow: hidden;
   background:
     radial-gradient(
       circle at 50% 24%,
@@ -1379,18 +1430,6 @@ body.artifact-reading-mode .reservoir-study {
       rgba(255, 255, 255, 0.025),
       rgba(255, 255, 255, 0.01)
     );
-}
-
-.inspection-image__frame {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: min(100%, 1000px);
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  min-height: 0;
-  overflow: hidden;
 }
 
 .inspection-image__image {
@@ -1802,6 +1841,34 @@ body.artifact-reading-mode .reservoir-study {
   font-size: 11px;
   text-decoration-color: var(--artifact-text-muted);
   text-underline-offset: 5px;
+}
+
+.structured-document p a,
+.structured-document li a,
+.structured-document th a,
+.structured-document td a {
+  display: inline;
+  margin-top: 0;
+  font-size: inherit;
+}
+
+.structured-document p code,
+.structured-document li code,
+.structured-document th code,
+.structured-document td code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.88em;
+}
+
+.structured-document-source-state {
+  display: grid;
+  align-content: start;
+  min-height: 44svh;
+  gap: 18px;
+}
+
+.structured-document-source-state > :not(.artifact-window__section-index) {
+  max-width: 62ch;
 }
 
 .structured-document a:hover,

@@ -25,6 +25,51 @@ function getBlockDomId(resourceId: string, blockId: string) {
   return `structured-document-${resourceId}-${blockId}`;
 }
 
+function slugifyHeading(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[`*_~]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "block";
+}
+
+function renderInlineMarkdown(resource: Resource, text: string) {
+  const pattern = /(\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`)/g;
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index ?? 0;
+    if (start > cursor) nodes.push(text.slice(cursor, start));
+    if (match[2] && match[3]) {
+      const markdownRepresentation = resource.representations?.find(
+        (representation) =>
+          representation.kind === "external" &&
+          representation.published !== false &&
+          representation.url.endsWith(".md"),
+      );
+      let href = match[3];
+      if (href.startsWith("#")) {
+        href = `#${getBlockDomId(resource.id, `${resource.id}-${slugifyHeading(href.slice(1))}`)}`;
+      } else if (
+        markdownRepresentation?.kind === "external" &&
+        !/^[a-z][a-z0-9+.-]*:/i.test(href)
+      ) {
+        href = new URL(href, markdownRepresentation.url).toString();
+      }
+      nodes.push(<a key={`${start}-${href}`} href={href}>{match[2]}</a>);
+    } else if (match[4]) {
+      nodes.push(<strong key={`${start}-strong`}>{match[4]}</strong>);
+    } else if (match[5]) {
+      nodes.push(<code key={`${start}-code`}>{match[5]}</code>);
+    }
+    cursor = start + match[0].length;
+  }
+
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes.length > 0 ? nodes : text;
+}
+
 export function groupStructuredDocumentBlocks(
   resourceId: string,
   blocks: readonly StructuredDocumentBlock[],
@@ -109,7 +154,7 @@ function renderBlock(
     case "heading":
       return renderHeading(resource.id, block);
     case "paragraph":
-      return <p>{block.text}</p>;
+      return <p>{renderInlineMarkdown(resource, block.text)}</p>;
     case "figure": {
       const resolved = resolveFigureAsset(block);
       return (
@@ -131,7 +176,9 @@ function renderBlock(
     }
     case "list": {
       const items = block.items.map((item, index) => (
-        <li key={`${block.id}-${index}`}>{item}</li>
+        <li key={`${block.id}-${index}`}>
+          {renderInlineMarkdown(resource, item)}
+        </li>
       ));
       return block.style === "ordered" ? <ol>{items}</ol> : <ul>{items}</ul>;
     }
@@ -139,7 +186,7 @@ function renderBlock(
       return (
         <aside className="structured-document__callout" data-callout-tone={block.tone ?? "note"}>
           {block.title ? <h3>{block.title}</h3> : null}
-          <p>{block.text}</p>
+          <p>{renderInlineMarkdown(resource, block.text)}</p>
         </aside>
       );
     case "link":
@@ -159,7 +206,9 @@ function renderBlock(
             <thead>
               <tr>
                 {block.columns.map((column, index) => (
-                  <th key={`${block.id}-column-${index}`} scope="col">{column}</th>
+                  <th key={`${block.id}-column-${index}`} scope="col">
+                    {renderInlineMarkdown(resource, column)}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -167,7 +216,9 @@ function renderBlock(
               {block.rows.map((row, rowIndex) => (
                 <tr key={`${block.id}-row-${rowIndex}`}>
                   {row.map((cell, cellIndex) => (
-                    <td key={`${block.id}-cell-${rowIndex}-${cellIndex}`}>{cell}</td>
+                    <td key={`${block.id}-cell-${rowIndex}-${cellIndex}`}>
+                      {renderInlineMarkdown(resource, cell)}
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -178,7 +229,7 @@ function renderBlock(
     case "quote":
       return (
         <figure className="structured-document__quote">
-          <blockquote>{block.text}</blockquote>
+          <blockquote>{renderInlineMarkdown(resource, block.text)}</blockquote>
           {block.attribution ? <figcaption>{block.attribution}</figcaption> : null}
         </figure>
       );

@@ -1,8 +1,9 @@
 import { getStructuredDocumentBody } from "@/lib/content/structured-document";
 import { ExternalLinkInspectionBody } from "./ExternalLinkInspectionBody";
 import { getResourceInspectionSurface } from "@/lib/reservoir/inspection";
-import type { Resource } from "@/types/content";
+import type { Resource, ResourceExternalRepresentation } from "@/types/content";
 import { ImageInspectionBody } from "./ImageInspectionBody";
+import { MarkdownStructuredDocumentBody } from "./MarkdownStructuredDocumentBody";
 import { StructuredDocumentBody } from "./StructuredDocumentBody";
 
 type InspectionWindowBodyProps = {
@@ -11,8 +12,28 @@ type InspectionWindowBodyProps = {
 
 export function InspectionWindowBody({ resource }: InspectionWindowBodyProps) {
   const surface = getResourceInspectionSurface(resource.inspectionKind);
+  const externalRepresentation = resource.representations?.find(
+    (representation): representation is ResourceExternalRepresentation =>
+      representation.kind === "external" && representation.published !== false,
+  );
 
   if (surface === "structured-document") {
+    if (
+      resource.content?.kind === "structured-document" &&
+      resource.content.markdownSource
+    ) {
+      return (
+        <div
+          data-inspection-body="structured-document"
+          data-structured-document-source="canonical-markdown"
+        >
+          <MarkdownStructuredDocumentBody
+            resource={resource}
+            source={resource.content.markdownSource}
+          />
+        </div>
+      );
+    }
     const document = getStructuredDocumentBody(resource);
     if (document) {
       return (
@@ -55,6 +76,17 @@ export function InspectionWindowBody({ resource }: InspectionWindowBodyProps) {
         The {resource.inspectionKind} inspection surface is not implemented in
         this release.
       </p>
+      {externalRepresentation ? (
+        <p>
+          <a
+            href={externalRepresentation.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open the original representation
+          </a>
+        </p>
+      ) : null}
     </section>
   );
 }

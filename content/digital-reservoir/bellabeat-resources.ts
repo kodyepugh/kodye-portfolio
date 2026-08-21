@@ -1,7 +1,4 @@
-import type {
-  Resource,
-  StructuredDocumentBlock,
-} from "../../types/content";
+import type { Resource } from "../../types/content";
 
 const REPORT_BASE_URL =
   "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/reports";
@@ -141,33 +138,13 @@ const figureResources = figureDefinitions.map(
     }) satisfies Resource,
 );
 
-function documentBlocks(
-  resourceId: string,
-  title: string,
-  paragraphs: readonly string[],
-): readonly StructuredDocumentBlock[] {
-  return [
-    {
-      id: resourceId + "-heading",
-      type: "heading",
-      level: 2,
-      text: title,
-    },
-    ...paragraphs.map((text, index) => ({
-      id: resourceId + "-paragraph-" + (index + 1),
-      type: "paragraph" as const,
-      text,
-    })),
-  ];
-}
-
 function documentResource(
   id: string,
   slug: string,
   title: string,
   subtitle: string,
   reportPath: string,
-  paragraphs: readonly string[],
+  localFilename: string,
 ): Resource {
   const url = REPORT_BASE_URL + "/" + reportPath;
   return {
@@ -196,10 +173,16 @@ function documentResource(
     content: {
       kind: "structured-document",
       status: "ready",
-      blocks: documentBlocks(id, title, paragraphs),
+      markdownSource: {
+        path: `/bellabeat/documents/${localFilename}`,
+      },
     },
   };
 }
+
+const comprehensiveFigureResourceIds = Object.fromEntries(
+  figureDefinitions.map((figure) => [figure.filename, figure.id]),
+);
 
 const supportingDocumentResources: readonly Resource[] = [
   {
@@ -211,7 +194,7 @@ const supportingDocumentResources: readonly Resource[] = [
     description:
       "The comprehensive portfolio report with all ten approved figures, metric definitions, lineage, QA evidence, and recommendation measurement plan.",
     type: "document",
-    inspectionKind: "external-link",
+    inspectionKind: "structured-document",
     isArtifact: false,
     category: "Data / Analytics",
     categoryColor: "#28758c",
@@ -237,10 +220,12 @@ const supportingDocumentResources: readonly Resource[] = [
       },
     ],
     content: {
-      kind: "external-link",
+      kind: "structured-document",
       status: "ready",
-      url: REPORT_BASE_URL + "/portfolio/bellabeat_portfolio_case_study.html",
-      label: "Open comprehensive case study",
+      markdownSource: {
+        path: "/bellabeat/documents/bellabeat_portfolio_case_study.md",
+        figureResourceIds: comprehensiveFigureResourceIds,
+      },
     },
   },
   documentResource(
@@ -249,11 +234,7 @@ const supportingDocumentResources: readonly Resource[] = [
     "Bellabeat Methodology Appendix",
     "Grains, definitions, transformations, and lineage",
     "analysis/methodology_appendix.md",
-    [
-      "This appendix defines the analytical grains, eligibility rules, transformations, sensitivity checks, and lineage used in the Bellabeat wellness-behavior analysis.",
-      "The first-column identifier is treated as an export/session key. The case describes 30 consenters, while the analytical files contain 35 identifiers and no authoritative session-to-user mapping.",
-      "Activity, sleep, and heart-rate tables were validated before joining. Complete activity days contain exactly 1,440 minute rows and are used as a sensitivity rather than a main-story filter. Recorded zero-step days remain distinct from missing dates.",
-    ],
+    "methodology_appendix.md",
   ),
   documentResource(
     "resource-bellabeat-identifier-population-audit",
@@ -261,11 +242,7 @@ const supportingDocumentResources: readonly Resource[] = [
     "Bellabeat Identifier Population Audit",
     "30 consenters, 35 export/session identifiers",
     "analysis/identifier_population_audit.md",
-    [
-      "The Bellabeat case materials state that 30 Fitbit users consented to provide tracker data. The analytical files contain 35 unique export/session identifiers.",
-      "Because one Fitbit user may generate multiple export sessions and no authoritative session-to-user mapping is available, this analysis treats identifiers as session profiles rather than verified unique people.",
-      "Public findings therefore use session, session-day, session-hour, feature-log, and timestamp terminology and do not present 35 identifiers as 35 verified people.",
-    ],
+    "identifier_population_audit.md",
   ),
   documentResource(
     "resource-bellabeat-analysis-decision-memo",
@@ -273,11 +250,7 @@ const supportingDocumentResources: readonly Resource[] = [
     "Bellabeat Analysis Decision Memo",
     "Inclusion, exclusion, terminology, and clustering decisions",
     "analysis/analysis_decision_memo.md",
-    [
-      "The analysis uses session-level terminology throughout and keeps the historical, observational, and non-causal boundary visible.",
-      "Activity relationships remain the strongest evidence. Sleep and feature results are narrower because coverage is selective, and heart rate remains bounded to a non-medical appendix.",
-      "The original fixed segmentation is withdrawn because feature reduction changes assignments sharply and leave-one-session stability is low. Continuous personal-baseline rules are more defensible than fixed session-profile identities.",
-    ],
+    "analysis_decision_memo.md",
   ),
   documentResource(
     "resource-bellabeat-marketing-recommendations",
@@ -285,12 +258,7 @@ const supportingDocumentResources: readonly Resource[] = [
     "Bellabeat Marketing Recommendations",
     "Product hypotheses, measures, and guardrails",
     "analysis/marketing_recommendations.md",
-    [
-      "Test rolling personal-baseline feedback with customer-adjustable next steps. Measure qualified return, baseline-card engagement, and change from the customer's pre-period.",
-      "Test short, accessible movement options such as a walk, stretch, or movement break. Measure content completion, incremental active minutes, and retained engagement.",
-      "Test customer-selected timing against fixed and consented adaptive timing. Protect quiet hours, frequency limits, and opt-out control.",
-      "Sleep feedback should remain optional and descriptive. Production recovery or re-engagement automation requires app, sync, device, delivery, enrollment, and preference telemetry.",
-    ],
+    "marketing_recommendations.md",
   ),
   documentResource(
     "resource-bellabeat-final-validation-report",
@@ -298,11 +266,7 @@ const supportingDocumentResources: readonly Resource[] = [
     "Bellabeat Final Validation Report",
     "Release validation and analytical QA status",
     "analysis/final_validation_report.md",
-    [
-      "The final analytical pipeline passed all 25 required validation checks covering row counts, key uniqueness, nulls, valid ranges, and reconciliation.",
-      "The validated release preserves the distinction between source quality and analytical correctness. Correct implementation does not imply representativeness, current relevance, or causal product impact.",
-      "Next steps are current consent and identifier validation, first-party event instrumentation, personal baselines, a small telemetry QA cohort, and customer-level experiments with preregistered outcomes and guardrails.",
-    ],
+    "final_validation_report.md",
   ),
   {
     objectType: "resource",
@@ -327,11 +291,6 @@ const supportingDocumentResources: readonly Resource[] = [
         published: true,
       },
     ],
-    content: {
-      kind: "document",
-      status: "ready",
-      note: "Executed notebook supporting the identifier revision audit and reproducibility trail. Open the original notebook representation for the code and outputs.",
-    },
   },
 ];
 

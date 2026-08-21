@@ -108,6 +108,12 @@ import {
 } from "@/lib/reservoir/inspection-return";
 import { getReservoirResourceSelectionAction } from "@/lib/reservoir/resource-selection";
 import { canInspectResource } from "@/lib/reservoir/inspection";
+import {
+  canConsumeDirectResourceInspectionIntent,
+  createDirectResourceInspectionIntent,
+  isDirectResourceInspectionIntentStale,
+  type DirectResourceInspectionIntent,
+} from "@/lib/reservoir/direct-resource-inspection-intent";
 import type {
   ActiveExploreFilter,
   DirectArtifactId,
@@ -1027,6 +1033,8 @@ export function ReservoirScene() {
   const [locatingResourceId, setLocatingResourceId] = useState<string | null>(
     null,
   );
+  const [pendingDirectInspectionIntent, setPendingDirectInspectionIntent] =
+    useState<DirectResourceInspectionIntent | null>(null);
   const [selectedPressActive, setSelectedPressActive] = useState(false);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
     null,
@@ -2081,6 +2089,67 @@ export function ReservoirScene() {
   ]);
 
   useEffect(() => {
+    if (
+      !pendingDirectInspectionIntent ||
+      transitionState !== "idle" ||
+      collectionNavigation.transitionPhase !== "idle" ||
+      queryReservoirTransitionPhase !== "idle" ||
+      queryActivityRevision !== null ||
+      layoutOwnership.transitionPlan !== null
+    ) {
+      return;
+    }
+
+    const settledContext = queryReservoirContext ?? collectionReservoirContext;
+    const settledContextKey = getReservoirContextKey(settledContext);
+    if (
+      settledContext.kind !== "query" ||
+      isDirectResourceInspectionIntentStale(
+        pendingDirectInspectionIntent,
+        settledContextKey,
+        queryRevisionRef.current,
+      )
+    ) {
+      setPendingDirectInspectionIntent(null);
+      return;
+    }
+
+    if (
+      !canConsumeDirectResourceInspectionIntent(
+        pendingDirectInspectionIntent,
+        settledContextKey,
+        queryRevisionRef.current,
+        settledContext.resultIds,
+      )
+    ) {
+      return;
+    }
+
+    const resourceId = pendingDirectInspectionIntent.resourceId;
+    setPendingDirectInspectionIntent(null);
+    setHoveredResourceId(null);
+    setSelectedCollectionId(null);
+    setSelectedResourceId(resourceId);
+    setSelectedPressActive(false);
+    const started = beginResourceInspectionRef.current(resourceId);
+    if (interaction.current) {
+      interaction.current.dataset.directResourceAutoOpenTarget = resourceId;
+      interaction.current.dataset.directResourceAutoOpenResult = started
+        ? "opened"
+        : "rejected";
+    }
+  }, [
+    collectionNavigation.transitionPhase,
+    collectionReservoirContext,
+    layoutOwnership.transitionPlan,
+    pendingDirectInspectionIntent,
+    queryActivityRevision,
+    queryReservoirContext,
+    queryReservoirTransitionPhase,
+    transitionState,
+  ]);
+
+  useEffect(() => {
     if (layoutModeTransitionState !== "sinking") {
       return;
     }
@@ -3073,6 +3142,7 @@ export function ReservoirScene() {
     ) {
       return;
     }
+    setPendingDirectInspectionIntent(null);
 
     layoutModeResetStartZoomRef.current = zoomLevelRef.current;
     layoutModeResetTargetZoomRef.current = clampReservoirZoom(
@@ -3186,6 +3256,7 @@ export function ReservoirScene() {
     ) {
       return false;
     }
+    setPendingDirectInspectionIntent(null);
 
     persistReservoirPresentationForCurrentContext();
     const destinationAdaptiveZoom = getAdaptiveZoomForSnapshot(
@@ -3497,6 +3568,7 @@ export function ReservoirScene() {
     ) {
       return;
     }
+    setPendingDirectInspectionIntent(null);
 
     const targetVisibleIds = getExploreNodeIds(activeReservoirNodes, filter);
     const currentVisibleIds = new Set(
@@ -3553,6 +3625,7 @@ export function ReservoirScene() {
 
   function requestQueryReservoirContext(
     destinationContext: ReservoirContext,
+    directInspectionResourceId: string | null = null,
   ) {
     if (
       queryActivityRevision !== null ||
@@ -3612,6 +3685,19 @@ export function ReservoirScene() {
       preparedDestination.nodes.map((node) => node.id),
     );
     queryRevisionRef.current += 1;
+    const queryRevision = queryRevisionRef.current;
+    setPendingDirectInspectionIntent(
+      directInspectionResourceId &&
+        destinationContext.kind === "query" &&
+        destinationContext.resultIds.length === 1 &&
+        destinationContext.resultIds[0] === directInspectionResourceId
+        ? createDirectResourceInspectionIntent(
+            directInspectionResourceId,
+            getReservoirContextKey(destinationContext),
+            queryRevision,
+          )
+        : null,
+    );
     setQueryReservoirTransitionContext(destinationContext);
     setQueryVisibleNodeIds(sourceVisibleIds);
     setQueryReconciliation({
@@ -3628,7 +3714,7 @@ export function ReservoirScene() {
     });
     setQueryActivityMode("success");
     setRejectedExploreFilter(null);
-    setQueryActivityRevision(queryRevisionRef.current);
+    setQueryActivityRevision(queryRevision);
     return true;
   }
 
@@ -3636,6 +3722,7 @@ export function ReservoirScene() {
     resourceAddress: string,
     inspectionReturnFrame: InspectionReturnFrame | null = null,
   ) {
+    setPendingDirectInspectionIntent(null);
     const resource = getResourceByAddress(resourceAddress);
     if (!resource || resource.published !== true) {
       pendingInspectionReturnFrameRef.current = null;
@@ -3665,7 +3752,7 @@ export function ReservoirScene() {
       resultIds: [resource.id],
       returnContext,
     };
-    if (!requestQueryReservoirContext(targetContext)) {
+    if (!requestQueryReservoirContext(targetContext, resource.id)) {
       pendingInspectionReturnFrameRef.current = null;
       if (inspectionReturnFrame) {
         setInspectionReturnRuntime({
@@ -4411,6 +4498,18 @@ export function ReservoirScene() {
         ...(queryReconciliation?.entering ?? []),
       ].join(",")}
       data-locating-resource={locatingResourceId ?? ""}
+      data-direct-resource-auto-open-pending={
+        pendingDirectInspectionIntent !== null
+      }
+      data-direct-resource-auto-open-resource={
+        pendingDirectInspectionIntent?.resourceId ?? ""
+      }
+      data-direct-resource-auto-open-context={
+        pendingDirectInspectionIntent?.queryContextKey ?? ""
+      }
+      data-direct-resource-auto-open-revision={
+        pendingDirectInspectionIntent?.queryRevision ?? ""
+      }
       data-locating-artifact={
         locatingResourceId && getArtifactById(locatingResourceId)
           ? locatingResourceId

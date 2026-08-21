@@ -104,6 +104,15 @@ function reportStructuredDocumentBlocks(
 ) {
   if (resource.content?.kind !== "structured-document") return;
 
+  if (resource.content.markdownSource) {
+    if (!resource.content.markdownSource.path.trim()) {
+      errors.push(
+        `Resource ${resource.id} has a structured Markdown source with a blank path`,
+      );
+    }
+    return;
+  }
+
   const blockIds = new Set<string>();
   const resourcesById = new Map(
     registry.resources.map((candidate) => [candidate.id, candidate]),

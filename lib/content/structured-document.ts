@@ -58,6 +58,7 @@ export function getStructuredDocumentBody(
   }
 
   if (content.kind === "structured-document") {
+    if ("markdownSource" in content) return null;
     return {
       status: content.status,
       source: "canonical",

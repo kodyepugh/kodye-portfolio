@@ -26,5 +26,8 @@ export function getResourceInspectionSurface(
 }
 
 export function canInspectResource(resource: Pick<Resource, "inspectionKind">) {
-  return getResourceInspectionSurface(resource.inspectionKind) !== "unsupported";
+  return (
+    resource.inspectionKind === "notebook-code" ||
+    getResourceInspectionSurface(resource.inspectionKind) !== "unsupported"
+  );
 }

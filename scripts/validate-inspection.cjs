@@ -48,6 +48,20 @@ const {
   getStructuredDocumentBody,
 } = require(path.join(projectRoot, "lib/content/structured-document.ts"));
 const {
+  parseMarkdownStructuredDocument,
+} = require(path.join(
+  projectRoot,
+  "lib/content/markdown-structured-document.ts",
+));
+const {
+  canConsumeDirectResourceInspectionIntent,
+  createDirectResourceInspectionIntent,
+  isDirectResourceInspectionIntentStale,
+} = require(path.join(
+  projectRoot,
+  "lib/reservoir/direct-resource-inspection-intent.ts",
+));
+const {
   getResourceInspectionSurface,
 } = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
 const {
@@ -122,12 +136,48 @@ const {
 
 const about = getResourceById("artifact-about");
 const bellabeat = getResourceById("artifact-bellabeat-wellness-analysis");
+const comprehensiveCaseStudy = getResourceById(
+  "resource-bellabeat-comprehensive-case-study",
+);
+const notebookResource = getResourceById(
+  "resource-fitbit-identifier-revision-audit-notebook",
+);
 const brandSymbol = getResourceById("artifact-kodyepugh-symbol");
 const repositoryResource = getResourceById(RESOURCE_IDS.bellabeatRepository);
 const imageResource = contentRegistry.resources.find(
   (resource) => resource.inspectionKind === "image",
 );
 const imageResolution = resolveImageInspection(brandSymbol);
+const comprehensiveMarkdownSource =
+  comprehensiveCaseStudy?.content?.kind === "structured-document" &&
+  "markdownSource" in comprehensiveCaseStudy.content
+    ? comprehensiveCaseStudy.content.markdownSource
+    : null;
+const comprehensiveMarkdown = comprehensiveMarkdownSource
+  ? fs.readFileSync(
+      path.join(projectRoot, "public", comprehensiveMarkdownSource.path),
+      "utf8",
+    )
+  : "";
+const comprehensiveBlocks = comprehensiveMarkdownSource
+  ? parseMarkdownStructuredDocument(comprehensiveMarkdown, {
+      resourceId: comprehensiveCaseStudy.id,
+      figureResourceIds: comprehensiveMarkdownSource.figureResourceIds,
+    })
+  : [];
+const directIntent = createDirectResourceInspectionIntent(
+  "resource-direct",
+  "query:resource-direct|return=collection:root",
+  7,
+);
+const reservoirSceneSource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/ReservoirScene.tsx"),
+  "utf8",
+);
+const inspectionCssSource = fs.readFileSync(
+  path.join(projectRoot, "app/globals.css"),
+  "utf8",
+);
 const qaImageAssetRepresentation = {
   id: "qa-image-asset-representation",
   kind: "image",
@@ -852,10 +902,86 @@ const checks = [
         "unsupported-resource-inspection",
   ],
   [
-    "S legacy case-study content resolves through the compatibility adapter",
-    bellabeat.content.kind === "case-study" &&
-      getStructuredDocumentBody(bellabeat).source === "legacy-adapter" &&
+    "S primary Bellabeat article remains a canonical structured document",
+    bellabeat.content.kind === "structured-document" &&
+      getStructuredDocumentBody(bellabeat).source === "canonical" &&
       getStructuredDocumentBody(bellabeat).blocks.length > 0,
+  ],
+  [
+    "full comprehensive Markdown adapts into native headings, tables, lists, and all ten figures",
+    comprehensiveCaseStudy?.inspectionKind === "structured-document" &&
+      comprehensiveBlocks.filter((block) => block.type === "heading").length >= 20 &&
+      comprehensiveBlocks.filter((block) => block.type === "table").length >= 3 &&
+      comprehensiveBlocks.filter((block) => block.type === "list").length >= 4 &&
+      comprehensiveBlocks.filter((block) => block.type === "figure").length === 10,
+  ],
+  [
+    "notebook opens the common chassis while retaining an explicit unsupported renderer",
+    notebookResource?.inspectionKind === "notebook-code" &&
+      canInspectResource(notebookResource) &&
+      getResourceInspectionSurface(notebookResource.inspectionKind) ===
+        "unsupported",
+  ],
+  [
+    "direct Resource intent consumes only its exact settled single-result query",
+    canConsumeDirectResourceInspectionIntent(
+      directIntent,
+      directIntent.queryContextKey,
+      directIntent.queryRevision,
+      [directIntent.resourceId],
+    ) &&
+      !canConsumeDirectResourceInspectionIntent(
+        directIntent,
+        directIntent.queryContextKey,
+        directIntent.queryRevision,
+        [directIntent.resourceId, "resource-other"],
+      ),
+  ],
+  [
+    "stale direct Resource intents fail closed on revision or context changes",
+    isDirectResourceInspectionIntentStale(
+      directIntent,
+      directIntent.queryContextKey,
+      directIntent.queryRevision + 1,
+    ) &&
+      isDirectResourceInspectionIntentStale(
+        directIntent,
+        "query:resource-other|return=collection:root",
+        directIntent.queryRevision,
+      ),
+  ],
+  [
+    "menu and Inspection support navigation share the canonical direct Resource coordinator",
+    reservoirSceneSource.includes(
+      "requestDirectResourceRef.current(\n          supportNavigationTarget",
+    ) &&
+      reservoirSceneSource.includes(
+        "requestDirectResource(resourceAddress)",
+      ) &&
+      reservoirSceneSource.includes(
+        "createDirectResourceInspectionIntent(",
+      ),
+  ],
+  [
+    "relationship shelf pins four rows with horizontal overflow and shared height",
+    inspectionCssSource.includes("grid-template-rows: repeat(4, 38px)") &&
+    inspectionCssSource.includes("grid-auto-flow: column") &&
+      inspectionCssSource.includes("overflow-x: auto") &&
+      inspectionCssSource.includes("min-height: 182px") &&
+      inspectionCssSource.includes("width: min(260px, calc(100vw - 56px))"),
+  ],
+  [
+    "image tonal field belongs to the aspect-ratio frame rather than layout allocation",
+    inspectionCssSource.includes("--inspection-image-aspect-ratio: 1") &&
+      inspectionCssSource.includes(
+        "aspect-ratio: var(--inspection-image-aspect-ratio)",
+      ) &&
+      /\.inspection-image__stage\s*\{[\s\S]*?background: transparent;/.test(
+        inspectionCssSource,
+      ) &&
+      /\.inspection-image__frame\s*\{[\s\S]*?background:/.test(
+        inspectionCssSource,
+      ),
   ],
   [
     "T opening selection is identity, membership, and status preserving",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import type { Resource } from "@/types/content";
 import {
   getImageAltText,
@@ -41,6 +41,26 @@ export function ImageInspectionBody({ resource }: ImageInspectionBodyProps) {
   const titleId = `inspection-${resource.id}-image-heading`;
   const imageLoadFailed = imageLoadFailureKey === imageSourceKey;
   const unavailable = resolution.status === "unavailable" || imageLoadFailed;
+  const declaredDimensions =
+    resolution.status === "ready" &&
+    resolution.asset.width &&
+    resolution.asset.height
+      ? { width: resolution.asset.width, height: resolution.asset.height }
+      : null;
+  const [intrinsicDimensions, setIntrinsicDimensions] = useState<{
+    key: string;
+    width: number;
+    height: number;
+  } | null>(null);
+  const resolvedDimensions =
+    declaredDimensions ??
+    (intrinsicDimensions?.key === imageSourceKey ? intrinsicDimensions : null);
+  const frameStyle = resolvedDimensions
+    ? ({
+        "--inspection-image-aspect-ratio":
+          resolvedDimensions.width / resolvedDimensions.height,
+      } as CSSProperties)
+    : undefined;
 
   return (
     <section
@@ -60,7 +80,12 @@ export function ImageInspectionBody({ resource }: ImageInspectionBodyProps) {
       {!unavailable && resolution.status === "ready" ? (
         <figure className="inspection-image__figure">
           <div className="inspection-image__stage">
-            <div className="inspection-image__frame">
+            <div
+              className="inspection-image__frame"
+              style={frameStyle}
+              data-image-width={resolvedDimensions?.width ?? ""}
+              data-image-height={resolvedDimensions?.height ?? ""}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 className="inspection-image__image"
@@ -74,6 +99,17 @@ export function ImageInspectionBody({ resource }: ImageInspectionBodyProps) {
                 height={resolution.asset.height}
                 decoding="async"
                 loading="eager"
+                onLoad={(event) => {
+                  if (declaredDimensions) return;
+                  const image = event.currentTarget;
+                  if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                    setIntrinsicDimensions({
+                      key: imageSourceKey,
+                      width: image.naturalWidth,
+                      height: image.naturalHeight,
+                    });
+                  }
+                }}
                 onError={() => setImageLoadFailureKey(imageSourceKey)}
               />
             </div>

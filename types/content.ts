@@ -140,11 +140,30 @@ export type StructuredDocumentBlock =
   | StructuredDocumentCodeBlock
   | StructuredDocumentResourceReferenceBlock;
 
-export type StructuredDocumentContent = {
+type StructuredDocumentContentBase = {
   kind: "structured-document";
   status: ResourceContentStatus;
-  blocks: readonly StructuredDocumentBlock[];
 };
+
+export type StructuredDocumentBlocksContent =
+  StructuredDocumentContentBase & {
+    blocks: readonly StructuredDocumentBlock[];
+    markdownSource?: never;
+  };
+
+export type StructuredMarkdownSource = {
+  path: string;
+  figureResourceIds?: Readonly<Record<string, string>>;
+};
+
+export type StructuredMarkdownContent = StructuredDocumentContentBase & {
+  blocks?: never;
+  markdownSource: StructuredMarkdownSource;
+};
+
+export type StructuredDocumentContent =
+  | StructuredDocumentBlocksContent
+  | StructuredMarkdownContent;
 
 export type ArtifactSection = {
   id: string;

@@ -194,6 +194,9 @@ export function InspectionContextTray({
           }
           role="tabpanel"
           aria-labelledby={`inspection-context-tray-${resolvedView}-tab`}
+          aria-label={`${resolvedView === "resources" ? "Resources" : "Collections"} relationship shelf; scroll horizontally for more`}
+          tabIndex={0}
+          data-context-shelf-max-rows="4"
         >
           <ObjectPills
             view={resolvedView}

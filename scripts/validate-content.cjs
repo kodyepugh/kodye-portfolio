@@ -257,6 +257,23 @@ const testZoom = (nodes, artifactDiameter = 2, collectionDiameter = 4) =>
 const allPersistentCollectionNodes = contentRegistry.collections.flatMap(
   (collection) => getReservoirContentNodes(collection.id),
 );
+const bellabeatSupportingResources = getPublishedSupportingResources(
+  ARTIFACT_IDS.bellabeat,
+).map((relationship) => relationship.resource);
+const bellabeatFullDocumentResources = bellabeatSupportingResources.filter(
+  (resource) =>
+    resource.content?.kind === "structured-document" &&
+    "markdownSource" in resource.content,
+);
+const bellabeatImageResources = bellabeatSupportingResources.filter(
+  (resource) => resource.inspectionKind === "image",
+);
+const comprehensiveCaseStudy = getResourceById(
+  "resource-bellabeat-comprehensive-case-study",
+);
+const notebookResource = getResourceById(
+  "resource-fitbit-identifier-revision-audit-notebook",
+);
 const checks = [
   ["root collection resolves", Boolean(getCollectionById(ROOT_COLLECTION_ID))],
   [
@@ -382,6 +399,74 @@ const checks = [
     "support relationships do not create Collection context",
     getPublishedResourceCollections(RESOURCE_IDS.bellabeatRepository).length ===
       0,
+  ],
+  [
+    "Bellabeat full documents use complete local Markdown sources",
+    bellabeatFullDocumentResources.length === 6 &&
+      bellabeatFullDocumentResources.every((resource) => {
+        const sourcePath = resource.content.markdownSource.path;
+        const localPath = path.join(projectRoot, "public", sourcePath);
+        return (
+          fs.existsSync(localPath) &&
+          fs.readFileSync(localPath, "utf8").split("\n").length >= 40
+        );
+      }),
+  ],
+  [
+    "comprehensive case study is one native structured Resource with HTML and Markdown representations",
+    comprehensiveCaseStudy?.inspectionKind === "structured-document" &&
+      comprehensiveCaseStudy.content?.kind === "structured-document" &&
+      "markdownSource" in comprehensiveCaseStudy.content &&
+      comprehensiveCaseStudy.representations?.filter(
+        (representation) => representation.kind === "external",
+      ).length === 2 &&
+      comprehensiveCaseStudy.representations.some(
+        (representation) =>
+          representation.kind === "external" &&
+          representation.url.endsWith(".html"),
+      ) &&
+      comprehensiveCaseStudy.representations.some(
+        (representation) =>
+          representation.kind === "external" &&
+          representation.url.endsWith(".md"),
+      ),
+  ],
+  [
+    "notebook remains a truthful unsupported native surface with its original representation",
+    notebookResource?.inspectionKind === "notebook-code" &&
+      notebookResource.content === undefined &&
+      notebookResource.representations?.some(
+        (representation) =>
+          representation.kind === "external" &&
+          representation.url.endsWith(".ipynb"),
+      ),
+  ],
+  [
+    "Bellabeat image representations expose verified intrinsic dimensions",
+    bellabeatImageResources.length === 10 &&
+      bellabeatImageResources.every((resource) => {
+        const representation = resource.representations?.find(
+          (candidate) => candidate.kind === "asset",
+        );
+        const asset =
+          representation?.kind === "asset"
+            ? contentRegistry.assets.find(
+                (candidate) => candidate.id === representation.assetId,
+              )
+            : null;
+        return Boolean(asset?.width && asset?.height);
+      }),
+  ],
+  [
+    "no Bellabeat supporting Resource receives Collection membership",
+    bellabeatSupportingResources.length === 18 &&
+      bellabeatSupportingResources.every(
+        (resource) =>
+          resource.isArtifact === false &&
+          !contentRegistry.memberships.some(
+            (membership) => membership.memberId === resource.id,
+          ),
+      ),
   ],
   [
     "source records resolve independently",
