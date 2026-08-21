@@ -124,7 +124,8 @@ function InspectionBackToTopButton({
   onBackToTop: () => void;
 }) {
   const [closeButtonVisibleInViewport, setCloseButtonVisibleInViewport] =
-    useState(false);
+    useState<boolean | null>(null);
+  const showBackToTop = closeButtonVisibleInViewport === false;
 
   useEffect(() => {
     const closeButton = closeButtonRef.current;
@@ -145,11 +146,11 @@ function InspectionBackToTopButton({
     <button
       className="inspection-window__back-to-top"
       type="button"
-      disabled={!closeButtonVisibleInViewport}
+      disabled={!showBackToTop}
       onClick={onBackToTop}
       aria-label="Back to top"
       title="Back to top"
-      data-close-button-visible={closeButtonVisibleInViewport}
+      data-back-to-top-visible={showBackToTop}
     >
       <span aria-hidden="true">↑</span>
       <span>Back to top</span>

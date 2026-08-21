@@ -1041,7 +1041,7 @@ body.artifact-reading-mode .reservoir-study {
   pointer-events: none;
 }
 
-.inspection-window__back-to-top[data-close-button-visible="true"] {
+.inspection-window__back-to-top[data-back-to-top-visible="true"] {
   visibility: visible;
   opacity: 1;
   pointer-events: auto;

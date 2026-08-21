@@ -916,10 +916,14 @@ const checks = [
       inspectionSource.includes("updatePostContentOffset(0)") &&
       inspectionSource.includes("IntersectionObserver") &&
       inspectionSource.includes("closeButtonVisibleInViewport") &&
-      inspectionSource.includes("{phase === \"reading\" ? (") &&
-      inspectionSource.includes("disabled={!closeButtonVisibleInViewport}") &&
+      inspectionSource.includes("useState<boolean | null>(null)") &&
       inspectionSource.includes(
-        "data-close-button-visible={closeButtonVisibleInViewport}",
+        "const showBackToTop = closeButtonVisibleInViewport === false;",
+      ) &&
+      inspectionSource.includes("{phase === \"reading\" ? (") &&
+      inspectionSource.includes("disabled={!showBackToTop}") &&
+      inspectionSource.includes(
+        "data-back-to-top-visible={showBackToTop}",
       ) &&
       inspectionStyles.includes("grid-column: 3") &&
       inspectionStyles.includes("grid-row: 2") &&
@@ -927,7 +931,7 @@ const checks = [
       inspectionStyles.includes("visibility: hidden;") &&
       inspectionStyles.includes("pointer-events: none;") &&
       inspectionStyles.includes(
-        '[data-close-button-visible="true"]',
+        '[data-back-to-top-visible="true"]',
       ),
   ],
   [
