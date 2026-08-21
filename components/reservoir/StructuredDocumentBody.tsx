@@ -9,11 +9,13 @@ import type {
   StructuredDocumentFigureBlock,
   StructuredDocumentHeadingBlock,
 } from "@/types/content";
+import { useInspectionImageLauncher } from "./InspectionImageViewer";
 
 type StructuredDocumentBodyProps = {
   blocks: readonly StructuredDocumentBlock[];
   resource: Resource;
   onNavigateToResource?: (resourceId: string) => void;
+  imageOrderOffset?: number;
 };
 
 type StructuredDocumentSection = {
@@ -147,10 +149,63 @@ function resolveFigureAsset(block: StructuredDocumentFigureBlock) {
   };
 }
 
+function StructuredDocumentFigure({
+  block,
+  resolved,
+  resourceId,
+  occurrence,
+}: {
+  block: StructuredDocumentFigureBlock;
+  resolved: ReturnType<typeof resolveFigureAsset>;
+  resourceId: string;
+  occurrence: number;
+}) {
+  const imageAlt = block.alt || resolved?.asset?.alt || resolved?.resource.title || block.resourceId;
+  const imageLauncher = useInspectionImageLauncher(
+    resolved?.asset?.kind === "image"
+      ? {
+          id: `${resourceId}:figure:${block.id}:${occurrence}`,
+          order: occurrence,
+          src: resolved.asset.src,
+          alt: imageAlt,
+          width: resolved.asset.width,
+          height: resolved.asset.height,
+          caption: block.caption,
+        }
+      : null,
+  );
+
+  return (
+    <figure
+      className="artifact-window__media structured-document__figure"
+      data-figure-resource-id={block.resourceId}
+      data-image-occurrence={occurrence}
+    >
+      {resolved?.asset?.kind === "image" ? (
+        <button
+          className="structured-document__figure-launcher"
+          type="button"
+          {...imageLauncher}
+          aria-label={`Open image: ${imageAlt}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={resolved.asset.src} alt={imageAlt} width={resolved.asset.width} height={resolved.asset.height} />
+        </button>
+      ) : (
+        <div className="structured-document__figure-fallback" role="img" aria-label={block.alt}>
+          Figure Resource unavailable: {resolved?.resource.title ?? block.resourceId}
+        </div>
+      )}
+      {block.caption ? <figcaption>{block.caption}</figcaption> : null}
+    </figure>
+  );
+}
+
 function renderBlock(
   resource: Resource,
   block: StructuredDocumentBlock,
   onNavigateToResource?: (resourceId: string) => void,
+  imageOccurrence = 0,
 ): ReactNode {
   switch (block.type) {
     case "heading":
@@ -160,20 +215,12 @@ function renderBlock(
     case "figure": {
       const resolved = resolveFigureAsset(block);
       return (
-        <figure
-          className="artifact-window__media structured-document__figure"
-          data-figure-resource-id={block.resourceId}
-        >
-          {resolved?.asset?.kind === "image" ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={resolved.asset.src} alt={block.alt} />
-          ) : (
-            <div className="structured-document__figure-fallback" role="img" aria-label={block.alt}>
-              Figure Resource unavailable: {resolved?.resource.title ?? block.resourceId}
-            </div>
-          )}
-          {block.caption ? <figcaption>{block.caption}</figcaption> : null}
-        </figure>
+        <StructuredDocumentFigure
+          block={block}
+          resolved={resolved}
+          resourceId={resource.id}
+          occurrence={imageOccurrence}
+        />
       );
     }
     case "list": {
@@ -271,8 +318,10 @@ export function StructuredDocumentBody({
   blocks,
   resource,
   onNavigateToResource,
+  imageOrderOffset = 0,
 }: StructuredDocumentBodyProps) {
   const sections = groupStructuredDocumentBlocks(resource.id, blocks);
+  let imageOccurrence = imageOrderOffset;
 
   return (
     <div
@@ -282,16 +331,25 @@ export function StructuredDocumentBody({
     >
       {sections.map((section) => (
         <section key={section.id} aria-labelledby={section.labelledBy}>
-          {section.blocks.map((block) => (
-            <div
-              key={block.id}
-              className="structured-document__block"
-              data-structured-document-block-id={block.id}
-              data-structured-document-block-type={block.type}
-            >
-              {renderBlock(resource, block, onNavigateToResource)}
-            </div>
-          ))}
+              {section.blocks.map((block) => {
+                const occurrence =
+                  block.type === "figure" ? imageOccurrence++ : imageOccurrence;
+                return (
+                  <div
+                    key={block.id}
+                    className="structured-document__block"
+                    data-structured-document-block-id={block.id}
+                    data-structured-document-block-type={block.type}
+                  >
+                    {renderBlock(
+                      resource,
+                      block,
+                      onNavigateToResource,
+                      occurrence,
+                    )}
+                  </div>
+                );
+              })}
         </section>
       ))}
     </div>

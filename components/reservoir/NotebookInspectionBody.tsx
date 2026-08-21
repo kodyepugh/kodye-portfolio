@@ -8,6 +8,7 @@ import {
 import { parseMarkdownStructuredDocument } from "@/lib/content/markdown-structured-document";
 import type { Resource } from "@/types/content";
 import { StructuredDocumentBody } from "./StructuredDocumentBody";
+import { useInspectionImageLauncher } from "./InspectionImageViewer";
 
 type NotebookInspectionBodyProps = {
   resource: Resource;
@@ -22,9 +23,13 @@ type NotebookLoadState =
 function NotebookOutputBody({
   output,
   executionCount,
+  resourceId,
+  imageOccurrence,
 }: {
   output: NotebookOutput;
   executionCount: number | string | null;
+  resourceId: string;
+  imageOccurrence: number | null;
 }) {
   const outputLabel =
     output.outputType === "stream"
@@ -32,6 +37,20 @@ function NotebookOutputBody({
         ? output.streamName
         : "Stream"
       : `Out [${executionCount ?? " "}]:`;
+  const imageSource =
+    output.type === "image"
+      ? `data:${output.mimeType};base64,${output.base64}`
+      : null;
+  const imageLauncher = useInspectionImageLauncher(
+    output.type === "image" && imageOccurrence !== null
+      ? {
+          id: `${resourceId}:notebook-image:${imageOccurrence}`,
+          order: imageOccurrence,
+          src: imageSource ?? "",
+          alt: "Notebook output",
+        }
+      : null,
+  );
 
   return (
     <section
@@ -42,11 +61,15 @@ function NotebookOutputBody({
       {output.type === "text" ? (
         <pre><code>{output.text}</code></pre>
       ) : output.type === "image" ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`data:${output.mimeType};base64,${output.base64}`}
-          alt="Notebook output"
-        />
+        <button
+          className="inspection-notebook__image-launcher"
+          type="button"
+          {...imageLauncher}
+          aria-label="Open notebook image output"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageSource ?? ""} alt="Notebook output" />
+        </button>
       ) : output.type === "error" ? (
         <div className="inspection-notebook__error" role="alert">
           <strong>{output.name}</strong>
@@ -180,11 +203,15 @@ export function NotebookInspectionBody({
       </header>
 
       <div className="inspection-notebook__cells">
-        {displayedLoadState.notebook.cells.map((cell, index) => {
+        {(() => {
+          let imageOccurrence = 0;
+          return displayedLoadState.notebook.cells.map((cell, index) => {
           if (cell.type === "markdown") {
             const blocks = parseMarkdownStructuredDocument(cell.source, {
               resourceId: `${resource.id}-${cell.id}`,
             });
+            const imageOrderOffset = imageOccurrence;
+            imageOccurrence += blocks.filter((block) => block.type === "figure").length;
             return (
               <section
                 key={`${cell.id}-${index}`}
@@ -195,6 +222,7 @@ export function NotebookInspectionBody({
                   blocks={blocks}
                   resource={resource}
                   onNavigateToResource={onNavigateToResource}
+                  imageOrderOffset={imageOrderOffset}
                 />
               </section>
             );
@@ -213,18 +241,25 @@ export function NotebookInspectionBody({
               <pre className="inspection-notebook__code"><code>{cell.source}</code></pre>
               {cell.outputs.length > 0 ? (
                 <div className="inspection-notebook__outputs">
-                  {cell.outputs.map((output, outputIndex) => (
-                    <NotebookOutputBody
-                      key={`${cell.id}-output-${outputIndex}`}
-                      output={output}
-                      executionCount={cell.executionCount}
-                    />
-                  ))}
+                  {cell.outputs.map((output, outputIndex) => {
+                    const outputImageOccurrence =
+                      output.type === "image" ? imageOccurrence++ : null;
+                    return (
+                      <NotebookOutputBody
+                        key={`${cell.id}-output-${outputIndex}`}
+                        output={output}
+                        executionCount={cell.executionCount}
+                        resourceId={resource.id}
+                        imageOccurrence={outputImageOccurrence}
+                      />
+                    );
+                  })}
                 </div>
               ) : null}
             </section>
           );
-        })}
+          });
+        })()}
       </div>
     </article>
   );

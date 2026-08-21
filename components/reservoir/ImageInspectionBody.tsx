@@ -4,6 +4,7 @@ import {
   getImageAltText,
   resolveImageInspection,
 } from "@/lib/content/image-inspection";
+import { useInspectionImageLauncher } from "./InspectionImageViewer";
 
 type ImageInspectionBodyProps = {
   resource: Resource;
@@ -61,6 +62,23 @@ export function ImageInspectionBody({ resource }: ImageInspectionBodyProps) {
           resolvedDimensions.width / resolvedDimensions.height,
       } as CSSProperties)
     : undefined;
+  const imageAlt =
+    resolution.status === "ready"
+      ? getImageAltText(resolution.asset, resolution.caption, resource.title)
+      : resource.title;
+  const imageLauncher = useInspectionImageLauncher(
+    !unavailable && resolution.status === "ready"
+      ? {
+          id: `${resource.id}:image:0`,
+          order: 0,
+          src: resolution.asset.src,
+          alt: imageAlt,
+          width: resolution.asset.width,
+          height: resolution.asset.height,
+          caption: resolution.caption,
+        }
+      : null,
+  );
 
   return (
     <section
@@ -86,32 +104,35 @@ export function ImageInspectionBody({ resource }: ImageInspectionBodyProps) {
               data-image-width={resolvedDimensions?.width ?? ""}
               data-image-height={resolvedDimensions?.height ?? ""}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                className="inspection-image__image"
-                src={resolution.asset.src}
-                alt={getImageAltText(
-                  resolution.asset,
-                  resolution.caption,
-                  resource.title,
-                )}
-                width={resolution.asset.width}
-                height={resolution.asset.height}
-                decoding="async"
-                loading="eager"
-                onLoad={(event) => {
-                  if (declaredDimensions) return;
-                  const image = event.currentTarget;
-                  if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-                    setIntrinsicDimensions({
-                      key: imageSourceKey,
-                      width: image.naturalWidth,
-                      height: image.naturalHeight,
-                    });
-                  }
-                }}
-                onError={() => setImageLoadFailureKey(imageSourceKey)}
-              />
+              <button
+                className="inspection-image__launcher"
+                type="button"
+                {...imageLauncher}
+                aria-label={`Open image: ${imageAlt}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  className="inspection-image__image"
+                  src={resolution.asset.src}
+                  alt={imageAlt}
+                  width={resolution.asset.width}
+                  height={resolution.asset.height}
+                  decoding="async"
+                  loading="eager"
+                  onLoad={(event) => {
+                    if (declaredDimensions) return;
+                    const image = event.currentTarget;
+                    if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                      setIntrinsicDimensions({
+                        key: imageSourceKey,
+                        width: image.naturalWidth,
+                        height: image.naturalHeight,
+                      });
+                    }
+                  }}
+                  onError={() => setImageLoadFailureKey(imageSourceKey)}
+                />
+              </button>
             </div>
           </div>
           {resolution.caption ? (

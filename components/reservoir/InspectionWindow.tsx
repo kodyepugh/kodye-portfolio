@@ -15,6 +15,7 @@ import { BrandSymbol } from "../navigation/BrandSymbol";
 import { ReservoirFooterContent } from "../navigation/ReservoirFooter";
 import { InspectionContextTray } from "./InspectionContextTray";
 import { InspectionWindowBody } from "./InspectionWindowBody";
+import { InspectionImageViewerProvider } from "./InspectionImageViewer";
 import {
   createInspectionReturnFrame,
   getInspectionReturnPostContentOffset,
@@ -437,6 +438,11 @@ export function InspectionWindow({
     if (phase !== "reading") return;
 
     function handleDialogKeyboard(event: KeyboardEvent) {
+      const eventTarget =
+        event.target instanceof Element ? event.target : null;
+      if (eventTarget?.closest("[data-inspection-image-viewer='true']")) {
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         beginClose();
@@ -544,6 +550,11 @@ export function InspectionWindow({
 
     function consumeRevealWheel(event: globalThis.WheelEvent) {
       if (event.ctrlKey) return;
+      const eventTarget =
+        event.target instanceof Element ? event.target : null;
+      if (eventTarget?.closest("[data-inspection-image-viewer='true']")) {
+        return;
+      }
       const relationshipShelf =
         event.target instanceof Element
           ? event.target.closest<HTMLElement>(
@@ -672,94 +683,96 @@ export function InspectionWindow({
         data-artifact-top-rule="max(18svh, atmosphere bottom + responsive gap)"
         style={style}
       >
-        <div
-          className="artifact-terminal-layer"
-          aria-hidden={!terminalVisible}
-          data-inspection-footer-interactive={footerInteractive}
-          data-inspection-terminal-visible={terminalVisible}
-          data-artifact-footer-interactive={footerInteractive}
-          data-artifact-terminal-visible={terminalVisible}
-        >
-          <footer
-            ref={footerRef}
-            className="reservoir-footer reservoir-footer--artifact"
-            aria-label="Site footer"
-            aria-hidden={!footerInteractive}
+        <InspectionImageViewerProvider>
+          <div
+            className="artifact-terminal-layer"
+            aria-hidden={!terminalVisible}
+            data-inspection-footer-interactive={footerInteractive}
+            data-inspection-terminal-visible={terminalVisible}
+            data-artifact-footer-interactive={footerInteractive}
+            data-artifact-terminal-visible={terminalVisible}
           >
-            <ReservoirFooterContent interactive={footerInteractive} />
-          </footer>
-          <div ref={controlPlaneRef} className="artifact-terminal-layer__signature">
-            <BrandSymbol variant="artifact-terminal" />
-          </div>
-        </div>
-        <div
-          className="artifact-window-shell inspection-window-shell"
-          data-inspection-window-phase={phase}
-          data-artifact-window-phase={phase}
-          data-inspected-resource-id={resource.id}
-          data-artifact-id={resource.isArtifact ? resource.id : ""}
-          onAnimationEnd={completeDeployment}
-        >
-          <article
-            ref={contentRef}
-            className="artifact-window inspection-window"
-            data-phase={phase}
-            data-inspection-kind={resource.inspectionKind}
-            data-artifact-status={resource.isArtifact}
-          >
-            <div className="inspection-window__close-row">
-              <button
-                ref={closeButtonRef}
-                className="artifact-window__close inspection-window__close"
-                type="button"
-                disabled={phase !== "reading"}
-                onPointerDown={markClosePointer}
-                onPointerUp={markClosePointerUp}
-                onPointerCancel={markClosePointerCancel}
-                onClick={() => {
-                  markCloseClick();
-                  beginClose();
-                }}
-                aria-label="Close inspection"
-                title="Close inspection"
-              >
-                <span aria-hidden="true">×</span>
-                <span className="sr-only">Close inspection</span>
-              </button>
-            </div>
-            <h1 id={titleId} className="sr-only">
-              {resource.title}
-            </h1>
-            <div
-              id={bodyId}
-              className="artifact-window__body inspection-window__body-layout"
-              data-context-tray-visible={contextTrayVisible}
-              data-context-tray-interactive={phase === "reading"}
-              data-context-resources-count={resourceContextCount}
-              data-context-collections-count={collections.length}
+            <footer
+              ref={footerRef}
+              className="reservoir-footer reservoir-footer--artifact"
+              aria-label="Site footer"
+              aria-hidden={!footerInteractive}
             >
-              <div className="inspection-window__primary-body">
-                <InspectionWindowBody
-                  resource={resource}
-                  onNavigateToResource={navigateToSupportingResource}
-                />
-              </div>
-              <InspectionContextTray
-                phase={phase}
-                resourceContext={resourceContext}
-                collections={collections}
-                onNavigateToResource={navigateToSupportingResource}
-                onNavigateToCollection={navigateToCollection}
-              />
-              {phase === "reading" ? (
-                <InspectionBackToTopButton
-                  closeButtonRef={closeButtonRef}
-                  onBackToTop={handleBackToTop}
-                />
-              ) : null}
+              <ReservoirFooterContent interactive={footerInteractive} />
+            </footer>
+            <div ref={controlPlaneRef} className="artifact-terminal-layer__signature">
+              <BrandSymbol variant="artifact-terminal" />
             </div>
-          </article>
-        </div>
+          </div>
+          <div
+            className="artifact-window-shell inspection-window-shell"
+            data-inspection-window-phase={phase}
+            data-artifact-window-phase={phase}
+            data-inspected-resource-id={resource.id}
+            data-artifact-id={resource.isArtifact ? resource.id : ""}
+            onAnimationEnd={completeDeployment}
+          >
+            <article
+              ref={contentRef}
+              className="artifact-window inspection-window"
+              data-phase={phase}
+              data-inspection-kind={resource.inspectionKind}
+              data-artifact-status={resource.isArtifact}
+            >
+              <div className="inspection-window__close-row">
+                <button
+                  ref={closeButtonRef}
+                  className="artifact-window__close inspection-window__close"
+                  type="button"
+                  disabled={phase !== "reading"}
+                  onPointerDown={markClosePointer}
+                  onPointerUp={markClosePointerUp}
+                  onPointerCancel={markClosePointerCancel}
+                  onClick={() => {
+                    markCloseClick();
+                    beginClose();
+                  }}
+                  aria-label="Close inspection"
+                  title="Close inspection"
+                >
+                  <span aria-hidden="true">×</span>
+                  <span className="sr-only">Close inspection</span>
+                </button>
+              </div>
+              <h1 id={titleId} className="sr-only">
+                {resource.title}
+              </h1>
+              <div
+                id={bodyId}
+                className="artifact-window__body inspection-window__body-layout"
+                data-context-tray-visible={contextTrayVisible}
+                data-context-tray-interactive={phase === "reading"}
+                data-context-resources-count={resourceContextCount}
+                data-context-collections-count={collections.length}
+              >
+                <div className="inspection-window__primary-body">
+                  <InspectionWindowBody
+                    resource={resource}
+                    onNavigateToResource={navigateToSupportingResource}
+                  />
+                </div>
+                <InspectionContextTray
+                  phase={phase}
+                  resourceContext={resourceContext}
+                  collections={collections}
+                  onNavigateToResource={navigateToSupportingResource}
+                  onNavigateToCollection={navigateToCollection}
+                />
+                {phase === "reading" ? (
+                  <InspectionBackToTopButton
+                    closeButtonRef={closeButtonRef}
+                    onBackToTop={handleBackToTop}
+                  />
+                ) : null}
+              </div>
+            </article>
+          </div>
+        </InspectionImageViewerProvider>
       </div>
     </>
   );

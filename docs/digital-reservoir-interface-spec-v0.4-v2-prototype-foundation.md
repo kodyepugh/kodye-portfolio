@@ -260,6 +260,14 @@ The atmosphere owns concise Resource identity/metadata. The renderer owns primar
 
 > **Exploration may be spatial. Inspection and reading should remain natural.**
 
+### 2.5.1 Shared Inspection Image Viewer
+
+Inspectable images are presentation controls within the shared `InspectionWindow`, not separate semantic Objects, Query Reservoirs, or history visits. The Inspection renderer supplies an ordered sequence of image occurrences actually presented by the currently inspected Resource. Sequence positions are occurrence-based, so the same image may occupy more than one position when the content presents it more than once.
+
+Clicking or keyboard-activating a valid standalone image, structured-document figure, or notebook image output opens the shared viewer above the current Inspection without changing its reading position. The viewer fits the selected image to the viewport, preserves aspect ratio, and provides bounded zoom, centered reset, optional captions, previous/next controls, and a current-position indicator. At fit scale, horizontal touch or pointer gestures navigate between sequence positions; above fit scale, the same gesture pans the current image and cannot accidentally navigate away. Pinch and wheel zoom are owned by the viewer while it is open.
+
+The viewer traps focus within its controls, gives Escape first ownership to the viewer, restores focus to the launching image control on close, and locks the underlying document scroll without changing the Inspection's saved reading state. Image magnification is distinct from Resource navigation: clicking a figure enlarges the presented image and does not navigate to the figure Resource. Sequence changes reset the destination image to fit and centered pan; bounds do not wrap. Reduced-motion preferences remove nonessential viewer motion.
+
 ## 2.6 Persistent Control Plane
 
 The conventional website header is inverted.

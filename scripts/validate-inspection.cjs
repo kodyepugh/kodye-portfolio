@@ -83,6 +83,16 @@ const {
   resolveImageInspection,
 } = require(path.join(projectRoot, "lib/content/image-inspection.ts"));
 const {
+  clampInspectionImageZoom,
+  getInspectionImageGestureMode,
+  getInspectionImageSequenceId,
+  getInspectionImageSequenceIndex,
+  sortInspectionImageSequence,
+} = require(path.join(
+  projectRoot,
+  "lib/reservoir/inspection-image-viewer.ts",
+));
+const {
   getPublishedExternalLinkRepresentations,
   getExternalLinkInspectionActionLabel,
   getExternalLinkInspectionLocationLabel,
@@ -708,6 +718,15 @@ const inspectionSource = fs.readFileSync(
   path.join(projectRoot, "components/reservoir/InspectionWindow.tsx"),
   "utf8",
 );
+const inspectionViewerSource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/InspectionImageViewer.tsx"),
+  "utf8",
+);
+const inspectionImageSequence = sortInspectionImageSequence([
+  { id: "figure-b", order: 2 },
+  { id: "figure-a-first", order: 1 },
+  { id: "figure-a-second", order: 1 },
+]);
 const validSyntheticRegistry = {
   ...contentRegistry,
   resources: [
@@ -1693,6 +1712,46 @@ const checks = [
       invalidExternalLinkInspection.details.some((detail) =>
         detail.includes("invalid URL"),
       ),
+  ],
+  [
+    "BA shared image viewer owns one ordered occurrence sequence",
+    inspectionImageSequence.map((item) => item.id).join(",") ===
+      "figure-a-first,figure-a-second,figure-b" &&
+      getInspectionImageSequenceIndex(inspectionImageSequence, "figure-a-second") ===
+        1 &&
+      getInspectionImageSequenceId(inspectionImageSequence, 0, -1) === null &&
+      getInspectionImageSequenceId(inspectionImageSequence, 2, 1) === null,
+  ],
+  [
+    "BB image viewer zoom is bounded and gesture ownership changes at fit",
+    clampInspectionImageZoom(-2) === 1 &&
+      clampInspectionImageZoom(3) === 3 &&
+      clampInspectionImageZoom(99) === 5 &&
+      getInspectionImageGestureMode(1) === "swipe" &&
+      getInspectionImageGestureMode(1.01) === "pan",
+  ],
+  [
+    "BC Inspection image viewer is shared and wheel-exempt from terminal reveal",
+    inspectionSource.includes("InspectionImageViewerProvider") &&
+      inspectionSource.includes("data-inspection-image-viewer='true'") &&
+      inspectionSource.includes("eventTarget?.closest(\"[data-inspection-image-viewer='true']\")") &&
+      inspectionViewerSource.includes("document.body.style.overflow = \"hidden\"") &&
+      inspectionViewerSource.includes("onPointerMove={handlePointerMove}"),
+  ],
+  [
+    "BD renderer image occurrences remain distinct and ordered",
+    fs.readFileSync(
+      path.join(projectRoot, "components/reservoir/StructuredDocumentBody.tsx"),
+      "utf8",
+    ).includes("${resourceId}:figure:${block.id}:${occurrence}") &&
+      fs.readFileSync(
+        path.join(projectRoot, "components/reservoir/NotebookInspectionBody.tsx"),
+        "utf8",
+      ).includes("${resourceId}:notebook-image:${imageOccurrence}") &&
+      fs.readFileSync(
+        path.join(projectRoot, "components/reservoir/ImageInspectionBody.tsx"),
+        "utf8",
+      ).includes("${resource.id}:image:0"),
   ],
 ];
 
