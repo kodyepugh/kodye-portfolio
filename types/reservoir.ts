@@ -2,11 +2,6 @@ export type ExploreLens = "work" | "self" | "world" | "inquiry";
 export type ActiveExploreFilter = "all" | "collections" | ExploreLens;
 export type DirectArtifactId = "about" | "resume" | "contact";
 
-export type InspectionReturnContext = {
-  resourceId: string;
-  scrollTop: number;
-};
-
 export type ReservoirContext =
   | {
       kind: "collection";
@@ -16,7 +11,6 @@ export type ReservoirContext =
       kind: "query";
       resultIds: string[];
       returnContext: ReservoirContext;
-      inspectionReturnContext?: InspectionReturnContext;
     };
 
 export type ReservoirArtifact = {

@@ -111,7 +111,6 @@ import { canInspectResource } from "@/lib/reservoir/inspection";
 import type {
   ActiveExploreFilter,
   DirectArtifactId,
-  InspectionReturnContext,
 } from "@/types/reservoir";
 import type { Collection } from "@/types/content";
 import type { ReservoirContext } from "@/types/reservoir";
@@ -1056,7 +1055,6 @@ export function ReservoirScene() {
   const [inspectedResourceId, setInspectedResourceId] = useState<string | null>(
     null,
   );
-  const [openingInitialScrollTop, setOpeningInitialScrollTop] = useState(0);
   const [preservedReservoirState, setPreservedReservoirState] =
     useState<PreservedReservoirState | null>(null);
   const [inspectionReturnRuntime, setInspectionReturnRuntime] =
@@ -1082,12 +1080,6 @@ export function ReservoirScene() {
   const queryReservoirTransitionProgressRef = useRef(0);
   const queryReservoirTransitionPhaseRef =
     useRef<CollectionReconstitutionPhase>("idle");
-  const pendingSupportingResourceQueryRef = useRef<ReservoirContext | null>(
-    null,
-  );
-  const pendingInspectionRestoreRef = useRef<InspectionReturnContext | null>(
-    null,
-  );
   const reservoirExploreFilterByContextKeyRef = useRef(
     new Map<string, ActiveExploreFilter>(),
   );
@@ -2016,51 +2008,6 @@ export function ReservoirScene() {
     queryReservoirTransitionContext,
     settleQueryReservoirContext,
     restoreQueryReservoirSnapshotForContext,
-  ]);
-
-  useEffect(() => {
-    const pendingContext = pendingSupportingResourceQueryRef.current;
-    if (
-      !pendingContext ||
-      transitionState !== "idle" ||
-      queryReservoirTransitionPhase !== "idle" ||
-      queryActivityRevision !== null ||
-      layoutOwnership.transitionPlan
-    ) {
-      return;
-    }
-
-    pendingSupportingResourceQueryRef.current = null;
-    requestQueryReservoirContext(pendingContext);
-  // These transition helpers are intentionally render-scoped so they capture
-  // the latest reservoir state when a pending transition becomes eligible.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    layoutOwnership.transitionPlan,
-    queryActivityRevision,
-    queryReservoirTransitionPhase,
-    transitionState,
-  ]);
-
-  useEffect(() => {
-    const pendingRestore = pendingInspectionRestoreRef.current;
-    if (
-      !pendingRestore ||
-      transitionState !== "idle" ||
-      queryReservoirTransitionPhase !== "idle" ||
-      layoutOwnership.transitionPlan
-    ) {
-      return;
-    }
-
-    const restore = pendingRestore;
-    pendingInspectionRestoreRef.current = null;
-    beginArtifactOpening(restore.resourceId, false, restore.scrollTop);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    layoutOwnership.transitionPlan,
-    queryReservoirTransitionPhase,
-    transitionState,
   ]);
 
   useEffect(() => {
@@ -3159,7 +3106,6 @@ export function ReservoirScene() {
   function beginResourceInspection(
     resourceId: string,
     allowLocatedTransition = false,
-    initialScrollTop = 0,
   ) {
     if (
       transitionState !== "idle" &&

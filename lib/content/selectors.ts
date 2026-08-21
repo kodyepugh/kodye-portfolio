@@ -146,21 +146,11 @@ export function getResourceByAddress(address: string) {
 }
 
 export function getArtifactById(artifactId: string) {
-  const resource = resourceById.get(artifactId);
-  return resource?.published === true ? resource : null;
+  return artifactById.get(artifactId) ?? null;
 }
 
 export function getArtifactBySlug(slug: string) {
-  const resource = resourceBySlug.get(slug);
-  return resource?.published === true ? resource : null;
-}
-
-export function getResourceById(resourceId: string): Resource | null {
-  return resourceById.get(resourceId) ?? null;
-}
-
-export function getResourceBySlug(slug: string): Resource | null {
-  return resourceBySlug.get(slug) ?? null;
+  return artifactBySlug.get(slug) ?? null;
 }
 
 export function getCollectionById(collectionId: string) {

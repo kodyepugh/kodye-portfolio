@@ -1,5 +1,5 @@
 import type { Asset } from "../../types/content";
-import { BELLABEAT_FIGURE_ALT_TEXT } from "./resources";
+import { BELLABEAT_FIGURE_ALT_TEXT } from "./bellabeat-resources";
 
 export const ASSET_IDS = {
   brandSymbol: "asset-kodyepugh-symbol",

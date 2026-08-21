@@ -1,5 +1,10 @@
-import type { Artifact, Resource } from "../../types/content";
+import type {
+  Artifact,
+  Resource,
+  StructuredDocumentBlock,
+} from "../../types/content";
 import { ASSET_IDS } from "./assets";
+import { bellabeatSupportingResources } from "./bellabeat-resources";
 
 export const ARTIFACT_IDS = {
   bellabeat: "artifact-bellabeat-wellness-analysis",
@@ -12,6 +17,246 @@ export const ARTIFACT_IDS = {
 export const RESOURCE_IDS = {
   bellabeatRepository: "resource-bellabeat-wellness-analysis-repository",
 } as const;
+
+export const BELLABEAT_DOCUMENT_BLOCKS = [
+  {
+    id: "interpretation-boundary",
+    type: "callout",
+    title: "Interpretation boundary",
+    tone: "important",
+    text: "The case describes 30 consenting Fitbit users, but the files contain 35 export/session identifiers and no authoritative session-to-user mapping. This article uses session profiles, not verified people. The results are historical, non-causal, and not representative of Bellabeat customers.",
+  },
+  {
+    id: "project-overview",
+    type: "heading",
+    level: 2,
+    text: "Project Overview",
+  },
+  {
+    id: "project-overview-body",
+    type: "paragraph",
+    text: "This project turns a public, historical Fitbit export into a controlled wellness-behavior analysis and three testable product directions for the Bellabeat app. I used Excel for initial inspection, then selected BigQuery and Standard SQL when minute- and second-level files exceeded a spreadsheet's comfortable capacity. I preserved the source files, separated protected raw data from cleaned and analytical layers, documented material decisions, validated each transformation, and translated the evidence into a concise product narrative.",
+  },
+  {
+    id: "business-objective",
+    type: "heading",
+    level: 2,
+    text: "Business Objective",
+  },
+  {
+    id: "business-objective-body",
+    type: "paragraph",
+    text: "Bellabeat's case question is how smart-device usage trends could inform marketing strategy. I focused on the Bellabeat app because it is the shared layer where recorded behavior can become understandable feedback, customer-controlled prompts, feature education, and adaptive routines.",
+  },
+  {
+    id: "business-objective-boundary",
+    type: "paragraph",
+    text: "The decision was not what describes an average wearable user. The export does not support that claim. The decision was which observed patterns are reliable enough to prioritize low-risk Bellabeat app experiments, and what evidence Bellabeat would need before scaling them. These recommendations are hypotheses for testing with current, consented customers; they do not estimate campaign return, clinical benefit, retention, or causal product impact.",
+  },
+  {
+    id: "business-objective-audience",
+    type: "paragraph",
+    text: "Bellabeat serves a women-focused audience, but the source contains no reliable sex, gender, age, or broader demographic fields. I therefore did not infer women-specific behavior or claim audience representativeness.",
+  },
+  {
+    id: "from-source-files-to-bigquery",
+    type: "heading",
+    level: 2,
+    text: "From Source Files to BigQuery",
+  },
+  {
+    id: "source-files-body",
+    type: "paragraph",
+    text: "The data originated as public Fitbit CSV files distributed through Kaggle and attributed there to Zenodo. They cover March 12-April 11 and April 12-May 12, 2016, for up to 62 calendar dates. Excel inspection established filenames, schemas, date formats, feature families, and obvious quality issues.",
+  },
+  {
+    id: "bigquery-body",
+    type: "paragraph",
+    text: "The validated activity-minute table contains 2,760,120 clean rows, and staged heart rate contains 3,638,339 rows. BigQuery was the scalable analytical environment—not the origin of the data. I used Standard SQL and the BigQuery CLI to move from protected source tables through staging, clean, hourly/daily, analytical, and reporting layers.",
+  },
+  {
+    id: "analytical-approach",
+    type: "heading",
+    level: 2,
+    text: "Analytical Approach",
+  },
+  {
+    id: "analytical-approach-grain",
+    type: "paragraph",
+    text: "The most consequential choice was to treat the first-column identifier as an export/session key. The case says 30 consenters while the files contain 35 identifiers, so every count and relationship is labeled at the session, session-day, session-hour, feature-log, or timestamp grain.",
+  },
+  {
+    id: "analytical-approach-quality",
+    type: "paragraph",
+    text: "Recorded zero-step days were preserved and missing dates remained missing. A complete activity day was defined as exactly 1,440 minute rows, then used as a sensitivity rather than a filter on the main story. Daily activity and sleep keys were validated before joining; sleep was assigned to its end date; and selected sedentary time subtracts timestamp-overlapping recorded sleep.",
+  },
+  {
+    id: "analytical-approach-validation",
+    type: "paragraph",
+    text: "Relationships were separated into within-session and between-session questions. A fixed clustering taxonomy was retired after feature reduction produced unstable assignments. QA covered row counts, key uniqueness, nulls, valid ranges, and reconciliation; the final analytical pipeline passed all 25 required validation checks.",
+  },
+  {
+    id: "three-core-findings",
+    type: "heading",
+    level: 2,
+    text: "Three Core Findings",
+  },
+  {
+    id: "finding-movement",
+    type: "heading",
+    level: 3,
+    text: "1. Movement varies, making personal baselines more defensible than universal targets",
+  },
+  {
+    id: "finding-movement-body",
+    type: "paragraph",
+    text: "Across 1,935 observed session-days, steps averaged 7,200 and had a median of 6,835. Alternative estimates remained directionally similar: 6,857 with equal session weighting, 7,196 with equal date weighting, and 7,280 on complete days. The spread is substantial, so these values describe the export; they are not a recommended target.",
+  },
+  {
+    id: "figure-daily-steps-distribution",
+    type: "figure",
+    resourceId: "resource-bellabeat-daily-steps-distribution",
+    representationId: "representation-bellabeat-daily-steps-distribution",
+    alt: "Histogram of 1,935 observed session-days showing a right-skewed daily-step distribution, with labeled pooled mean 7,200, median 6,835, and equal-session mean 6,857.",
+  },
+  {
+    id: "finding-light-activity",
+    type: "heading",
+    level: 3,
+    text: "2. Light activity is the broadest accessible opportunity",
+  },
+  {
+    id: "finding-light-activity-body",
+    type: "paragraph",
+    text: "Light activity contributed 84.9% of recorded active minutes. Within sessions, steps were strongly associated with active minutes (r=0.824) and moderately inversely associated with selected sedentary minutes (r=-0.427). These associations support testing approachable movement content, not promising a causal or medical result.",
+  },
+  {
+    id: "figure-activity-intensity",
+    type: "figure",
+    resourceId: "resource-bellabeat-activity-intensity-composition",
+    representationId: "representation-bellabeat-activity-intensity-composition",
+    alt: "Horizontal bars showing mean recorded light, fairly active, and very active minutes per observed session-day, with light activity at 185.5 minutes and 84.9% of active minutes.",
+  },
+  {
+    id: "finding-routines",
+    type: "heading",
+    level: 3,
+    text: "3. Routines differ, and fixed customer types do not survive validation",
+  },
+  {
+    id: "finding-routines-body",
+    type: "paragraph",
+    text: "Adequately observed session profiles peaked at different hours from 06:00 to 20:00. Weekend activity split evenly: 17 eligible sessions were higher and 17 were lower than their weekday average. The session-by-date heatmap shows standardized daily trajectories and missing dates; it does not visualize hourly timing.",
+  },
+  {
+    id: "figure-session-heatmap",
+    type: "figure",
+    resourceId: "resource-bellabeat-session-activity-heatmap",
+    representationId: "representation-bellabeat-session-activity-heatmap",
+    alt: "Heatmap with neutral session labels S01-S35 across March-May dates, showing within-session standardized daily steps and gray missing dates distinct from observed low or zero-step days.",
+  },
+  {
+    id: "finding-segmentation-body",
+    type: "paragraph",
+    text: "The original clusters changed sharply after correlated features were reduced (ARI=0.084), and leave-one-session stability fell to 0.034. Continuous baselines and preferences are safer than fixed identities.",
+  },
+  {
+    id: "figure-segmentation-stability",
+    type: "figure",
+    resourceId: "resource-bellabeat-segmentation-stability",
+    representationId: "representation-bellabeat-segmentation-stability",
+    alt: "Horizontal bars showing original, reduced-feature, and MET-added silhouette values plus adjusted Rand index stability values, including original-versus-reduced ARI 0.084 and minimum leave-one-session ARI 0.034.",
+  },
+  {
+    id: "finding-feature-coverage-body",
+    type: "paragraph",
+    text: "Feature coverage explains why personalization also needs consent and readiness checks: activity/METs appear for 35 session identifiers, sleep for 25, heart rate for 15, and weight for 13. Presence is not engagement, and absence is not churn.",
+  },
+  {
+    id: "figure-recording-feature-presence",
+    type: "figure",
+    resourceId: "resource-bellabeat-recording-feature-presence",
+    representationId: "representation-bellabeat-recording-feature-presence",
+    alt: "Three-panel chart showing activity recording completeness, feature data present for activity, sleep, heart rate, and weight session identifiers, and the increasingly selective weight-record cadence thresholds.",
+  },
+  {
+    id: "recommendations",
+    type: "heading",
+    level: 2,
+    text: "Recommendations",
+  },
+  {
+    id: "recommendation-progress",
+    type: "heading",
+    level: 3,
+    text: "1. Progress is personal",
+  },
+  {
+    id: "recommendation-progress-body",
+    type: "paragraph",
+    text: "Test rolling personal-baseline feedback with customer-adjustable next steps. Measure qualified return, baseline-card engagement, and change from the customer's pre-period; guard against unsafe escalation, opt-out, and adverse sentiment.",
+  },
+  {
+    id: "recommendation-movement",
+    type: "heading",
+    level: 3,
+    text: "2. Small movement counts",
+  },
+  {
+    id: "recommendation-movement-body",
+    type: "paragraph",
+    text: "Test short, accessible movement options such as a walk, stretch, or movement break. Measure content completion, incremental active minutes, and retained engagement; monitor fatigue, dismissals, and accessibility feedback.",
+  },
+  {
+    id: "recommendation-timing",
+    type: "heading",
+    level: 3,
+    text: "3. Your routine, your timing",
+  },
+  {
+    id: "recommendation-timing-body",
+    type: "paragraph",
+    text: "Test customer-selected timing against fixed and consented adaptive timing. Allow weekday and weekend preferences to differ. Measure action after delivery and weekly engagement; protect quiet hours, frequency limits, and opt-out control.",
+  },
+  {
+    id: "recommendation-sleep-body",
+    type: "paragraph",
+    text: "Sleep feedback should remain optional and descriptive because coverage is selective and prior activity has essentially no within-session relationship with same-night recorded sleep (r=0.024). Before any recovery or re-engagement automation, Bellabeat needs telemetry that distinguishes app use, sync status, device state, delivery, feature enrollment, and customer preference.",
+  },
+  {
+    id: "limitations-and-next-steps",
+    type: "heading",
+    level: 2,
+    text: "Limitations and Next Steps",
+  },
+  {
+    id: "limitations-body",
+    type: "paragraph",
+    text: "The source is historical, observational, demographically incomplete, and uneven across features. It has no verified person mapping, wear-state confirmation, Bellabeat product exposure, campaign outcomes, revenue, or retention labels. Distance and body fat are excluded; weight is cadence-only; heart rate is non-medical and appendix-only. Correlations and paired differences do not establish intervention effects.",
+  },
+  {
+    id: "next-steps-body",
+    type: "paragraph",
+    text: "The next phase should validate current identifiers and consent rules, instrument first-party events, establish personal baselines, reconcile telemetry in a small QA cohort, and run customer-level experiments with preregistered outcomes and guardrails. Bellabeat should scale only if benefits persist beyond novelty and do not increase fatigue, opt-outs, adverse sentiment, or accessibility concerns.",
+  },
+  {
+    id: "comprehensive-case-study",
+    type: "heading",
+    level: 2,
+    text: "Comprehensive Case Study",
+  },
+  {
+    id: "comprehensive-case-study-body",
+    type: "paragraph",
+    text: "The comprehensive report contains the five-theme narrative, all ten approved figures, complete decision register, metric definitions, lineage, QA evidence, recommendation measurement plan, and source traceability.",
+  },
+  {
+    id: "comprehensive-case-study-link",
+    type: "link",
+    label: "Open the comprehensive case study",
+    href: "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/reports/portfolio/bellabeat_portfolio_case_study.html",
+  },
+] satisfies readonly StructuredDocumentBlock[];
 
 export const resources = [
   {
@@ -32,20 +277,20 @@ export const resources = [
     format: "Case study",
     featured: true,
     published: true,
-    isArtifact: true,
-    inspectionKind: "structured-document",
     representations: [
       {
         id: "representation-bellabeat-recruiter-summary-markdown",
-        kind: "markdown",
+        kind: "external",
         url: "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/reports/portfolio/bellabeat_recruiter_summary.md",
         label: "Recruiter summary (Markdown)",
+        sourceLabel: "Bellabeat analysis repository",
       },
       {
         id: "representation-bellabeat-recruiter-summary-html",
-        kind: "html",
+        kind: "external",
         url: "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/reports/portfolio/bellabeat_recruiter_summary.html",
         label: "Recruiter summary (HTML)",
+        sourceLabel: "Bellabeat analysis repository",
       },
     ],
     content: {
@@ -102,8 +347,6 @@ export const resources = [
     format: "Resume",
     featured: true,
     published: true,
-    isArtifact: true,
-    inspectionKind: "generic-file",
     content: {
       kind: "document",
       status: "placeholder",
@@ -124,8 +367,6 @@ export const resources = [
     medium: "Profile",
     featured: true,
     published: true,
-    isArtifact: true,
-    inspectionKind: "structured-document",
     content: {
       kind: "rich-text",
       status: "placeholder",
@@ -151,8 +392,6 @@ export const resources = [
     format: "Interactive website",
     featured: true,
     published: true,
-    isArtifact: true,
-    inspectionKind: "structured-document",
     content: {
       kind: "case-study",
       status: "placeholder",
@@ -197,6 +436,7 @@ export const resources = [
       assetId: ASSET_IDS.brandSymbol,
     },
   },
+  ...bellabeatSupportingResources,
 ] satisfies readonly Resource[];
 
 export const artifacts = resources.filter(

@@ -329,9 +329,9 @@ const checks = [
   [
     "supporting resources selector is stable",
     Array.isArray(getPublishedSupportingResources(ARTIFACT_IDS.bellabeat)) &&
-      getPublishedSupportingResources(ARTIFACT_IDS.bellabeat).length === 1 &&
+      getPublishedSupportingResources(ARTIFACT_IDS.bellabeat).length === 18 &&
       getPublishedSupportingResources(ARTIFACT_IDS.bellabeat)[0]
-        .targetResourceId === RESOURCE_IDS.bellabeatRepository,
+        .targetResourceId === "resource-bellabeat-comprehensive-case-study",
   ],
   [
     "published support relationships filter and order deterministically",
