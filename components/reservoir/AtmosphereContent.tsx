@@ -111,6 +111,11 @@ export function AtmosphereContent({
           {selectedSubtitle}
         </p>
       ) : null}
+      {selectedMetadata?.description ? (
+        <p className="atmosphere-content__description">
+          {selectedMetadata.description}
+        </p>
+      ) : null}
       {metadata.length > 0 ? (
         <dl className="atmosphere-content__metadata">
           {metadata.map((entry) => (

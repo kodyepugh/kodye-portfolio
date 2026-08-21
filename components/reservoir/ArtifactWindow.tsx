@@ -9,8 +9,10 @@ type ArtifactWindowProps = {
   artifact: Artifact;
   phase: InspectionWindowPhase;
   reducedMotion: boolean;
+  initialScrollTop?: number;
   onDeployComplete: () => void;
   onClose: () => void;
+  onSupportingResourceSelect?: (resourceId: string) => void;
   onFooterReachedChange: (reached: boolean) => void;
   onNavigateToResource?: (resourceId: string) => void;
 };

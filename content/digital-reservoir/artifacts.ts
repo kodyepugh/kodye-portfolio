@@ -18,31 +18,40 @@ export const resources = [
     objectType: "resource",
     id: ARTIFACT_IDS.bellabeat,
     slug: "bellabeat-wellness-analysis",
-    title: "Bellabeat Wellness Analysis",
-    subtitle: "Patterns in everyday activity and rest",
+    title: "Bellabeat Wellness-Behavior Analysis",
+    subtitle: "From Public Fitbit Files to Testable App Strategy",
+    description:
+      "Excel initial inspection; BigQuery + Standard SQL; controlled session-level interpretation across 1,935 observed session-days, with 84.9% light-activity share. Test personal progress, approachable movement, and customer-controlled timing. Historical and non-causal.",
     type: "case-study",
     inspectionKind: "structured-document",
     isArtifact: true,
     category: "Data / Analytics",
     categoryColor: "#28758c",
-    date: "2024",
+    date: "August 2026",
     medium: "Data analysis",
     format: "Case study",
     featured: true,
     published: true,
+    isArtifact: true,
+    inspectionKind: "structured-document",
+    representations: [
+      {
+        id: "representation-bellabeat-recruiter-summary-markdown",
+        kind: "markdown",
+        url: "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/reports/portfolio/bellabeat_recruiter_summary.md",
+        label: "Recruiter summary (Markdown)",
+      },
+      {
+        id: "representation-bellabeat-recruiter-summary-html",
+        kind: "html",
+        url: "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/reports/portfolio/bellabeat_recruiter_summary.html",
+        label: "Recruiter summary (HTML)",
+      },
+    ],
     content: {
-      kind: "case-study",
-      status: "placeholder",
-      sections: [
-        {
-          id: "overview",
-          heading: "Overview",
-          body: [
-            "Patterns in everyday activity and rest.",
-            "TODO: Add repository-supported methodology, findings, visualizations, and case-study narrative.",
-          ],
-        },
-      ],
+      kind: "structured-document",
+      status: "ready",
+      blocks: BELLABEAT_DOCUMENT_BLOCKS,
     },
   },
   {
@@ -93,6 +102,8 @@ export const resources = [
     format: "Resume",
     featured: true,
     published: true,
+    isArtifact: true,
+    inspectionKind: "generic-file",
     content: {
       kind: "document",
       status: "placeholder",
@@ -113,6 +124,8 @@ export const resources = [
     medium: "Profile",
     featured: true,
     published: true,
+    isArtifact: true,
+    inspectionKind: "structured-document",
     content: {
       kind: "rich-text",
       status: "placeholder",
@@ -138,6 +151,8 @@ export const resources = [
     format: "Interactive website",
     featured: true,
     published: true,
+    isArtifact: true,
+    inspectionKind: "structured-document",
     content: {
       kind: "case-study",
       status: "placeholder",

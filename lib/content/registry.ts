@@ -4,16 +4,20 @@ import { collections } from "../../content/digital-reservoir/collections";
 import { memberships } from "../../content/digital-reservoir/memberships";
 import { resourceSupportRelations } from "../../content/digital-reservoir/resource-support-relations";
 import { sourceRecords } from "../../content/digital-reservoir/sources";
+import { resources as supportingResources } from "../../content/digital-reservoir/resources";
+import { supportingRelationships } from "../../content/digital-reservoir/relationships";
 import type { ContentRegistry } from "../../types/content";
 
 export const contentRegistry: ContentRegistry = {
   resources,
   artifacts,
+  resources: [...artifacts, ...supportingResources],
   collections,
   memberships,
   resourceSupportRelations,
   assets,
   sourceRecords,
+  supportingRelationships,
 };
 
 export {

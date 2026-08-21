@@ -284,6 +284,16 @@ export function validateContentRegistry(
   );
   reportDuplicates(
     errors,
+    "resource ID",
+    registry.resources.map((resource) => resource.id),
+  );
+  reportDuplicates(
+    errors,
+    "resource slug",
+    registry.resources.map((resource) => resource.slug),
+  );
+  reportDuplicates(
+    errors,
     "collection ID",
     registry.collections.map((collection) => collection.id),
   );
@@ -312,12 +322,18 @@ export function validateContentRegistry(
     "source record ID",
     registry.sourceRecords.map((sourceRecord) => sourceRecord.id),
   );
+  reportDuplicates(
+    errors,
+    "supporting relationship ID",
+    registry.supportingRelationships.map((relationship) => relationship.id),
+  );
 
   const collectionIds = new Set(
     registry.collections.map((collection) => collection.id),
   );
   const resourceIds = new Set(registry.resources.map((resource) => resource.id));
   const assetIds = new Set(registry.assets.map((asset) => asset.id));
+  const resourceIds = new Set(registry.resources.map((resource) => resource.id));
   const membershipEdges = new Set<string>();
   const membershipOrders = new Set<string>();
   const supportEdges = new Set<string>();
@@ -455,6 +471,38 @@ export function validateContentRegistry(
     }
   }
 
+  for (const resource of registry.resources) {
+    if (resource.isArtifact && !artifactIds.has(resource.id)) {
+      errors.push(`Artifact-status resource ${resource.id} is missing from artifacts`);
+    }
+    if (!resource.isArtifact && artifactIds.has(resource.id)) {
+      errors.push(`Non-artifact resource ${resource.id} is present in artifacts`);
+    }
+
+    for (const representation of resource.representations ?? []) {
+      if (representation.assetId && !assetIds.has(representation.assetId)) {
+        errors.push(
+          `Resource ${resource.id} representation ${representation.id} references unknown asset ${representation.assetId}`,
+        );
+      }
+    }
+
+    if (resource.content?.kind === "structured-document") {
+      for (const block of resource.content.blocks) {
+        if (block.kind !== "figure") continue;
+        if (!resourceIds.has(block.resourceId)) {
+          errors.push(
+            `Resource ${resource.id} figure block ${block.id} references unknown resource ${block.resourceId}`,
+          );
+        }
+      }
+    }
+
+    if (resource.content?.status === "placeholder") {
+      warnings.push(`Resource ${resource.id} still has placeholder content`);
+    }
+  }
+
   for (const sourceRecord of registry.sourceRecords) {
     const resourceId = sourceRecord.resourceId;
     const assetId = sourceRecord.assetId;
@@ -473,6 +521,36 @@ export function validateContentRegistry(
         `Source record ${sourceRecord.id} references unknown asset ${assetId}`,
       );
     }
+    if (resourceId && !resourceIds.has(resourceId)) {
+      errors.push(
+        `Source record ${sourceRecord.id} references unknown resource ${resourceId}`,
+      );
+    }
+  }
+
+  const relationshipEdges = new Set<string>();
+  const relationshipOrders = new Set<string>();
+  for (const relationship of registry.supportingRelationships) {
+    if (!resourceIds.has(relationship.sourceResourceId)) {
+      errors.push(
+        `Supporting relationship ${relationship.id} has unknown source ${relationship.sourceResourceId}`,
+      );
+    }
+    if (!resourceIds.has(relationship.targetResourceId)) {
+      errors.push(
+        `Supporting relationship ${relationship.id} has unknown target ${relationship.targetResourceId}`,
+      );
+    }
+    const edge = `${relationship.sourceResourceId}:${relationship.targetResourceId}`;
+    if (relationshipEdges.has(edge)) {
+      errors.push(`Duplicate supporting relationship: ${edge}`);
+    }
+    relationshipEdges.add(edge);
+    const orderKey = `${relationship.sourceResourceId}:${relationship.order}`;
+    if (relationshipOrders.has(orderKey)) {
+      errors.push(`Duplicate supporting relationship order: ${orderKey}`);
+    }
+    relationshipOrders.add(orderKey);
   }
 
   reportCollectionCycles(registry, errors);

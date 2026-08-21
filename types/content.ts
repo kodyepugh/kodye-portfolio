@@ -146,6 +146,16 @@ export type StructuredDocumentContent = {
   blocks: readonly StructuredDocumentBlock[];
 };
 
+export const INSPECTION_KINDS = [
+  "structured-document",
+  "image",
+  "external-link",
+  "generic-file",
+  "notebook-code",
+] as const;
+
+export type InspectionKind = (typeof INSPECTION_KINDS)[number];
+
 export type ArtifactSection = {
   id: string;
   heading: string;
@@ -184,6 +194,11 @@ export type ResourceContent =
       status: ArtifactContentStatus;
       assetId?: string;
       note?: string;
+    }
+  | {
+      kind: "structured-document";
+      status: ArtifactContentStatus;
+      blocks: readonly DocumentBlock[];
     };
 
 export type ArtifactContent = ResourceContent;
@@ -317,6 +332,16 @@ export type Asset = {
   caption?: string;
 };
 
+export type SupportingResourceRelationship = {
+  id: string;
+  sourceResourceId: string;
+  targetResourceId: string;
+  relationshipType: "supporting" | "source";
+  role: string;
+  order: number;
+  published?: boolean;
+};
+
 export const SOURCE_TYPES = [
   "local-file",
   "external-url",
@@ -339,6 +364,7 @@ type SourceRecordBase = {
 export type ResourceSourceRecord = SourceRecordBase & {
   resourceId: string;
   assetId?: never;
+  resourceId?: never;
 };
 
 export type AssetSourceRecord = SourceRecordBase & {
@@ -351,9 +377,11 @@ export type SourceRecord = ResourceSourceRecord | AssetSourceRecord;
 export type ContentRegistry = {
   resources: readonly Resource[];
   artifacts: readonly Artifact[];
+  resources: readonly Resource[];
   collections: readonly Collection[];
   memberships: readonly Membership[];
   resourceSupportRelations: readonly ResourceSupportRelationship[];
   assets: readonly Asset[];
   sourceRecords: readonly SourceRecord[];
+  supportingRelationships: readonly SupportingResourceRelationship[];
 };
