@@ -4,13 +4,18 @@ import { getResourceInspectionSurface } from "@/lib/reservoir/inspection";
 import type { Resource, ResourceExternalRepresentation } from "@/types/content";
 import { ImageInspectionBody } from "./ImageInspectionBody";
 import { MarkdownStructuredDocumentBody } from "./MarkdownStructuredDocumentBody";
+import { NotebookInspectionBody } from "./NotebookInspectionBody";
 import { StructuredDocumentBody } from "./StructuredDocumentBody";
 
 type InspectionWindowBodyProps = {
   resource: Resource;
+  onNavigateToResource: (resourceId: string) => void;
 };
 
-export function InspectionWindowBody({ resource }: InspectionWindowBodyProps) {
+export function InspectionWindowBody({
+  resource,
+  onNavigateToResource,
+}: InspectionWindowBodyProps) {
   const surface = getResourceInspectionSurface(resource.inspectionKind);
   const externalRepresentation = resource.representations?.find(
     (representation): representation is ResourceExternalRepresentation =>
@@ -30,6 +35,7 @@ export function InspectionWindowBody({ resource }: InspectionWindowBodyProps) {
           <MarkdownStructuredDocumentBody
             resource={resource}
             source={resource.content.markdownSource}
+            onNavigateToResource={onNavigateToResource}
           />
         </div>
       );
@@ -41,7 +47,11 @@ export function InspectionWindowBody({ resource }: InspectionWindowBodyProps) {
           data-inspection-body="structured-document"
           data-structured-document-source={document.source}
         >
-          <StructuredDocumentBody blocks={document.blocks} resource={resource} />
+          <StructuredDocumentBody
+            blocks={document.blocks}
+            resource={resource}
+            onNavigateToResource={onNavigateToResource}
+          />
         </div>
       );
     }
@@ -59,6 +69,17 @@ export function InspectionWindowBody({ resource }: InspectionWindowBodyProps) {
     return (
       <div data-inspection-body="external-link">
         <ExternalLinkInspectionBody resource={resource} />
+      </div>
+    );
+  }
+
+  if (surface === "notebook") {
+    return (
+      <div data-inspection-body="notebook">
+        <NotebookInspectionBody
+          resource={resource}
+          onNavigateToResource={onNavigateToResource}
+        />
       </div>
     );
   }

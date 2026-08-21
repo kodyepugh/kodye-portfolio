@@ -90,10 +90,18 @@ export type StructuredDocumentCalloutBlock = StructuredDocumentBlockBase & {
 
 export type StructuredDocumentLinkBlock = StructuredDocumentBlockBase & {
   type: "link";
-  href: string;
   label: string;
   description?: string;
-};
+} & (
+    | {
+        href: string;
+        resourceId?: never;
+      }
+    | {
+        resourceId: string;
+        href?: never;
+      }
+  );
 
 export type StructuredDocumentDividerBlock = StructuredDocumentBlockBase & {
   type: "divider";

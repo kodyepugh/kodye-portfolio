@@ -4,6 +4,7 @@ export type ResourceInspectionSurface =
   | "structured-document"
   | "image"
   | "external-link"
+  | "notebook"
   | "unsupported";
 
 export function getResourceInspectionSurface(
@@ -16,18 +17,16 @@ export function getResourceInspectionSurface(
       return "image";
     case "external-link":
       return "external-link";
+    case "notebook-code":
+      return "notebook";
     case "video":
     case "audio":
     case "dataset-table":
-    case "notebook-code":
     case "generic-file":
       return "unsupported";
   }
 }
 
 export function canInspectResource(resource: Pick<Resource, "inspectionKind">) {
-  return (
-    resource.inspectionKind === "notebook-code" ||
-    getResourceInspectionSurface(resource.inspectionKind) !== "unsupported"
-  );
+  return getResourceInspectionSurface(resource.inspectionKind) !== "unsupported";
 }

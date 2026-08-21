@@ -254,7 +254,7 @@ export const BELLABEAT_DOCUMENT_BLOCKS = [
     id: "comprehensive-case-study-link",
     type: "link",
     label: "Open the comprehensive case study",
-    href: "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/reports/portfolio/bellabeat_portfolio_case_study.html",
+    resourceId: "resource-bellabeat-comprehensive-case-study",
   },
 ] satisfies readonly StructuredDocumentBlock[];
 

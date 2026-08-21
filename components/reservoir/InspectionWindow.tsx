@@ -25,6 +25,10 @@ import {
   getInspectionWindowDeployDuration,
   getInspectionWindowRetractDuration,
 } from "@/lib/reservoir/reading";
+import {
+  canConsumeRelationshipShelfWheel,
+  getRelationshipShelfWheelDelta,
+} from "@/lib/reservoir/relationship-shelf";
 
 export type InspectionWindowPhase = "deploying" | "reading" | "closing";
 
@@ -537,6 +541,30 @@ export function InspectionWindow({
     }
 
     function consumeRevealWheel(event: globalThis.WheelEvent) {
+      if (event.ctrlKey) return;
+      const relationshipShelf =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>(
+              '[data-context-wheel-horizontal="true"]',
+            )
+          : null;
+      if (relationshipShelf) {
+        const shelfDelta = getRelationshipShelfWheelDelta(
+          event,
+          16,
+          relationshipShelf.clientWidth,
+        );
+        if (
+          canConsumeRelationshipShelfWheel(
+            relationshipShelf.scrollLeft,
+            relationshipShelf.scrollWidth,
+            relationshipShelf.clientWidth,
+            shelfDelta,
+          )
+        ) {
+          return;
+        }
+      }
       const currentOffset = postContentOffsetRef.current;
       const measurements = revealMeasurementsRef.current;
       const delta = getWheelDelta(event);
@@ -709,7 +737,10 @@ export function InspectionWindow({
               data-context-collections-count={collections.length}
             >
               <div className="inspection-window__primary-body">
-                <InspectionWindowBody resource={resource} />
+                <InspectionWindowBody
+                  resource={resource}
+                  onNavigateToResource={navigateToSupportingResource}
+                />
               </div>
               <InspectionContextTray
                 phase={phase}

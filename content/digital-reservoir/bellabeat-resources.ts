@@ -282,12 +282,20 @@ const supportingDocumentResources: readonly Resource[] = [
     published: true,
     representations: [
       {
-        id: "representation-fitbit-identifier-revision-audit-notebook",
+        id: "representation-fitbit-identifier-revision-audit-notebook-local",
+        kind: "asset",
+        assetId: "asset-fitbit-identifier-revision-audit-notebook",
+        label: "Identifier revision audit notebook",
+        order: 1,
+        published: true,
+      },
+      {
+        id: "representation-fitbit-identifier-revision-audit-notebook-github",
         kind: "external",
         url: "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/notebooks/fitbit_identifier_revision_audit.ipynb",
         label: "Identifier revision audit notebook",
         sourceLabel: "Bellabeat analysis repository",
-        order: 1,
+        order: 2,
         published: true,
       },
     ],

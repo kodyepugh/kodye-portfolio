@@ -6,6 +6,7 @@ import { StructuredDocumentBody } from "./StructuredDocumentBody";
 type MarkdownStructuredDocumentBodyProps = {
   resource: Resource;
   source: StructuredMarkdownSource;
+  onNavigateToResource?: (resourceId: string) => void;
 };
 
 type MarkdownLoadState =
@@ -16,6 +17,7 @@ type MarkdownLoadState =
 export function MarkdownStructuredDocumentBody({
   resource,
   source,
+  onNavigateToResource,
 }: MarkdownStructuredDocumentBodyProps) {
   const [loadState, setLoadState] = useState<MarkdownLoadState>({
     status: "loading",
@@ -79,5 +81,11 @@ export function MarkdownStructuredDocumentBody({
     );
   }
 
-  return <StructuredDocumentBody blocks={blocks} resource={resource} />;
+  return (
+    <StructuredDocumentBody
+      blocks={blocks}
+      resource={resource}
+      onNavigateToResource={onNavigateToResource}
+    />
+  );
 }

@@ -1102,7 +1102,7 @@ body.artifact-reading-mode .reservoir-study {
   grid-row: 2;
   display: grid;
   gap: 18px;
-  width: min(100%, 760px);
+  width: 100%;
   min-width: 0;
   margin-inline: auto;
 }
@@ -1176,12 +1176,11 @@ body.artifact-reading-mode .reservoir-study {
 
 .inspection-context-tray__panel {
   min-width: 0;
-  min-height: 182px;
+  height: 224px;
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-inline: contain;
   scrollbar-gutter: stable;
-  scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1190,33 +1189,40 @@ body.artifact-reading-mode .reservoir-study {
   outline-offset: 5px;
 }
 
-.inspection-context-tray__pills {
-  display: grid;
-  grid-template-rows: repeat(4, 38px);
-  grid-auto-flow: column;
-  grid-auto-columns: max-content;
-  align-content: start;
-  justify-content: start;
+.inspection-context-tray__brick-field {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   width: max-content;
   min-width: 100%;
   margin: 0;
-  padding: 0 0 12px;
+  padding: 8px 8px 20px;
+  box-sizing: border-box;
+}
+
+.inspection-context-tray__brick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  min-width: 100%;
+  min-height: 38px;
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
-.inspection-context-tray__pills li {
-  min-width: 0;
-  scroll-snap-align: start;
+.inspection-context-tray__brick-row li {
+  flex: 0 0 auto;
 }
 
 .inspection-context-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  width: min(260px, calc(100vw - 56px));
+  width: max-content;
   height: 38px;
-  max-width: 100%;
+  max-width: none;
   padding: 8px 13px 8px 10px;
   color: inherit;
   background: color-mix(
@@ -1240,9 +1246,6 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .inspection-context-pill span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1843,6 +1846,23 @@ body.artifact-reading-mode .reservoir-study {
   text-underline-offset: 5px;
 }
 
+.structured-document__link-action {
+  appearance: none;
+  display: inline-block;
+  margin-top: 12px;
+  padding: 0;
+  color: var(--artifact-text);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--artifact-text-muted);
+  text-underline-offset: 5px;
+  cursor: pointer;
+}
+
 .structured-document p a,
 .structured-document li a,
 .structured-document th a,
@@ -1872,8 +1892,166 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .structured-document a:hover,
-.structured-document a:focus-visible {
+.structured-document a:focus-visible,
+.structured-document__link-action:hover,
+.structured-document__link-action:focus-visible {
   text-decoration-thickness: 2px;
+}
+
+.inspection-notebook {
+  display: grid;
+  gap: clamp(64px, 10svh, 112px);
+  width: 100%;
+  max-width: var(--inspection-primary-width);
+}
+
+.inspection-notebook--state {
+  align-content: start;
+  min-height: 44svh;
+  gap: 18px;
+}
+
+.inspection-notebook__header {
+  display: grid;
+  gap: 14px;
+  max-width: 700px;
+}
+
+.inspection-notebook__header h2,
+.inspection-notebook__header p {
+  margin: 0;
+}
+
+.inspection-notebook__header > p:not(.artifact-window__section-index) {
+  max-width: 62ch;
+  color: var(--artifact-text-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.inspection-notebook__header a {
+  width: max-content;
+  color: var(--artifact-text);
+  font-size: 11px;
+  text-decoration-color: var(--artifact-text-muted);
+  text-underline-offset: 5px;
+}
+
+.inspection-notebook__format {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px !important;
+}
+
+.inspection-notebook__cells {
+  display: grid;
+  gap: clamp(38px, 7svh, 72px);
+}
+
+.inspection-notebook__cell {
+  min-width: 0;
+}
+
+.inspection-notebook__cell--markdown .structured-document {
+  gap: 32px;
+}
+
+.inspection-notebook__cell--markdown .structured-document section {
+  max-width: 700px;
+  margin-left: 0;
+}
+
+.inspection-notebook__cell--code {
+  display: grid;
+  grid-template-columns: minmax(54px, 72px) minmax(0, 1fr);
+  align-items: start;
+  gap: 10px 14px;
+}
+
+.inspection-notebook__prompt {
+  margin: 0;
+  padding-top: 15px;
+  color: var(--artifact-text-muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.inspection-notebook__code,
+.inspection-notebook__output pre {
+  max-width: 100%;
+  margin: 0;
+  padding: 18px 20px;
+  overflow-x: auto;
+  background: var(--artifact-surface-raised);
+  border: 1px solid var(--artifact-border);
+}
+
+.inspection-notebook__code {
+  grid-column: 2;
+}
+
+.inspection-notebook__code code,
+.inspection-notebook__output code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.inspection-notebook__outputs {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.inspection-notebook__output {
+  display: grid;
+  grid-template-columns: minmax(54px, 72px) minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.inspection-notebook__output > :not(.inspection-notebook__prompt) {
+  grid-column: 2;
+}
+
+.inspection-notebook__output img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--artifact-border);
+}
+
+.inspection-notebook__error,
+.inspection-notebook__unsupported-output {
+  margin: 0;
+  padding: 18px 20px;
+  background: color-mix(
+    in srgb,
+    var(--artifact-surface-raised) 92%,
+    #b24b3b 8%
+  );
+  border: 1px solid var(--artifact-border);
+}
+
+@media (max-width: 640px) {
+  .inspection-notebook__cell--code,
+  .inspection-notebook__output {
+    grid-template-columns: 1fr;
+  }
+
+  .inspection-notebook__prompt,
+  .inspection-notebook__code,
+  .inspection-notebook__output > :not(.inspection-notebook__prompt),
+  .inspection-notebook__outputs {
+    grid-column: 1;
+  }
+
+  .inspection-notebook__prompt {
+    padding-top: 0;
+  }
 }
 
 .artifact-terminal-layer {

@@ -68,6 +68,16 @@ const {
   canInspectResource,
 } = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
 const {
+  getPublishedNotebookRepresentations,
+  parseNotebookDocument,
+  resolveNotebookInspection,
+} = require(path.join(projectRoot, "lib/content/notebook-inspection.ts"));
+const {
+  canConsumeRelationshipShelfWheel,
+  distributeRelationshipShelfItems,
+  getRelationshipShelfWheelDelta,
+} = require(path.join(projectRoot, "lib/reservoir/relationship-shelf.ts"));
+const {
   getPublishedImageRepresentations,
   getImageAltText,
   resolveImageInspection,
@@ -177,6 +187,28 @@ const reservoirSceneSource = fs.readFileSync(
 const inspectionCssSource = fs.readFileSync(
   path.join(projectRoot, "app/globals.css"),
   "utf8",
+);
+const inspectionContextTraySource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/InspectionContextTray.tsx"),
+  "utf8",
+);
+const notebookInspectionBodySource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/NotebookInspectionBody.tsx"),
+  "utf8",
+);
+const notebookFileSource = fs.readFileSync(
+  path.join(
+    projectRoot,
+    "public/bellabeat/notebooks/fitbit_identifier_revision_audit.ipynb",
+  ),
+  "utf8",
+);
+const notebookResolution = notebookResource
+  ? resolveNotebookInspection(notebookResource)
+  : null;
+const parsedNotebook = parseNotebookDocument(notebookFileSource);
+const relationshipShelfRows = distributeRelationshipShelfItems(
+  Array.from({ length: 10 }, (_, index) => index + 1),
 );
 const qaImageAssetRepresentation = {
   id: "qa-image-asset-representation",
@@ -378,6 +410,12 @@ const structuredBlocks = [
   { id: "list", type: "list", style: "unordered", items: ["One"] },
   { id: "callout", type: "callout", text: "Callout" },
   { id: "link", type: "link", href: "https://example.com", label: "Example" },
+  {
+    id: "internal-link",
+    type: "link",
+    resourceId: about.id,
+    label: "About",
+  },
   { id: "divider", type: "divider" },
   { id: "table", type: "table", columns: ["A"], rows: [["B"]] },
   { id: "quote", type: "quote", text: "Quote" },
@@ -669,6 +707,56 @@ const invalidReferenceRegistry = {
     },
   ],
 };
+const invalidInternalLinkRegistry = {
+  ...contentRegistry,
+  resources: [
+    ...contentRegistry.resources,
+    {
+      ...nonArtifactDocument,
+      id: "qa-invalid-internal-link",
+      slug: "qa-invalid-internal-link",
+      content: {
+        ...nonArtifactDocument.content,
+        blocks: [
+          {
+            id: "broken-internal-link",
+            type: "link",
+            resourceId: "missing-resource",
+            label: "Missing Resource",
+          },
+        ],
+      },
+    },
+  ],
+};
+const unpublishedInternalLinkTarget = {
+  ...supportHiddenTargetResource,
+  id: "qa-unpublished-internal-link-target",
+  slug: "qa-unpublished-internal-link-target",
+};
+const unpublishedInternalLinkRegistry = {
+  ...contentRegistry,
+  resources: [
+    ...contentRegistry.resources,
+    unpublishedInternalLinkTarget,
+    {
+      ...nonArtifactDocument,
+      id: "qa-unpublished-internal-link-source",
+      slug: "qa-unpublished-internal-link-source",
+      content: {
+        ...nonArtifactDocument.content,
+        blocks: [
+          {
+            id: "unpublished-internal-link",
+            type: "link",
+            resourceId: unpublishedInternalLinkTarget.id,
+            label: "Unpublished Resource",
+          },
+        ],
+      },
+    },
+  ],
+};
 const validSyntheticResult = validateContentRegistry(validSyntheticRegistry);
 const brandSymbolCollections = getPublishedResourceCollections(brandSymbol.id);
 const resourcePill = getInspectionResourcePill(supportTargetResource);
@@ -916,11 +1004,62 @@ const checks = [
       comprehensiveBlocks.filter((block) => block.type === "figure").length === 10,
   ],
   [
-    "notebook opens the common chassis while retaining an explicit unsupported renderer",
+    "internal structured-document links require known published Resource targets",
+    validateContentRegistry(invalidInternalLinkRegistry).errors.some((error) =>
+      error.includes("references unknown Resource missing-resource"),
+    ) &&
+      validateContentRegistry(unpublishedInternalLinkRegistry).errors.some(
+        (error) => error.includes("references unpublished Resource"),
+      ),
+  ],
+  [
+    "Bellabeat comprehensive link resolves through canonical Resource identity",
+    bellabeat.content.blocks.some(
+      (block) =>
+        block.type === "link" &&
+        block.label === "Open the comprehensive case study" &&
+        block.resourceId === comprehensiveCaseStudy.id &&
+        block.href === undefined,
+    ),
+  ],
+  [
+    "notebook-code resolves to a truthful implemented Inspection surface",
     notebookResource?.inspectionKind === "notebook-code" &&
       canInspectResource(notebookResource) &&
       getResourceInspectionSurface(notebookResource.inspectionKind) ===
-        "unsupported",
+        "notebook",
+  ],
+  [
+    "notebook resolves through the preferred local published Asset representation",
+    notebookResolution?.status === "ready" &&
+      notebookResolution.asset.kind === "document" &&
+      notebookResolution.asset.src ===
+        "/bellabeat/notebooks/fitbit_identifier_revision_audit.ipynb" &&
+      notebookResolution.asset.mimeType === "application/x-ipynb+json" &&
+      notebookResolution.representation.order === 1 &&
+      getPublishedNotebookRepresentations(notebookResource).length === 1,
+  ],
+  [
+    "approved notebook parses deterministically with real cell and output order",
+    parsedNotebook.status === "ready" &&
+      parsedNotebook.notebook.nbformat === 4 &&
+      parsedNotebook.notebook.cells.length === 13 &&
+      parsedNotebook.notebook.cells.filter((cell) => cell.type === "markdown")
+        .length === 8 &&
+      parsedNotebook.notebook.cells.filter((cell) => cell.type === "code")
+        .length === 5 &&
+      parsedNotebook.notebook.cells
+        .filter((cell) => cell.type === "code")
+        .flatMap((cell) => cell.outputs).length === 6,
+  ],
+  [
+    "notebook rendering uses safe text and image models without HTML injection",
+    parsedNotebook.status === "ready" &&
+      parsedNotebook.notebook.cells
+        .filter((cell) => cell.type === "code")
+        .flatMap((cell) => cell.outputs)
+        .every((output) => output.type !== "unsupported") &&
+      !notebookInspectionBodySource.includes("dangerouslySetInnerHTML"),
   ],
   [
     "direct Resource intent consumes only its exact settled single-result query",
@@ -963,12 +1102,45 @@ const checks = [
       ),
   ],
   [
-    "relationship shelf pins four rows with horizontal overflow and shared height",
-    inspectionCssSource.includes("grid-template-rows: repeat(4, 38px)") &&
-    inspectionCssSource.includes("grid-auto-flow: column") &&
-      inspectionCssSource.includes("overflow-x: auto") &&
-      inspectionCssSource.includes("min-height: 182px") &&
-      inspectionCssSource.includes("width: min(260px, calc(100vw - 56px))"),
+    "relationship shelf distributes vertical-first order across four independent rows",
+    JSON.stringify(relationshipShelfRows) ===
+      JSON.stringify([[1, 5, 9], [2, 6, 10], [3, 7], [4, 8]]) &&
+      inspectionContextTraySource.includes(
+        'className="inspection-context-tray__brick-row"',
+      ) &&
+      !inspectionCssSource.includes("grid-auto-flow: column"),
+  ],
+  [
+    "relationship shelf uses intrinsic full-title bricks in the primary 880px track",
+    inspectionCssSource.includes(".inspection-context-tray__brick-field") &&
+      inspectionCssSource.includes("width: max-content") &&
+      inspectionCssSource.includes(".inspection-context-tray {") &&
+      /\.inspection-context-tray\s*\{[\s\S]*?width: 100%;/.test(
+        inspectionCssSource,
+      ) &&
+      !/\.inspection-context-pill span\s*\{[\s\S]*?text-overflow: ellipsis;/.test(
+        inspectionCssSource,
+      ),
+  ],
+  [
+    "relationship shelf wheel translation consumes only movable directions",
+    getRelationshipShelfWheelDelta(
+      { deltaX: 0, deltaY: 3, deltaMode: 1 },
+      16,
+      800,
+    ) === 48 &&
+      getRelationshipShelfWheelDelta(
+        { deltaX: -22, deltaY: 4, deltaMode: 0 },
+        16,
+        800,
+      ) === -22 &&
+      canConsumeRelationshipShelfWheel(0, 1400, 800, 120) &&
+      !canConsumeRelationshipShelfWheel(600, 1400, 800, 120) &&
+      canConsumeRelationshipShelfWheel(600, 1400, 800, -120) &&
+      !canConsumeRelationshipShelfWheel(0, 1400, 800, -120) &&
+      inspectionContextTraySource.includes('passive: false') &&
+      inspectionContextTraySource.includes("event.preventDefault()") &&
+      !inspectionCssSource.includes("scroll-snap-type"),
   ],
   [
     "image tonal field belongs to the aspect-ratio frame rather than layout allocation",

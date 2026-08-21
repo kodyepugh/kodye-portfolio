@@ -3,6 +3,8 @@ import { BELLABEAT_FIGURE_ALT_TEXT } from "./bellabeat-resources";
 
 export const ASSET_IDS = {
   brandSymbol: "asset-kodyepugh-symbol",
+  fitbitIdentifierRevisionAuditNotebook:
+    "asset-fitbit-identifier-revision-audit-notebook",
   bellabeatDailyStepsDistribution: "asset-bellabeat-daily-steps-distribution",
   bellabeatDailyStepsTrend: "asset-bellabeat-daily-steps-trend",
   bellabeatActivityIntensityComposition:
@@ -44,6 +46,13 @@ export const assets = [
     width: 1000,
     height: 974,
     alt: "Kodye Pugh symbol and wordmark",
+  },
+  {
+    id: ASSET_IDS.fitbitIdentifierRevisionAuditNotebook,
+    kind: "document",
+    src: "/bellabeat/notebooks/fitbit_identifier_revision_audit.ipynb",
+    filename: "fitbit_identifier_revision_audit.ipynb",
+    mimeType: "application/x-ipynb+json",
   },
   ...BELLABEAT_FIGURES.map(([id, filename, resourceId, width, height]) => ({
     id,

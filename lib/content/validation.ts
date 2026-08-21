@@ -176,13 +176,26 @@ function reportStructuredDocumentBlocks(
         break;
       case "link":
         requireText(block, "label", block.label);
-        requireText(block, "href", block.href);
-        try {
-          new URL(block.href, "https://digital-reservoir.local");
-        } catch {
-          errors.push(
-            `Resource ${resource.id} link block ${block.id} has invalid href ${block.href}`,
-          );
+        if (typeof block.resourceId === "string") {
+          const target = resourcesById.get(block.resourceId);
+          if (!target) {
+            errors.push(
+              `Resource ${resource.id} link block ${block.id} references unknown Resource ${block.resourceId}`,
+            );
+          } else if (target.published !== true) {
+            errors.push(
+              `Resource ${resource.id} link block ${block.id} references unpublished Resource ${block.resourceId}`,
+            );
+          }
+        } else {
+          requireText(block, "href", block.href);
+          try {
+            new URL(block.href, "https://digital-reservoir.local");
+          } catch {
+            errors.push(
+              `Resource ${resource.id} link block ${block.id} has invalid href ${block.href}`,
+            );
+          }
         }
         break;
       case "table":
@@ -228,6 +241,8 @@ function reportInspectionContentCompatibility(
         ? contentKind === "media"
         : resource.inspectionKind === "external-link"
           ? contentKind === "external-link"
+          : resource.inspectionKind === "notebook-code"
+            ? contentKind === "document"
           : true;
 
   if (!compatible) {

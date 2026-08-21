@@ -96,6 +96,13 @@ export const sourceRecords = [
     sourceLabel: "Public brand asset",
   },
   {
+    id: "source-fitbit-identifier-revision-audit-notebook-file",
+    assetId: ASSET_IDS.fitbitIdentifierRevisionAuditNotebook,
+    sourceType: "local-file",
+    originalPath: "notebooks/fitbit_identifier_revision_audit.ipynb",
+    sourceLabel: "Approved Bellabeat analysis notebook",
+  },
+  {
     id: "source-bellabeat-repository",
     resourceId: RESOURCE_IDS.bellabeatRepository,
     sourceType: "external-url",

@@ -1,0 +1,231 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  parseNotebookDocument,
+  resolveNotebookInspection,
+  type NotebookDocument,
+  type NotebookOutput,
+} from "@/lib/content/notebook-inspection";
+import { parseMarkdownStructuredDocument } from "@/lib/content/markdown-structured-document";
+import type { Resource } from "@/types/content";
+import { StructuredDocumentBody } from "./StructuredDocumentBody";
+
+type NotebookInspectionBodyProps = {
+  resource: Resource;
+  onNavigateToResource?: (resourceId: string) => void;
+};
+
+type NotebookLoadState =
+  | { status: "loading" }
+  | { status: "ready"; sourceKey: string; notebook: NotebookDocument }
+  | { status: "unavailable"; sourceKey: string; reason: string };
+
+function NotebookOutputBody({
+  output,
+  executionCount,
+}: {
+  output: NotebookOutput;
+  executionCount: number | string | null;
+}) {
+  const outputLabel =
+    output.outputType === "stream"
+      ? output.type === "text" && output.streamName
+        ? output.streamName
+        : "Stream"
+      : `Out [${executionCount ?? " "}]:`;
+
+  return (
+    <section
+      className="inspection-notebook__output"
+      data-notebook-output-type={output.outputType}
+    >
+      <p className="inspection-notebook__prompt">{outputLabel}</p>
+      {output.type === "text" ? (
+        <pre><code>{output.text}</code></pre>
+      ) : output.type === "image" ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`data:${output.mimeType};base64,${output.base64}`}
+          alt="Notebook output"
+        />
+      ) : output.type === "error" ? (
+        <div className="inspection-notebook__error" role="alert">
+          <strong>{output.name}</strong>
+          {output.value ? <p>{output.value}</p> : null}
+          {output.traceback ? <pre><code>{output.traceback}</code></pre> : null}
+        </div>
+      ) : (
+        <p className="inspection-notebook__unsupported-output">
+          Output type {output.outputType} is not available in this read-only
+          renderer.
+        </p>
+      )}
+    </section>
+  );
+}
+
+export function NotebookInspectionBody({
+  resource,
+  onNavigateToResource,
+}: NotebookInspectionBodyProps) {
+  const resolution = useMemo(
+    () => resolveNotebookInspection(resource),
+    [resource],
+  );
+  const [loadState, setLoadState] = useState<NotebookLoadState>({
+    status: "loading",
+  });
+  const externalRepresentation = resource.representations?.find(
+    (representation) =>
+      representation.kind === "external" && representation.published !== false,
+  );
+
+  useEffect(() => {
+    if (resolution.status === "unavailable") return;
+
+    const controller = new AbortController();
+    const sourceKey = resolution.asset.src;
+
+    fetch(resolution.asset.src, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`The notebook source returned ${response.status}.`);
+        }
+        return response.text();
+      })
+      .then((source) => {
+        const parsed = parseNotebookDocument(source);
+        setLoadState(
+          parsed.status === "ready"
+            ? { status: "ready", sourceKey, notebook: parsed.notebook }
+            : {
+                status: "unavailable",
+                sourceKey,
+                reason: parsed.reason,
+              },
+        );
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setLoadState({
+          status: "unavailable",
+          sourceKey,
+          reason:
+            error instanceof Error
+              ? error.message
+              : "The notebook could not be loaded.",
+        });
+      });
+
+    return () => controller.abort();
+  }, [resolution]);
+
+  const displayedLoadState: NotebookLoadState =
+    resolution.status === "unavailable"
+      ? {
+          status: "unavailable",
+          sourceKey: resource.id,
+          reason: resolution.reason,
+        }
+      : loadState.status !== "loading" &&
+          loadState.sourceKey === resolution.asset.src
+        ? loadState
+        : { status: "loading" };
+
+  if (displayedLoadState.status !== "ready") {
+    return (
+      <section
+        className="inspection-notebook inspection-notebook--state"
+        aria-live="polite"
+        data-notebook-state={displayedLoadState.status}
+      >
+        <p className="artifact-window__section-index">
+          {displayedLoadState.status === "loading"
+            ? "Preparing notebook"
+            : "Notebook unavailable"}
+        </p>
+        <h2>{resource.title}</h2>
+        <p>
+          {displayedLoadState.status === "loading"
+            ? "Loading the approved read-only notebook…"
+            : displayedLoadState.reason}
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <article
+      className="inspection-notebook"
+      data-notebook-state="ready"
+      data-notebook-resource-id={resource.id}
+      data-notebook-cell-count={displayedLoadState.notebook.cells.length}
+    >
+      <header className="inspection-notebook__header">
+        <p className="artifact-window__section-index">Read-only notebook</p>
+        <h2>{resource.title}</h2>
+        {resource.subtitle ? <p>{resource.subtitle}</p> : null}
+        <p className="inspection-notebook__format">
+          nbformat {displayedLoadState.notebook.nbformat}.
+          {displayedLoadState.notebook.nbformatMinor} · {displayedLoadState.notebook.cells.length} cells
+        </p>
+        {externalRepresentation?.kind === "external" ? (
+          <a
+            href={externalRepresentation.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View original notebook
+          </a>
+        ) : null}
+      </header>
+
+      <div className="inspection-notebook__cells">
+        {displayedLoadState.notebook.cells.map((cell, index) => {
+          if (cell.type === "markdown") {
+            const blocks = parseMarkdownStructuredDocument(cell.source, {
+              resourceId: `${resource.id}-${cell.id}`,
+            });
+            return (
+              <section
+                key={`${cell.id}-${index}`}
+                className="inspection-notebook__cell inspection-notebook__cell--markdown"
+                data-notebook-cell-type="markdown"
+              >
+                <StructuredDocumentBody
+                  blocks={blocks}
+                  resource={resource}
+                  onNavigateToResource={onNavigateToResource}
+                />
+              </section>
+            );
+          }
+
+          return (
+            <section
+              key={`${cell.id}-${index}`}
+              className="inspection-notebook__cell inspection-notebook__cell--code"
+              data-notebook-cell-type="code"
+              data-notebook-execution-count={cell.executionCount ?? ""}
+            >
+              <p className="inspection-notebook__prompt">
+                In [{cell.executionCount ?? " "}]:
+              </p>
+              <pre className="inspection-notebook__code"><code>{cell.source}</code></pre>
+              {cell.outputs.length > 0 ? (
+                <div className="inspection-notebook__outputs">
+                  {cell.outputs.map((output, outputIndex) => (
+                    <NotebookOutputBody
+                      key={`${cell.id}-output-${outputIndex}`}
+                      output={output}
+                      executionCount={cell.executionCount}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
+    </article>
+  );
+}

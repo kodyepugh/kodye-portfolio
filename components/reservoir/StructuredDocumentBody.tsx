@@ -13,6 +13,7 @@ import type {
 type StructuredDocumentBodyProps = {
   blocks: readonly StructuredDocumentBlock[];
   resource: Resource;
+  onNavigateToResource?: (resourceId: string) => void;
 };
 
 type StructuredDocumentSection = {
@@ -149,6 +150,7 @@ function resolveFigureAsset(block: StructuredDocumentFigureBlock) {
 function renderBlock(
   resource: Resource,
   block: StructuredDocumentBlock,
+  onNavigateToResource?: (resourceId: string) => void,
 ): ReactNode {
   switch (block.type) {
     case "heading":
@@ -193,7 +195,19 @@ function renderBlock(
       return (
         <div className="structured-document__link">
           {block.description ? <p>{block.description}</p> : null}
-          <a href={block.href}>{block.label}</a>
+          {typeof block.resourceId === "string" ? (
+            <button
+              className="structured-document__link-action"
+              type="button"
+              onClick={() => onNavigateToResource?.(block.resourceId)}
+              disabled={!onNavigateToResource}
+              data-resource-link-id={block.resourceId}
+            >
+              {block.label}
+            </button>
+          ) : (
+            <a href={block.href}>{block.label}</a>
+          )}
         </div>
       );
     case "divider":
@@ -256,6 +270,7 @@ function renderBlock(
 export function StructuredDocumentBody({
   blocks,
   resource,
+  onNavigateToResource,
 }: StructuredDocumentBodyProps) {
   const sections = groupStructuredDocumentBlocks(resource.id, blocks);
 
@@ -274,7 +289,7 @@ export function StructuredDocumentBody({
               data-structured-document-block-id={block.id}
               data-structured-document-block-type={block.type}
             >
-              {renderBlock(resource, block)}
+              {renderBlock(resource, block, onNavigateToResource)}
             </div>
           ))}
         </section>

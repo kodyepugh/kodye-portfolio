@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- The validation runner installs a small CommonJS TypeScript loader before importing the typed registry. */
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const Module = require("node:module");
 const ts = require("typescript");
@@ -432,14 +433,26 @@ const checks = [
       ),
   ],
   [
-    "notebook remains a truthful unsupported native surface with its original representation",
+    "notebook has an unchanged local Asset representation and secondary GitHub provenance",
     notebookResource?.inspectionKind === "notebook-code" &&
       notebookResource.content === undefined &&
-      notebookResource.representations?.some(
-        (representation) =>
-          representation.kind === "external" &&
-          representation.url.endsWith(".ipynb"),
-      ),
+      notebookResource.representations?.[0]?.kind === "asset" &&
+      notebookResource.representations[0].assetId ===
+        ASSET_IDS.fitbitIdentifierRevisionAuditNotebook &&
+      notebookResource.representations[1]?.kind === "external" &&
+      notebookResource.representations[1].url.endsWith(".ipynb") &&
+      crypto
+        .createHash("sha256")
+        .update(
+          fs.readFileSync(
+            path.join(
+              projectRoot,
+              "public/bellabeat/notebooks/fitbit_identifier_revision_audit.ipynb",
+            ),
+          ),
+        )
+        .digest("hex") ===
+        "bd73af95639a60e364c7e148ffd35e8dad3718cb254f2d1f97d402416392711f",
   ],
   [
     "Bellabeat image representations expose verified intrinsic dimensions",
@@ -471,7 +484,14 @@ const checks = [
   [
     "source records resolve independently",
     getSourceRecordsForArtifact(ARTIFACT_IDS.bellabeat).length > 0 &&
-      getSourceRecordsForAsset(ASSET_IDS.brandSymbol).length > 0,
+      getSourceRecordsForAsset(ASSET_IDS.brandSymbol).length > 0 &&
+      getSourceRecordsForAsset(
+        ASSET_IDS.fitbitIdentifierRevisionAuditNotebook,
+      ).some(
+        (source) =>
+          source.originalPath ===
+          "notebooks/fitbit_identifier_revision_audit.ipynb",
+      ),
   ],
   [
     "collection contents adapt without spatial placement",

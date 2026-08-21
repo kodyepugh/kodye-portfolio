@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PublishedResourceContext } from "@/lib/content/selectors";
 import type { Collection } from "@/types/content";
 import {
@@ -11,6 +11,11 @@ import {
   isInspectionSupportRailInteractive,
   type InspectionWindowPhase,
 } from "@/lib/reservoir/inspection-support";
+import {
+  canConsumeRelationshipShelfWheel,
+  distributeRelationshipShelfItems,
+  getRelationshipShelfWheelDelta,
+} from "@/lib/reservoir/relationship-shelf";
 
 type InspectionContextView = "resources" | "collections";
 
@@ -68,52 +73,60 @@ function ObjectPills({
   onNavigateToResource: (resourceId: string) => void;
   onNavigateToCollection: (collectionId: string) => void;
 }) {
-  if (view === "resources") {
-    return (
-      <ul className="inspection-context-tray__pills" aria-label="Resources">
-        {resources.map((connection) => {
+  const items =
+    view === "resources"
+      ? resources.map((connection) => {
           const pill = getInspectionResourcePill(connection.resource);
+          return {
+            key: connection.relationshipId,
+            pill,
+            ariaLabel: `Open resource ${pill.name}`,
+            onClick: () => onNavigateToResource(pill.id),
+          };
+        })
+      : collections.map((collection) => {
+          const pill = getInspectionCollectionPill(collection);
+          return {
+            key: pill.id,
+            pill,
+            ariaLabel: `Open collection ${pill.name}`,
+            onClick: () => onNavigateToCollection(pill.id),
+          };
+        });
+  const rows = distributeRelationshipShelfItems(items);
+  const label = view === "resources" ? "Resources" : "Collections";
 
-          return (
-            <li key={connection.relationshipId}>
+  return (
+    <div
+      className="inspection-context-tray__brick-field"
+      role="group"
+      aria-label={label}
+      data-relationship-brick-rows={rows.length}
+    >
+      {rows.map((row, rowIndex) => (
+        <ul
+          className="inspection-context-tray__brick-row"
+          aria-label={`${label} row ${rowIndex + 1}`}
+          data-relationship-brick-row={rowIndex + 1}
+          key={`${view}-row-${rowIndex + 1}`}
+        >
+          {row.map((item) => (
+            <li key={item.key}>
               <button
                 className="inspection-context-pill"
                 type="button"
                 disabled={!interactive}
-                aria-label={`Open resource ${pill.name}`}
-                onClick={() => onNavigateToResource(pill.id)}
+                aria-label={item.ariaLabel}
+                onClick={item.onClick}
               >
-                <InspectionObjectIcon iconKey={pill.iconKey} />
-                <span>{pill.name}</span>
+                <InspectionObjectIcon iconKey={item.pill.iconKey} />
+                <span>{item.pill.name}</span>
               </button>
             </li>
-          );
-        })}
-      </ul>
-    );
-  }
-
-  return (
-    <ul className="inspection-context-tray__pills" aria-label="Collections">
-      {collections.map((collection) => {
-        const pill = getInspectionCollectionPill(collection);
-
-        return (
-          <li key={pill.id}>
-            <button
-              className="inspection-context-pill"
-              type="button"
-              disabled={!interactive}
-              aria-label={`Open collection ${pill.name}`}
-              onClick={() => onNavigateToCollection(pill.id)}
-            >
-              <InspectionObjectIcon iconKey={pill.iconKey} />
-              <span>{pill.name}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+          ))}
+        </ul>
+      ))}
+    </div>
   );
 }
 
@@ -124,6 +137,7 @@ export function InspectionContextTray({
   onNavigateToResource,
   onNavigateToCollection,
 }: InspectionContextTrayProps) {
+  const panelRef = useRef<HTMLElement | null>(null);
   const hasResources = resources.length > 0;
   const hasCollections = collections.length > 0;
   const initialView = getInspectionContextAvailability(
@@ -140,6 +154,42 @@ export function InspectionContextTray({
         ? activeView
         : initialView ?? "collections";
   const interactive = isInspectionSupportRailInteractive(phase);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const scrollingPanel = panel;
+
+    function translateWheel(event: WheelEvent) {
+      if (event.ctrlKey) return;
+      const delta = getRelationshipShelfWheelDelta(
+        event,
+        16,
+        scrollingPanel.clientWidth,
+      );
+      if (
+        !canConsumeRelationshipShelfWheel(
+          scrollingPanel.scrollLeft,
+          scrollingPanel.scrollWidth,
+          scrollingPanel.clientWidth,
+          delta,
+        )
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      scrollingPanel.scrollLeft += delta;
+      scrollingPanel.dataset.contextShelfWheelConsumed = "true";
+      scrollingPanel.dataset.contextShelfScrollLeft =
+        scrollingPanel.scrollLeft.toFixed(3);
+    }
+
+    scrollingPanel.addEventListener("wheel", translateWheel, {
+      passive: false,
+    });
+    return () => scrollingPanel.removeEventListener("wheel", translateWheel);
+  }, [resolvedView]);
 
   if (!hasResources && !hasCollections) return null;
 
@@ -186,6 +236,7 @@ export function InspectionContextTray({
 
       <div className="inspection-context-tray__panels">
         <section
+          ref={panelRef}
           className="inspection-context-tray__panel"
           id={
             resolvedView === "resources"
@@ -197,6 +248,7 @@ export function InspectionContextTray({
           aria-label={`${resolvedView === "resources" ? "Resources" : "Collections"} relationship shelf; scroll horizontally for more`}
           tabIndex={0}
           data-context-shelf-max-rows="4"
+          data-context-wheel-horizontal="true"
         >
           <ObjectPills
             view={resolvedView}
