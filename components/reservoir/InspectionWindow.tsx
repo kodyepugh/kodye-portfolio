@@ -26,11 +26,6 @@ import {
   getInspectionWindowDeployDuration,
   getInspectionWindowRetractDuration,
 } from "@/lib/reservoir/reading";
-import {
-  canConsumeRelationshipShelfWheel,
-  getRelationshipShelfWheelDelta,
-} from "@/lib/reservoir/relationship-shelf";
-
 export type InspectionWindowPhase = "deploying" | "reading" | "closing";
 
 type InspectionScrollPhase =
@@ -562,21 +557,7 @@ export function InspectionWindow({
             )
           : null;
       if (relationshipShelf) {
-        const shelfDelta = getRelationshipShelfWheelDelta(
-          event,
-          16,
-          relationshipShelf.clientWidth,
-        );
-        if (
-          canConsumeRelationshipShelfWheel(
-            relationshipShelf.scrollLeft,
-            relationshipShelf.scrollWidth,
-            relationshipShelf.clientWidth,
-            shelfDelta,
-          )
-        ) {
-          return;
-        }
+        return;
       }
       const currentOffset = postContentOffsetRef.current;
       const measurements = revealMeasurementsRef.current;

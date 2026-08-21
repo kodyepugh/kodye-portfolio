@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import type {
   PublishedResourceContext,
   PublishedResourceContextDirections,
@@ -18,7 +19,7 @@ import {
   type InspectionWindowPhase,
 } from "@/lib/reservoir/inspection-support";
 import {
-  canConsumeRelationshipShelfWheel,
+  clampRelationshipShelfScrollLeft,
   distributeRelationshipShelfItems,
   getRelationshipShelfWheelDelta,
 } from "@/lib/reservoir/relationship-shelf";
@@ -116,18 +117,22 @@ function ResourcePills({
 }
 
 function CollectionPills({
+  panelRef,
   collections,
   interactive,
   onNavigateToCollection,
 }: {
+  panelRef: RefObject<HTMLUListElement | null>;
   collections: readonly Collection[];
   interactive: boolean;
   onNavigateToCollection: (collectionId: string) => void;
 }) {
   return (
     <ul
+      ref={panelRef}
       className="inspection-context-tray__collection-list"
       aria-label="Collection memberships"
+      data-context-wheel-horizontal="true"
     >
       {collections.map((collection) => {
         const pill = getInspectionCollectionPill(collection);
@@ -158,6 +163,7 @@ export function InspectionContextTray({
   onNavigateToCollection,
 }: InspectionContextTrayProps) {
   const panelRef = useRef<HTMLElement | null>(null);
+  const collectionPanelRef = useRef<HTMLUListElement | null>(null);
   const supportedBy = resourceContext.supportedBy;
   const supports = resourceContext.supports;
   const resourceCount = supportedBy.length + supports.length;
@@ -186,40 +192,43 @@ export function InspectionContextTray({
   const interactive = isInspectionSupportRailInteractive(phase);
 
   useEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-    const scrollingPanel = panel;
+    const scrollingPanels = [panelRef.current, collectionPanelRef.current].filter(
+      (panel): panel is HTMLElement => panel !== null,
+    );
+    if (scrollingPanels.length === 0) return;
 
     function translateWheel(event: WheelEvent) {
       if (event.ctrlKey) return;
+      const scrollingPanel = event.currentTarget as HTMLElement;
       const delta = getRelationshipShelfWheelDelta(
         event,
         16,
         scrollingPanel.clientWidth,
       );
-      if (
-        !canConsumeRelationshipShelfWheel(
-          scrollingPanel.scrollLeft,
-          scrollingPanel.scrollWidth,
-          scrollingPanel.clientWidth,
-          delta,
-        )
-      ) {
-        return;
-      }
 
       event.preventDefault();
-      scrollingPanel.scrollLeft += delta;
+      event.stopPropagation();
+      scrollingPanel.scrollLeft = clampRelationshipShelfScrollLeft(
+        scrollingPanel.scrollLeft,
+        scrollingPanel.scrollWidth,
+        scrollingPanel.clientWidth,
+        delta,
+      );
       scrollingPanel.dataset.contextShelfWheelConsumed = "true";
       scrollingPanel.dataset.contextShelfScrollLeft =
         scrollingPanel.scrollLeft.toFixed(3);
     }
 
-    scrollingPanel.addEventListener("wheel", translateWheel, {
-      passive: false,
+    scrollingPanels.forEach((scrollingPanel) => {
+      scrollingPanel.addEventListener("wheel", translateWheel, {
+        passive: false,
+      });
     });
-    return () => scrollingPanel.removeEventListener("wheel", translateWheel);
-  }, [resolvedDirection]);
+    return () =>
+      scrollingPanels.forEach((scrollingPanel) =>
+        scrollingPanel.removeEventListener("wheel", translateWheel),
+      );
+  }, [collections.length, resolvedDirection]);
 
   if (!contextAvailability.hasResources && !contextAvailability.hasCollections) {
     return null;
@@ -331,6 +340,7 @@ export function InspectionContextTray({
             Collections
           </h2>
           <CollectionPills
+            panelRef={collectionPanelRef}
             collections={collections}
             interactive={interactive}
             onNavigateToCollection={onNavigateToCollection}

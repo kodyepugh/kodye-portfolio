@@ -38,3 +38,13 @@ export function canConsumeRelationshipShelfWheel(
   if (delta < 0) return scrollLeft > 0.5;
   return false;
 }
+
+export function clampRelationshipShelfScrollLeft(
+  scrollLeft: number,
+  scrollWidth: number,
+  clientWidth: number,
+  delta: number,
+) {
+  const maximum = Math.max(scrollWidth - clientWidth, 0);
+  return Math.min(Math.max(scrollLeft + delta, 0), maximum);
+}

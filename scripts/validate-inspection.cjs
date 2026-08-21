@@ -74,6 +74,7 @@ const {
 } = require(path.join(projectRoot, "lib/content/notebook-inspection.ts"));
 const {
   canConsumeRelationshipShelfWheel,
+  clampRelationshipShelfScrollLeft,
   distributeRelationshipShelfItems,
   getRelationshipShelfWheelDelta,
 } = require(path.join(projectRoot, "lib/reservoir/relationship-shelf.ts"));
@@ -1342,8 +1343,16 @@ const checks = [
       !canConsumeRelationshipShelfWheel(600, 1400, 800, 120) &&
       canConsumeRelationshipShelfWheel(600, 1400, 800, -120) &&
       !canConsumeRelationshipShelfWheel(0, 1400, 800, -120) &&
+      clampRelationshipShelfScrollLeft(0, 1400, 800, -120) === 0 &&
+      clampRelationshipShelfScrollLeft(600, 1400, 800, 120) === 600 &&
+      clampRelationshipShelfScrollLeft(0, 1400, 800, 120) === 120 &&
+      clampRelationshipShelfScrollLeft(600, 1400, 800, -120) === 480 &&
+      clampRelationshipShelfScrollLeft(0, 600, 800, 120) === 0 &&
       inspectionContextTraySource.includes('passive: false') &&
       inspectionContextTraySource.includes("event.preventDefault()") &&
+      inspectionContextTraySource.includes("event.stopPropagation()") &&
+      inspectionContextTraySource.includes("collectionPanelRef") &&
+      inspectionSource.includes("if (relationshipShelf) {\n        return;\n      }") &&
       !inspectionCssSource.includes("scroll-snap-type"),
   ],
   [

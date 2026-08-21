@@ -1288,11 +1288,21 @@ body.artifact-reading-mode .reservoir-study {
 
 .inspection-context-tray__collection-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
+  min-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   margin: 0;
   padding: 2px 0 0;
   list-style: none;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.inspection-context-tray__collection-list > li {
+  flex: 0 0 auto;
 }
 
 .inspection-context-pill--collection {

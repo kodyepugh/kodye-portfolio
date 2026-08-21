@@ -1903,6 +1903,8 @@ Reservoir zoom is disabled.
 
 Artifact bottom-panel reveal behavior may continue to use its separately specified scroll-linked mechanics.
 
+When the pointer is over the horizontal Resources or Collections context tray, the tray owns wheel/trackpad input. The gesture is translated only into bounded horizontal movement, remains consumed at either horizontal edge, and must not scroll the Inspection document or reveal the terminal layers.
+
 ## Footer / Control Plane
 
 Footer and control-plane reveal behavior remains a UI-space concern and must not be implemented by altering reservoir scale or camera-path state.
