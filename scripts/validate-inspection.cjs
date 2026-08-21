@@ -910,13 +910,25 @@ const checks = [
       ),
   ],
   [
-    "shared Inspection chassis includes an ordinary Back to Top control",
+    "shared Inspection chassis gates Back to Top on close-button visibility",
     inspectionSource.includes('className="inspection-window__back-to-top"') &&
       inspectionSource.includes('aria-label="Back to top"') &&
       inspectionSource.includes("updatePostContentOffset(0)") &&
+      inspectionSource.includes("IntersectionObserver") &&
+      inspectionSource.includes("closeButtonVisibleInViewport") &&
+      inspectionSource.includes("{phase === \"reading\" ? (") &&
+      inspectionSource.includes("disabled={!closeButtonVisibleInViewport}") &&
+      inspectionSource.includes(
+        "data-close-button-visible={closeButtonVisibleInViewport}",
+      ) &&
       inspectionStyles.includes("grid-column: 3") &&
       inspectionStyles.includes("grid-row: 2") &&
-      inspectionStyles.includes("grid-column: 2"),
+      inspectionStyles.includes("grid-column: 2") &&
+      inspectionStyles.includes("visibility: hidden;") &&
+      inspectionStyles.includes("pointer-events: none;") &&
+      inspectionStyles.includes(
+        '[data-close-button-visible="true"]',
+      ),
   ],
   [
     "W support rail geometry is presence-driven",

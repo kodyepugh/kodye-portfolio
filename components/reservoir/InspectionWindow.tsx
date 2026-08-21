@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { AnimationEvent, CSSProperties } from "react";
+import type { AnimationEvent, CSSProperties, RefObject } from "react";
 import type { Resource } from "@/types/content";
 import {
   getPublishedResourceCollections,
@@ -114,6 +114,47 @@ function getFocusableElements(container: HTMLElement) {
   return [...container.querySelectorAll<HTMLElement>(
     'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
   )].filter((element) => !element.hasAttribute("hidden"));
+}
+
+function InspectionBackToTopButton({
+  closeButtonRef,
+  onBackToTop,
+}: {
+  closeButtonRef: RefObject<HTMLButtonElement | null>;
+  onBackToTop: () => void;
+}) {
+  const [closeButtonVisibleInViewport, setCloseButtonVisibleInViewport] =
+    useState(false);
+
+  useEffect(() => {
+    const closeButton = closeButtonRef.current;
+    if (!closeButton || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setCloseButtonVisibleInViewport(entry?.isIntersecting ?? false);
+    });
+
+    observer.observe(closeButton);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [closeButtonRef]);
+
+  return (
+    <button
+      className="inspection-window__back-to-top"
+      type="button"
+      disabled={!closeButtonVisibleInViewport}
+      onClick={onBackToTop}
+      aria-label="Back to top"
+      title="Back to top"
+      data-close-button-visible={closeButtonVisibleInViewport}
+    >
+      <span aria-hidden="true">↑</span>
+      <span>Back to top</span>
+    </button>
+  );
 }
 
 export function InspectionWindow({
@@ -676,17 +717,12 @@ export function InspectionWindow({
                 onNavigateToResource={navigateToSupportingResource}
                 onNavigateToCollection={navigateToCollection}
               />
-              <button
-                className="inspection-window__back-to-top"
-                type="button"
-                disabled={phase !== "reading"}
-                onClick={handleBackToTop}
-                aria-label="Back to top"
-                title="Back to top"
-              >
-                <span aria-hidden="true">↑</span>
-                <span>Back to top</span>
-              </button>
+              {phase === "reading" ? (
+                <InspectionBackToTopButton
+                  closeButtonRef={closeButtonRef}
+                  onBackToTop={handleBackToTop}
+                />
+              ) : null}
             </div>
           </article>
         </div>

@@ -1033,7 +1033,23 @@ body.artifact-reading-mode .reservoir-study {
   cursor: pointer;
   transition:
     color 140ms ease-out,
-    transform 140ms ease-out;
+    opacity 140ms ease-out,
+    transform 140ms ease-out,
+    visibility 0s linear 140ms;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.inspection-window__back-to-top[data-close-button-visible="true"] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition:
+    color 140ms ease-out,
+    opacity 140ms ease-out,
+    transform 140ms ease-out,
+    visibility 0s linear 0s;
 }
 
 .inspection-window__back-to-top:hover,
