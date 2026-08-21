@@ -1,6 +1,6 @@
 # Digital Reservoir — L2 Implementation Status
 
-**Status:** Active L2 / public-launch preparation checkpoint
+**Status:** Closed L2 implementation line / public-launch preparation
 **Updated:** August 21, 2026
 **Ontology authority:** `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md` revision 0.7.1
 **Bellabeat ingestion authority:** `docs/l2-bellabeat-manual-ingestion-manifest.md`
@@ -194,6 +194,8 @@ See `docs/l2-external-link-repository-inspection-closeout.md` for the bounded pa
 ---
 
 ## Remaining L2 / Public-Launch Preparation
+
+The L2/Bellabeat feature line is closed and accepted. Its completed foundation includes Bellabeat real-content ingestion and an audited Resource graph; universal directional Resource context; a separate membership-derived Collection region; direct Resource Query Reservoir auto-open; visit-based unified Reservoir history and Inspection reading-state restoration; structured documents; image, external-link/repository, and notebook Inspection surfaces; the shared fullscreen, zoomable, swipeable Inspection image viewer; and horizontally owned, bounded Resource/Collection tray scrolling.
 
 The L2-enabling architecture required by the currently approved launch content is complete in the current repository line:
 
