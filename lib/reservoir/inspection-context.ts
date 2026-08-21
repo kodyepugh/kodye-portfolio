@@ -24,7 +24,23 @@ export type InspectionCollectionPill = {
 export type InspectionContextAvailability = {
   hasResources: boolean;
   hasCollections: boolean;
-  initialView: "resources" | "collections" | null;
+};
+
+export type InspectionResourceDirection = "outgoing" | "incoming";
+
+export const INSPECTION_RESOURCE_DIRECTION_LABELS: Record<
+  InspectionResourceDirection,
+  string
+> = {
+  outgoing: "Supported by",
+  incoming: "Supports",
+};
+
+export type InspectionResourceDirectionAvailability = {
+  hasSupportedBy: boolean;
+  hasSupports: boolean;
+  hasBothDirections: boolean;
+  initialDirection: InspectionResourceDirection | null;
 };
 
 const IMAGE_RESOURCE_TYPES = new Set<ResourceType>(["image", "photograph"]);
@@ -58,10 +74,24 @@ export function getInspectionContextAvailability(
   return {
     hasResources,
     hasCollections,
-    initialView: hasResources
-      ? "resources"
-      : hasCollections
-        ? "collections"
+  };
+}
+
+export function getInspectionResourceDirectionAvailability(
+  supportedByCount: number,
+  supportsCount: number,
+): InspectionResourceDirectionAvailability {
+  const hasSupportedBy = supportedByCount > 0;
+  const hasSupports = supportsCount > 0;
+
+  return {
+    hasSupportedBy,
+    hasSupports,
+    hasBothDirections: hasSupportedBy && hasSupports,
+    initialDirection: hasSupportedBy
+      ? "outgoing"
+      : hasSupports
+        ? "incoming"
         : null,
   };
 }

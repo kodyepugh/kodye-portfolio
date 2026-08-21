@@ -254,7 +254,7 @@ Implemented launch surfaces include:
 - external link/repository;
 - the notebook/code treatment required by Bellabeat.
 
-The atmosphere owns concise Resource identity/metadata. The renderer owns primary content. The shared Inspection context tray exposes related Resources and Collections after the primary content.
+The atmosphere owns concise Resource identity/metadata. The renderer owns primary content. After primary content, the shared Inspection context tray presents Resources and Collections as separate vertical regions rather than alternate tabs. Every inspected Resource may receive Resource context regardless of Artifact status: outgoing stored support edges appear as `Supported by`, incoming edges appear as `Supports`, and the four-row shelf receives an interactive direction control only when both sets are non-empty. Collections appear below as simple pills derived only from actual persistent memberships. Empty regions are omitted.
 
 ### Foundational rule
 

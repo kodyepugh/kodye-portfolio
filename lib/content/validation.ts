@@ -444,12 +444,6 @@ export function validateContentRegistry(
       );
       continue;
     }
-    if (source.isArtifact !== true) {
-      errors.push(
-        `Resource support relationship ${relationship.id} must originate from an artifact-status resource`,
-      );
-    }
-
     const target = registry.resources.find(
       (candidate) => candidate.id === relationship.targetResourceId,
     );

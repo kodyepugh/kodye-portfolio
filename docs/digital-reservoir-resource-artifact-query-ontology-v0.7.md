@@ -739,10 +739,15 @@ to share one renderer without sharing one fixed content template.
 
 An inspected Resource may expose related Resources and Collections through the shared Inspection context tray.
 
-The accepted grammar is:
+The accepted grammar uses separate semantic regions:
 
 ```text
-Resources | Collections
+Resources
+  Supported by | Supports
+  [directional Resource relationships]
+
+Collections
+  [persistent memberships]
 ```
 
 The tray appears after the primary inspected content rather than as a mandatory permanent side rail.
@@ -752,13 +757,15 @@ The tray appears after the primary inspected content rather than as a mandatory 
 Resource entries:
 
 - resolve canonical Resource identity;
-- may represent supporting or supported-by discovery paths;
+- expose `Supported by` from outgoing support edges and `Supports` from incoming support edges;
+- use an interactive direction control only when both directions contain published Resources, otherwise presenting the one applicable direction as a static subheading;
+- are deduplicated within each direction, never across directions;
 - do not require Artifact status;
 - may be Artifact-status Resources without losing their Collection memberships;
 - issue canonical Resource queries rather than swapping the current renderer in place;
 - preserve Inspection return semantics where the navigation originated from an open Inspection.
 
-A single directional support relationship may be presented from either endpoint for discovery without creating duplicate reciprocal semantic edges.
+A single directional support relationship may be presented from either endpoint for discovery without creating duplicate reciprocal semantic edges. Artifact status controls persistent Collection-membership eligibility; it does not control Resource-relationship eligibility.
 
 ## 17.2 Collection context
 
@@ -768,7 +775,7 @@ Selecting a Collection from Inspection delegates to the canonical Collection-nav
 
 ## 17.3 Presentation
 
-Context entries use restrained semantic-object pills/cards with enough identity to understand the destination.
+Resource context retains the four-row independent brick shelf. Collection memberships use a simpler restrained pill treatment below the Resource region. Either region is omitted when its canonical data set is empty.
 
 The context layer remains secondary to the Resource being inspected.
 

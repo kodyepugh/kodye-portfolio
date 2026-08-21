@@ -121,7 +121,7 @@ const syntheticSupportSource = {
   title: "QA Support Source",
   type: "report",
   inspectionKind: "structured-document",
-  isArtifact: true,
+  isArtifact: false,
   published: true,
 };
 const syntheticSupportTargetAlpha = {
@@ -230,6 +230,26 @@ const syntheticDeduplicatedSupportRegistry = {
       label: "Duplicate",
       role: "supporting-report",
     },
+    {
+      id: "qa-support-rel-alpha-reverse",
+      sourceResourceId: syntheticSupportTargetAlpha.id,
+      targetResourceId: syntheticSupportSource.id,
+      relationshipType: "supporting",
+      order: 1,
+      published: true,
+      label: "Independent reverse fact",
+      role: "validation-evidence",
+    },
+    {
+      id: "qa-support-rel-alpha-reverse-duplicate",
+      sourceResourceId: syntheticSupportTargetAlpha.id,
+      targetResourceId: syntheticSupportSource.id,
+      relationshipType: "supporting",
+      order: 4,
+      published: true,
+      label: "Duplicate reverse fact",
+      role: "validation-evidence",
+    },
   ],
 };
 const syntheticResourceContext = getPublishedResourceContextFromRegistry(
@@ -273,6 +293,34 @@ const comprehensiveCaseStudy = getResourceById(
   "resource-bellabeat-comprehensive-case-study",
 );
 const notebookResource = getResourceById(
+  "resource-fitbit-identifier-revision-audit-notebook",
+);
+const bellabeatAuditedResourceIds = new Set([
+  ARTIFACT_IDS.bellabeat,
+  ...bellabeatSupportingResources.map((resource) => resource.id),
+]);
+const bellabeatAuditedRelationships =
+  contentRegistry.resourceSupportRelations.filter(
+    (relationship) =>
+      bellabeatAuditedResourceIds.has(relationship.sourceResourceId) &&
+      bellabeatAuditedResourceIds.has(relationship.targetResourceId),
+  );
+const bellabeatRelationshipPairs = new Set(
+  bellabeatAuditedRelationships.map(
+    (relationship) =>
+      `${relationship.sourceResourceId}->${relationship.targetResourceId}`,
+  ),
+);
+const comprehensiveContext = getPublishedResourceContextFromRegistry(
+  contentRegistry,
+  "resource-bellabeat-comprehensive-case-study",
+);
+const identifierAuditContext = getPublishedResourceContextFromRegistry(
+  contentRegistry,
+  "resource-bellabeat-identifier-population-audit",
+);
+const notebookContext = getPublishedResourceContextFromRegistry(
+  contentRegistry,
   "resource-fitbit-identifier-revision-audit-notebook",
 );
 const checks = [
@@ -377,11 +425,20 @@ const checks = [
         "qa-support-rel-alpha",
   ],
   [
-    "resource context combines directions without duplicate semantic resources",
-    syntheticResourceContext.map((entry) => entry.resource.id).join(",") ===
+    "resource context deduplicates within directions but preserves cross-direction facts",
+    syntheticResourceContext.supportedBy
+      .map((entry) => entry.resource.id)
+      .join(",") ===
       `${syntheticSupportTargetAlpha.id},${syntheticSupportTargetBeta.id}` &&
-      syntheticResourceContext.length === 2 &&
-      syntheticResourceContext.every((entry) => entry.resource.published === true),
+      syntheticResourceContext.supports
+        .map((entry) => entry.resource.id)
+        .join(",") === syntheticSupportTargetAlpha.id &&
+      syntheticResourceContext.supportedBy.every(
+        (entry) => entry.direction === "outgoing",
+      ) &&
+      syntheticResourceContext.supports.every(
+        (entry) => entry.direction === "incoming",
+      ),
   ],
   [
     "Bellabeat support graph remains one directional semantic edge",
@@ -395,6 +452,72 @@ const checks = [
           relationship.sourceResourceId === RESOURCE_IDS.bellabeatRepository &&
           relationship.targetResourceId === ARTIFACT_IDS.bellabeat,
       ).length === 0,
+  ],
+  [
+    "audited Bellabeat graph has unique IDs, no duplicate pairs, and no accidental reciprocal edges",
+    new Set(bellabeatAuditedRelationships.map((relationship) => relationship.id))
+      .size === bellabeatAuditedRelationships.length &&
+      bellabeatRelationshipPairs.size === bellabeatAuditedRelationships.length &&
+      bellabeatAuditedRelationships.every(
+        (relationship) =>
+          !bellabeatRelationshipPairs.has(
+            `${relationship.targetResourceId}->${relationship.sourceResourceId}`,
+          ),
+      ),
+  ],
+  [
+    "comprehensive report directly resolves its audited documents, repository, and ten figures",
+    comprehensiveContext.supportedBy.length === 16 &&
+      [
+        "resource-bellabeat-methodology-appendix",
+        "resource-bellabeat-identifier-population-audit",
+        "resource-bellabeat-analysis-decision-memo",
+        "resource-bellabeat-marketing-recommendations",
+        "resource-bellabeat-final-validation-report",
+        RESOURCE_IDS.bellabeatRepository,
+        ...bellabeatImageResources.map((resource) => resource.id),
+      ].every((resourceId) =>
+        comprehensiveContext.supportedBy.some(
+          (entry) => entry.resourceId === resourceId,
+        ),
+      ),
+  ],
+  [
+    "identifier audit and notebook expose complete audited bidirectional context",
+    identifierAuditContext.supportedBy.map((entry) => entry.resourceId).join(",") ===
+      "resource-fitbit-identifier-revision-audit-notebook" &&
+      identifierAuditContext.supports.length === 3 &&
+      notebookContext.supportedBy.map((entry) => entry.resourceId).join(",") ===
+        `${RESOURCE_IDS.bellabeatRepository},resource-bellabeat-final-validation-report` &&
+      notebookContext.supports.length === 2,
+  ],
+  [
+    "each approved figure supports the comprehensive report and carries direct validation evidence",
+    bellabeatImageResources.every((resource) => {
+      const context = getPublishedResourceContextFromRegistry(
+        contentRegistry,
+        resource.id,
+      );
+      return (
+        context.supportedBy.some(
+          (entry) =>
+            entry.resourceId === "resource-bellabeat-final-validation-report",
+        ) &&
+        context.supports.some(
+          (entry) =>
+            entry.resourceId === "resource-bellabeat-comprehensive-case-study",
+        )
+      );
+    }),
+  ],
+  [
+    "Bellabeat relationship audit materializes no speculative Resources",
+    bellabeatAuditedResourceIds.size === 19 &&
+      bellabeatAuditedRelationships.every(
+        (relationship) =>
+          bellabeatAuditedResourceIds.has(relationship.sourceResourceId) &&
+          bellabeatAuditedResourceIds.has(relationship.targetResourceId),
+      ),
   ],
   [
     "support relationships do not create Collection context",

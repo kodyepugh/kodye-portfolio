@@ -129,7 +129,10 @@ Implemented, refined, reviewed, and approved for merge:
 - image first-landing sizing is derived from the actual Inspection landing geometry rather than arbitrary full-viewport percentages;
 - image painting is contained by its allocated layout box, so relationship/context content always stacks beneath the image instead of overlapping it;
 - the atmosphere owns Resource identity and concise metadata; renderer bodies own the inspected content rather than duplicating identity chrome;
-- the shared Inspection context tray exposes `Resources | Collections` beneath primary content;
+- the shared Inspection context tray exposes vertically separate `Resources` and `Collections` regions beneath primary content rather than a type switch;
+- the universal Resource region is available to Artifact-status and non-Artifact Resources alike, maps outgoing edges to `Supported by` and incoming edges to `Supports`, and uses an adaptive direction control only when both sets are populated;
+- Resource context deduplicates within each direction without erasing a legitimate cross-direction fact;
+- Collections remain actual membership-derived pills and the entire region is omitted when membership is empty;
 - Resource and Collection entries use minimal semantic-object pills with icon + name only;
 - Resource pills retain canonical Resource-query navigation and Inspection return semantics;
 - Collection pills use canonical Collection navigation and preserve Inspection return ownership on the specific history hop;
@@ -182,7 +185,7 @@ The L2-enabling architecture required by the currently approved launch content i
 - minimum Inspection return context;
 - image Inspection;
 - external-link / repository Inspection;
-- Bellabeat's initial approved Resource/support graph and launch materialization.
+- Bellabeat's source-audited Resource/support graph and launch materialization.
 
 This document records completion state only. **`docs/release-preparation-roadmap.md` is the sequencing authority for what should be worked on next.**
 

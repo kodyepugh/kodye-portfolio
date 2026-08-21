@@ -93,8 +93,10 @@ const {
   "lib/content/external-link-inspection.ts",
 ));
 const {
+  INSPECTION_RESOURCE_DIRECTION_LABELS,
   getInspectionCollectionPill,
   getInspectionContextAvailability,
+  getInspectionResourceDirectionAvailability,
   getInspectionResourcePill,
 } = require(path.join(projectRoot, "lib/reservoir/inspection-context.ts"));
 const {
@@ -581,7 +583,7 @@ const supportSourceResource = {
   title: "QA Inspection Support Source",
   type: "report",
   inspectionKind: "structured-document",
-  isArtifact: true,
+  isArtifact: false,
   published: true,
 };
 const supportTargetResource = {
@@ -657,11 +659,31 @@ const deduplicatedSupportRegistry = {
       label: "Duplicate",
       role: "supporting-report",
     },
+    {
+      id: "qa-inspection-support-rel-visible-reverse",
+      sourceResourceId: supportTargetResource.id,
+      targetResourceId: supportSourceResource.id,
+      relationshipType: "supporting",
+      order: 1,
+      published: true,
+      label: "Independent reverse fact",
+      role: "validation-evidence",
+    },
+    {
+      id: "qa-inspection-support-rel-visible-reverse-duplicate",
+      sourceResourceId: supportTargetResource.id,
+      targetResourceId: supportSourceResource.id,
+      relationshipType: "supporting",
+      order: 3,
+      published: true,
+      label: "Duplicate reverse fact",
+      role: "validation-evidence",
+    },
   ],
 };
 const bidirectionalSupportContext = getPublishedResourceContextFromRegistry(
   deduplicatedSupportRegistry,
-  supportTargetResource.id,
+  supportSourceResource.id,
 );
 const inspectionStyles = fs.readFileSync(
   path.join(projectRoot, "app/globals.css"),
@@ -943,11 +965,26 @@ const checks = [
       "collection-web,collection-about-self",
   ],
   [
-    "L context availability chooses the first available semantic view",
-    getInspectionContextAvailability(0, 0).initialView === null &&
-      getInspectionContextAvailability(0, 2).initialView === "collections" &&
-      getInspectionContextAvailability(2, 0).initialView === "resources" &&
-      getInspectionContextAvailability(2, 2).initialView === "resources",
+    "L Resource and Collection region visibility follows actual context",
+    !getInspectionContextAvailability(0, 0).hasResources &&
+      !getInspectionContextAvailability(0, 0).hasCollections &&
+      !getInspectionContextAvailability(0, 2).hasResources &&
+      getInspectionContextAvailability(0, 2).hasCollections &&
+      getInspectionContextAvailability(2, 0).hasResources &&
+      !getInspectionContextAvailability(2, 0).hasCollections &&
+      getInspectionContextAvailability(2, 2).hasResources &&
+      getInspectionContextAvailability(2, 2).hasCollections,
+  ],
+  [
+    "direction availability maps outgoing to Supported by and incoming to Supports",
+    INSPECTION_RESOURCE_DIRECTION_LABELS.outgoing === "Supported by" &&
+      INSPECTION_RESOURCE_DIRECTION_LABELS.incoming === "Supports" &&
+      getInspectionResourceDirectionAvailability(2, 3).hasBothDirections &&
+      getInspectionResourceDirectionAvailability(2, 3).initialDirection ===
+        "outgoing" &&
+      getInspectionResourceDirectionAvailability(0, 3).initialDirection ===
+        "incoming" &&
+      getInspectionResourceDirectionAvailability(0, 0).initialDirection === null,
   ],
   [
     "M context pill models contain only canonical object identity",
@@ -1123,6 +1160,52 @@ const checks = [
       ),
   ],
   [
+    "Resources and Collections render as separate membership-driven regions",
+    inspectionContextTraySource.includes(
+      'className="inspection-context-tray__region inspection-context-tray__region--resources"',
+    ) &&
+      inspectionContextTraySource.includes(
+        'className="inspection-context-tray__region inspection-context-tray__region--collections"',
+      ) &&
+      inspectionContextTraySource.includes(
+        "contextAvailability.hasCollections ?",
+      ) &&
+      !inspectionContextTraySource.includes(
+        'className="inspection-context-tray__switch"',
+      ) &&
+      !inspectionContextTraySource.includes("Related object types"),
+  ],
+  [
+    "direction control is adaptive and keeps a stable shelf allocation",
+    inspectionContextTraySource.includes(
+      "directionAvailability.hasBothDirections ?",
+    ) &&
+      inspectionContextTraySource.includes(
+        'className="inspection-context-tray__direction-label"',
+      ) &&
+      inspectionContextTraySource.includes(
+        'className="inspection-context-tray__direction-separator"',
+      ) &&
+      inspectionContextTraySource.includes('aria-hidden="true"') &&
+      /\.inspection-context-tray__direction-header\s*\{[\s\S]*?min-height:\s*34px;/.test(
+        inspectionCssSource,
+      ) &&
+      /\.inspection-context-tray__panel\s*\{[\s\S]*?height:\s*224px;/.test(
+        inspectionCssSource,
+      ),
+  ],
+  [
+    "universal Resource context is not gated by Artifact status",
+    inspectionSource.includes("getPublishedResourceContext(resource.id)") &&
+      !/getPublishedResourceContext\([^)]*\)[\s\S]{0,120}isArtifact/.test(
+        inspectionSource,
+      ) &&
+      inspectionContextTraySource.includes(
+        "resourceContext.supportedBy",
+      ) &&
+      inspectionContextTraySource.includes("resourceContext.supports"),
+  ],
+  [
     "relationship shelf wheel translation consumes only movable directions",
     getRelationshipShelfWheelDelta(
       { deltaX: 0, deltaY: 3, deltaMode: 1 },
@@ -1185,10 +1268,15 @@ const checks = [
         "qa-inspection-support-rel-visible",
   ],
   [
-    "bidirectional context deduplicates semantic resources",
-    bidirectionalSupportContext.length === 1 &&
-      bidirectionalSupportContext[0].resource === supportSourceResource &&
-      bidirectionalSupportContext[0].direction === "incoming",
+    "bidirectional context deduplicates within but not across directions",
+    bidirectionalSupportContext.supportedBy.length === 1 &&
+      bidirectionalSupportContext.supports.length === 1 &&
+      bidirectionalSupportContext.supportedBy[0].resource ===
+        supportTargetResource &&
+      bidirectionalSupportContext.supportedBy[0].direction === "outgoing" &&
+      bidirectionalSupportContext.supports[0].resource ===
+        supportTargetResource &&
+      bidirectionalSupportContext.supports[0].direction === "incoming",
   ],
   [
     "shared Inspection body owns the full available frame",

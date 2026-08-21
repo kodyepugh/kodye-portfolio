@@ -197,12 +197,14 @@ export function InspectionWindow({
   const [closeScrollY, setCloseScrollY] = useState(0);
   const titleId = `inspection-window-title-${resource.id}`;
   const bodyId = `inspection-window-body-${resource.id}`;
-  const resources = getPublishedResourceContext(resource.id);
+  const resourceContext = getPublishedResourceContext(resource.id);
   const collections = getPublishedResourceCollections(resource.id);
   const deployDuration = getInspectionWindowDeployDuration(reducedMotion);
   const retractDuration = getInspectionWindowRetractDuration(reducedMotion);
+  const resourceContextCount =
+    resourceContext.supportedBy.length + resourceContext.supports.length;
   const contextTrayVisible =
-    resources.length > 0 || collections.length > 0;
+    resourceContextCount > 0 || collections.length > 0;
   const totalRevealDistance =
     revealMeasurements.controlPlaneHeight + revealMeasurements.footerHeight;
   const controlPlaneOffset = Math.max(
@@ -733,7 +735,7 @@ export function InspectionWindow({
               className="artifact-window__body inspection-window__body-layout"
               data-context-tray-visible={contextTrayVisible}
               data-context-tray-interactive={phase === "reading"}
-              data-context-resources-count={resources.length}
+              data-context-resources-count={resourceContextCount}
               data-context-collections-count={collections.length}
             >
               <div className="inspection-window__primary-body">
@@ -744,7 +746,7 @@ export function InspectionWindow({
               </div>
               <InspectionContextTray
                 phase={phase}
-                resources={resources}
+                resourceContext={resourceContext}
                 collections={collections}
                 onNavigateToResource={navigateToSupportingResource}
                 onNavigateToCollection={navigateToCollection}

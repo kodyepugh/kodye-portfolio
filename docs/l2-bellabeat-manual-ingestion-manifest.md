@@ -97,16 +97,21 @@ The Artifact window should remain recruiter-readable. Do not inline the entire c
 
 Bellabeat should expose related Resources and Collections through the accepted shared Inspection context tray beneath the primary structured-document content.
 
-The historical side-rail / bubbling-brick concept is superseded by the shared `Resources | Collections` grammar.
+The historical side-rail / bubbling-brick concept and later `Resources | Collections` switch are superseded by separate vertical `Resources` and `Collections` regions.
 
 Resource context entries should:
 
 - resolve each supporting Resource's own stable identity/address;
+- expose outgoing edges as `Supported by` and incoming edges as `Supports`;
+- deduplicate within each direction without collapsing a Resource that legitimately appears in both;
+- remain available to every inspected Resource regardless of Artifact status;
 - remain secondary to the article;
 - preserve canonical Resource-query behavior;
 - preserve Inspection return context when the visitor detours from the open Bellabeat Inspection.
 
 Collection context entries should derive from real Collection membership, not from support relationships.
+
+When a Resource has only one published direction, that direction is a static subheading rather than a dead two-option control. Empty Resource or Collection regions are omitted.
 
 On smaller viewports, the same semantic context should remain available without changing the relationship model.
 
@@ -201,6 +206,19 @@ The canonical figure bytes, meaning, labels, and analytical claims must not be m
 **Inspection kind:** `repository` / `external-link`
 **Source:** public GitHub repository `kodyepugh/bellabeat-wellness-analysis`
 **Support role:** `reproducibility-repository`
+
+### 4.1 Audited direct Resource graph
+
+The initial 18 edges from Bellabeat to its approved supporting Resources remain canonical. The source audit adds only the following direct relationships among already-materialized Resources; `source → target` means the target supports the source:
+
+- Comprehensive Case Study → Methodology Appendix, Identifier Population Audit, Analysis Decision Memo, Marketing Recommendations, Final Validation Report, and Wellness Analysis Repository;
+- Comprehensive Case Study → each of the ten approved figure Resources embedded by the report;
+- Identifier Population Audit → Fitbit Identifier Revision Audit Notebook;
+- Analysis Decision Memo → Identifier Population Audit;
+- Fitbit Identifier Revision Audit Notebook → Wellness Analysis Repository and Final Validation Report;
+- each of the ten approved figure Resources → Final Validation Report.
+
+These edges are grounded respectively in the comprehensive report's composition/reproducibility map and figure embeds, the audit's explicit executed-notebook evidence, the decision memo's duplicate/identifier findings, the notebook's repository-local inputs and execution dependencies, and the validation report's explicit notebook-execution and ten-figure hash checks. No edge was reversed, no reciprocal edge was added for presentation, and no new Resource was materialized.
 
 ---
 
@@ -398,6 +416,8 @@ Completed materialization includes:
 - independently addressable supporting Resources;
 - no default Collection membership for non-Artifact support Resources;
 - shared Inspection context for related Resources/Collections;
+- separate universal directional Resource context and membership-derived Collection context;
+- source-audited direct support relationships among the already-materialized report, evidence, notebook, repository, validation, and figure Resources;
 - canonical direct Resource query behavior;
 - Resource renderer selection by `inspectionKind`;
 - preserved representation identity without duplicate Resources;

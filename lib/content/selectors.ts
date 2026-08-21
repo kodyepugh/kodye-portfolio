@@ -73,6 +73,11 @@ export type PublishedResourceContext = {
   resource: Resource;
 };
 
+export type PublishedResourceContextDirections = {
+  supportedBy: readonly PublishedResourceContext[];
+  supports: readonly PublishedResourceContext[];
+};
+
 export type ResolvedCollectionMember =
   | {
       kind: "artifact";
@@ -114,18 +119,6 @@ function compareSupportOrder(
     (a.order ?? Number.MAX_SAFE_INTEGER) -
       (b.order ?? Number.MAX_SAFE_INTEGER) ||
     a.relationshipId.localeCompare(b.relationshipId)
-  );
-}
-
-function compareResourceContextOrder(
-  a: Pick<PublishedResourceContext, "order" | "relationshipId" | "direction">,
-  b: Pick<PublishedResourceContext, "order" | "relationshipId" | "direction">,
-) {
-  return (
-    (a.order ?? Number.MAX_SAFE_INTEGER) -
-      (b.order ?? Number.MAX_SAFE_INTEGER) ||
-    a.relationshipId.localeCompare(b.relationshipId) ||
-    a.direction.localeCompare(b.direction)
   );
 }
 
@@ -361,7 +354,7 @@ export function getPublishedResourcesSupportedByFromRegistry(
 export function getPublishedResourceContextFromRegistry(
   registry: Pick<ContentRegistry, "resources" | "resourceSupportRelations">,
   resourceId: string,
-): PublishedResourceContext[] {
+): PublishedResourceContextDirections {
   const outgoing: PublishedResourceContext[] =
     getPublishedSupportingResourcesFromRegistry(registry, resourceId).map(
       (entry) => ({
@@ -390,15 +383,19 @@ export function getPublishedResourceContextFromRegistry(
         resource: entry.resource,
       }),
     );
-  const seenResourceIds = new Set<string>();
-
-  return [...outgoing, ...incoming]
-    .sort(compareResourceContextOrder)
-    .filter((entry) => {
+  function deduplicateDirection(entries: readonly PublishedResourceContext[]) {
+    const seenResourceIds = new Set<string>();
+    return entries.filter((entry) => {
       if (seenResourceIds.has(entry.resourceId)) return false;
       seenResourceIds.add(entry.resourceId);
       return true;
     });
+  }
+
+  return {
+    supportedBy: deduplicateDirection(outgoing),
+    supports: deduplicateDirection(incoming),
+  };
 }
 
 export function getPublishedResourceContext(resourceId: string) {
