@@ -214,13 +214,15 @@ The remaining work is public-release preparation rather than expansion of the L2
 
 ### Public-launch work still open
 
-The roadmap currently groups the remaining launch work into five stages:
+The roadmap currently groups the remaining launch work into five stages, beginning with a Bellabeat-only launch cut rather than a broad first portfolio content cut:
 
-1. **Portfolio Content Cut** — finalize the launch portfolio content set and hide/unpublish unfinished public objects.
-2. **Public Web Layer** — production identity/metadata, real outbound destinations, and practical direct public addresses for major portfolio Resources.
-3. **Integrated Reservoir QA** — exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
-4. **Responsive, Accessibility, and Interaction Regression Sweep** — representative devices/input modes, semantic DOM access, reduced motion, focus behavior, and functional regression cleanup.
+1. **Bellabeat Launch Cut** — treat the materialized Bellabeat project and supporting Resources as the substantive launch content and hide/unpublish unfinished public objects.
+2. **Public Web Essentials** — production identity/metadata, real outbound destinations, reliable Resume access, and a practical Bellabeat direct public address.
+3. **Bellabeat Recruiter-Path QA** — exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
+4. **Minimum Responsive / Accessibility / Interaction Sweep** — representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup.
 5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.
+
+Broader About, Digital Reservoir, client, and archive content are post-launch expansion work and are not required to complete this launch sequence.
 
 Implementation work should follow that roadmap rather than treating a technically logical next renderer or ingestion seam as automatically higher priority.
 
@@ -242,7 +244,7 @@ The notebook treatment required by the Bellabeat launch material is implemented.
 
 ### Public routing is no longer an L2 deferral
 
-Final public URL/deep-link behavior remains outside the semantic ontology, but it is now part of the **launch-blocking Public Web Layer** defined by the release-preparation roadmap.
+Final public URL/deep-link behavior remains outside the semantic ontology, but it is now part of the **launch-blocking Public Web Essentials** defined by the release-preparation roadmap.
 
 Do not classify public routing/address mapping as deferred product work when evaluating launch readiness.
 

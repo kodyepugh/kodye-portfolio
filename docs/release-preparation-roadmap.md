@@ -7,7 +7,7 @@
 
 Prepare the KP Website / Digital Reservoir for a credible public portfolio launch that can be used immediately in job applications.
 
-The launch version should present approved professional work through the Reservoir while remaining understandable and accessible to visitors who do not already understand the spatial interface.
+The immediate objective is to launch publicly as soon as responsibly possible, with Bellabeat as the only substantive portfolio project required for launch. The production URL should then be usable on the resume and in job applications. The launch version should remain understandable and accessible to visitors who do not already understand the spatial interface.
 
 Launch readiness requires four things to be true together:
 
@@ -52,54 +52,25 @@ See `docs/l2-implementation-status.md` for current implementation state and the 
 
 # Release Sequence
 
-## 1. Portfolio Content Cut — Launch-Blocking
+## 1. Bellabeat Launch Cut — Launch-Blocking
 
-Finish the public-facing content set before treating the site as release-ready.
+Treat the already-materialized Bellabeat project and supporting Resources as the substantive portfolio content required for launch. Audit the production-visible registry and hide or unpublish unfinished, synthetic, placeholder, development-only, or misleading public objects that are not intentionally required for the launch experience.
 
-The launch portfolio should contain only material that is sufficiently complete to represent the user professionally.
-
-### Required launch content
-
-At minimum, confirm and finalize:
-
-- **Bellabeat** as the flagship analytics case study;
-- **Resume** with the current approved resume asset or presentation;
-- **About** with concise professional positioning;
-- **Digital Reservoir** as a project/product/interface case study;
-- the selected web/client work appropriate for the first public portfolio cut.
-
-Current likely client/project candidates include:
-
-- Workforce Development;
-- CIF Oakland;
-- Oakland Gospel Festival;
-
-but final inclusion remains a user decision.
-
-### Public-content rule
-
-Every published public object must satisfy one of the following:
-
-- it contains approved launch-ready content; or
-- it serves an intentional functional role required by the launch experience.
-
-Do not preserve visibly unfinished, empty, placeholder, or development-only public objects solely to create Reservoir density.
-
-If an object is not ready, hide or unpublish it rather than filling it with speculative placeholder content.
+Do not require additional portfolio projects merely to create Reservoir density. If an object is not ready, remove it from the public launch surface rather than filling it with speculative content.
 
 ### Completion condition
 
-This stage is complete when a recruiter can inspect the major public portfolio objects without encountering unfinished placeholder content or being asked to infer work that has not been presented.
+This stage is complete when the production-visible registry presents Bellabeat and its supporting Resources as an intentional, truthful launch cut without unfinished public objects that a recruiter would be expected to interpret as portfolio work.
 
 ---
 
-## 2. Public Web Layer — Launch-Blocking
+## 2. Public Web Essentials — Launch-Blocking
 
-Convert the technically mature Reservoir from a prototype presentation into a production professional website.
+Complete the production essentials needed for a credible live portfolio.
 
 ### Production identity
 
-Replace remaining prototype/study framing with public portfolio identity.
+Replace remaining prototype/study framing with public portfolio identity appropriate to the live portfolio.
 
 Confirm:
 
@@ -114,7 +85,7 @@ The public website should present the Digital Reservoir as the interface of the 
 
 ### Real outbound actions
 
-Verify working production destinations for:
+Wire and verify working production destinations for:
 
 - LinkedIn;
 - GitHub;
@@ -129,16 +100,15 @@ A complex contact form is not required for the first release.
 
 Important professional Resources should be directly reachable without requiring a visitor to manually traverse the Reservoir from root.
 
-At minimum establish practical direct addresses for:
+At minimum establish a practical direct public address for:
 
 - Bellabeat;
-- Resume;
-- About;
-- Digital Reservoir project/case study.
+
+Resume must be reliably viewable or downloadable. A more elaborate Resume Reservoir presentation is not itself a launch prerequisite. A full About artifact or case study is also not launch-blocking if a minimal professional identity and contact path is sufficient.
 
 Direct Resource access should reuse the established semantic Resource and Query Reservoir architecture rather than creating a parallel content system.
 
-Where practical, preserve:
+For Bellabeat, preserve:
 
 - refresh behavior;
 - browser back/forward expectations;
@@ -153,9 +123,9 @@ This stage is complete when the website behaves as a conventional public portfol
 
 ---
 
-## 3. Integrated Reservoir QA — Launch-Blocking
+## 3. Bellabeat Recruiter-Path QA — Launch-Blocking
 
-Exercise the actual launch content graph in the browser rather than relying only on synthetic validation.
+Prioritize the actual recruiter journey from direct Bellabeat entry through the case study, figures and supporting Resources, repository, return navigation, and other essential launch actions rather than relying only on synthetic validation.
 
 Bellabeat should be the primary integrated QA path because it currently exercises the richest combination of document, figure, repository, supporting-resource, and return-context behavior.
 
@@ -176,25 +146,16 @@ Verify:
 - external navigation behaves safely and predictably;
 - unavailable or invalid external targets resolve gracefully.
 
-### Wider Reservoir regression coverage
+### Required invariants and bounded regression coverage
 
-Also exercise:
+Also exercise the relevant launch paths and preserve:
 
-- root navigation;
-- Collection traversal;
-- Home;
-- Back;
-- ancestry/path behavior;
-- direct Resource queries;
-- Query Reservoir transitions;
-- Distributed ↔ Focused layout behavior;
-- sparse and dense populations;
-- zoom and adaptive deep zoom;
-- labels near sphere limbs and viewport edges;
-- Inspection open/close;
-- footer and terminal reveal;
-- menu/control behavior;
-- Resource/Collection context navigation.
+- canonical Resource identity and semantic/navigation invariants;
+- root, Home, Back, ancestry, direct Resource query, and Query Reservoir behavior;
+- Inspection open/close, footer/terminal reveal, and Resource/Collection context navigation;
+- the established layout, zoom, label, menu, and control behavior where exercised by the launch path.
+
+Do not reopen closed L2 architecture absent a reproducible defect.
 
 ### Completion condition
 
@@ -202,9 +163,9 @@ This stage is complete when the real launch registry proves the established sema
 
 ---
 
-## 4. Responsive, Accessibility, and Interaction Regression Sweep — Launch-Blocking Where Functional
+## 4. Minimum Responsive / Accessibility / Interaction Sweep — Launch-Blocking Where Functional
 
-Validate that the portfolio remains usable outside the development desktop configuration.
+Validate the launch experience on representative desktop/laptop configurations first, plus a practical mobile sanity check. Verify keyboard/direct-access usability and functional interaction, and fix launch-blocking regressions.
 
 This is a release pass, not a redesign milestone.
 
@@ -215,9 +176,7 @@ Test representative:
 - large desktop;
 - laptop;
 - narrow desktop window;
-- tablet;
-- mobile portrait;
-- mobile landscape.
+- practical mobile viewport.
 
 Verify particularly:
 
@@ -250,7 +209,7 @@ Verify:
 
 ### Conventional access path
 
-Important launch content must also be reachable through a semantic DOM-based path rather than requiring direct manipulation of WebGL/R3F nodes.
+Bellabeat and other essential launch actions must also be reachable through a semantic DOM-based path rather than requiring direct manipulation of WebGL/R3F nodes.
 
 This may be implemented through the existing menu or another restrained index/navigation surface.
 
@@ -276,7 +235,7 @@ remain refinement items unless they:
 - reveal a functional regression;
 - materially disrupt expected interaction.
 
-Do not reopen accepted Inspection architecture solely to perfect non-blocking choreography.
+Do not delay launch for minor choreography or other non-blocking polish items already classified as refinement backlog. Do not reopen accepted Inspection architecture solely to perfect non-blocking choreography.
 
 ### Completion condition
 
@@ -286,7 +245,7 @@ This stage is complete when the launch experience is functionally reliable acros
 
 ## 5. Production Release — Launch-Blocking
 
-Once content and interaction behavior are stable, perform the final release gate.
+Once the Bellabeat launch cut, public essentials, and bounded QA are stable, perform the final release gate.
 
 ### Validation
 
@@ -318,7 +277,7 @@ Confirm:
 - LinkedIn works;
 - GitHub works;
 - email/contact works;
-- external repository links work.
+- external repository destinations work.
 
 Smoke-test the **actual production URL**, not only localhost.
 
@@ -334,9 +293,22 @@ The portfolio is launch-ready when:
 - production validation succeeds;
 - the production URL and major outbound/direct-navigation paths have been manually verified.
 
-At that point, begin using the site in applications.
+Once this passes, the site is ready to place on the resume and use in job applications.
 
 The public release should be treated as the first live portfolio version of the Digital Reservoir, not as the completion of the broader Digital Reservoir product.
+
+## Ongoing Portfolio Expansion — Post-Launch
+
+After launch, expand the portfolio deliberately over time without making applications wait for additional content. This post-launch workstream may include, as appropriate:
+
+- fuller About content;
+- Digital Reservoir case study;
+- Workforce Development;
+- CIF Oakland;
+- Oakland Gospel Festival if selected;
+- other future portfolio or archive content.
+
+These additions are not release prerequisites and should not block the initial public launch.
 
 ---
 
