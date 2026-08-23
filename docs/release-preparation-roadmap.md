@@ -171,7 +171,11 @@ Wire and verify working production destinations for:
 
 No launch-facing navigation control should remain wired to a development placeholder such as `#` or an unavailable destination.
 
-The implemented Contact Resource provides a bounded form, LinkedIn, and GitHub through its dedicated Inspection surface. Production delivery remains a deployment task: configure the server-only `RESEND_API_KEY`, `CONTACT_FROM_EMAIL` (a controlled, verified sender), and optional `CONTACT_TO_EMAIL` (which otherwise defaults server-side to the approved recipient). The visitor email is used only as `Reply-To`; do not expose delivery configuration in client content or claim production delivery until the Resend sender/domain is configured and smoke-tested.
+The implemented Contact Resource provides a bounded form, LinkedIn, and GitHub through its dedicated Inspection surface.
+
+### Production Contact delivery — completed
+
+Production Contact delivery is configured and smoke-tested. The production deployment uses the server-only `RESEND_API_KEY`, `CONTACT_FROM_EMAIL=contact@kodyepugh.com`, and `CONTACT_TO_EMAIL=contact@kodyepugh.com`. The `kodyepugh.com` sending domain is authenticated with Resend, and a live form submission reached the configured mailbox. A reply addressed the visitor through the existing `Reply-To` behavior. The delivery implementation remains server-only and does not expose the API key or delivery configuration to client code.
 
 ### Direct addressability
 
@@ -213,7 +217,7 @@ Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness
 
 ### Completion condition
 
-This stage is complete when the website behaves as a conventional public portfolio where necessary while preserving the Reservoir as its primary interface.
+This stage remains open until the other launch-facing outbound destinations and direct-access paths have also been manually verified. Contact delivery itself is complete; this closeout does not close Public Web Essentials as a whole.
 
 ---
 
