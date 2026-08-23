@@ -2137,7 +2137,12 @@ For the first public portfolio release, practical direct addresses should exist 
 
 A directly addressed Collection resolves to its persistent Collection Reservoir.
 
-A directly addressed Resource resolves through the established direct Resource Query Reservoir seam and may then be deliberately inspected.
+A directly addressed Resource resolves through the established direct Resource
+Query Reservoir seam and opens the shared Inspection surface. An open
+Inspection owns the Resource URL; after ordinary close, the exposed persistent
+Collection owns the URL again. A contextual Resource path retains its actual
+published Collection membership as that return context without creating a
+second Resource identity.
 
 Benefits include:
 
@@ -2156,7 +2161,14 @@ The first release does not require every future Resource to have a polished huma
 
 # 42. Browser History
 
-Collection navigation and artifact inspection should ideally interact correctly with browser Back/Forward.
+Collection navigation and Resource Inspection interact with browser
+Back/Forward through the existing semantic Reservoir visit coordinator.
+Digital-Reservoir-owned browser entries record only the public path, whether
+the entry was loaded directly, and an Inspection return path; they are not a
+second visit-history store. Browser Back from an open Inspection retracts it
+and requests the target semantic visit. Ordinary close is distinct: it returns
+to the exposed Reservoir context and never assumes that browser Back is safe
+for a directly loaded URL.
 
 Example:
 

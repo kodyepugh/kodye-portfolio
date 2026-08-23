@@ -85,7 +85,7 @@ measured atmosphere bottom plus responsive gap. This pass does not implement
 public routing, browser-history synchronization, production SEO metadata,
 custom-domain configuration, or production Resend delivery.
 
-### Public routing — completed on `feat/public-web-routing`
+### Public routing — completed
 
 Public URLs now resolve published canonical Objects through the shared
 Reservoir shell: `/` is Home, a published Collection uses
@@ -99,13 +99,15 @@ non-member contextual paths render Next's unavailable surface.
 
 The resolver is registry-backed and validates the existing global semantic
 address namespace rather than deriving URLs from display text. Reservoir
-history remains the owner of semantic visits. Browser history records committed
-semantic destinations, while `popstate` asks that same coordinator to restore
-the requested canonical context without adding another browser entry. Index,
-footer, Inspection support navigation, Home, and visible Reservoir history all
-therefore converge on the same public address policy. URLs never encode
-presentation-only state such as Index visibility, Inspection scroll, zoom, or
-layout mode.
+history remains the owner of semantic visits. A closed Reservoir exposes its
+Collection URL; an open Inspection exposes the Resource URL. Browser history
+records committed semantic destinations and owned Resource entries carry only
+their return path and initial-entry status. `popstate` asks the same coordinator
+to restore or retract the visible semantic state without adding another browser
+entry. Index, footer, Inspection support navigation, Home, and visible
+Reservoir history therefore converge on the same public address policy. URLs
+never encode presentation-only state such as Index visibility, Inspection
+scroll, zoom, or layout mode.
 
 ### Reservoir Index and semantic footer — completed on `feat/reservoir-index-navigation`
 

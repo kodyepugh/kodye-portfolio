@@ -49,6 +49,11 @@ const { resolvePublicRoute } = require(path.join(
   projectRoot,
   "lib/public-routing.ts",
 ));
+const {
+  createPublicRouteHistoryEntry,
+  getInspectionCloseHistoryAction,
+  getPublicRouteHistoryEntry,
+} = require(path.join(projectRoot, "lib/public-route-history.ts"));
 
 assert.deepEqual(resolvePublicRoute(), { kind: "root" });
 assert.deepEqual(resolvePublicRoute(["bellabeat-wellness-analysis"]), {
@@ -85,5 +90,31 @@ assert.equal(
   "not-found",
 );
 assert.equal(resolvePublicRoute(["work"]).kind, "not-found");
+
+const inAppResourceEntry = createPublicRouteHistoryEntry({
+  path: "/bellabeat-wellness-analysis",
+  initial: false,
+  returnPath: "/",
+});
+assert.equal(
+  getInspectionCloseHistoryAction(
+    getPublicRouteHistoryEntry(inAppResourceEntry),
+    "/",
+  ),
+  "back",
+);
+assert.equal(
+  getInspectionCloseHistoryAction(
+    getPublicRouteHistoryEntry(
+      createPublicRouteHistoryEntry({
+        path: "/resume",
+        initial: true,
+      }),
+    ),
+    "/",
+  ),
+  "replace",
+);
+assert.equal(getPublicRouteHistoryEntry({ path: "/" }), null);
 
 console.log("Public routing validation passed.");

@@ -255,7 +255,12 @@ The notebook treatment required by the Bellabeat launch material is implemented.
 
 ### Public routing is no longer an L2 deferral
 
-Final public URL/deep-link behavior remains outside the semantic ontology, but it is now part of the **launch-blocking Public Web Essentials** defined by the release-preparation roadmap. The current published launch registry provides stable semantic slugs for the published root Collection, Bellabeat, Resume, Contact, and independently addressable supporting Resources; it does not implement public URL routing.
+Final public URL/deep-link behavior remains outside the semantic ontology, but
+the launch-blocking Public Web Essentials routing layer now maps the current
+published registry's stable semantic slugs for the root Collection, Bellabeat,
+Resume, Contact, and independently addressable supporting Resources. The
+registry remains the authority for identity and publication; routing does not
+create a parallel Object model.
 
 Do not classify public routing/address mapping as deferred product work when evaluating launch readiness.
 
