@@ -145,10 +145,10 @@ approved Kodye Pugh mark with explicit owned backgrounds, and the public shell
 no longer describes itself as a spatial study or initial prototype.
 
 The production canonical base is `https://kodyepugh.com`, as established by
-the project authorities. Production Release must still point the deployment's
-primary domain there and verify that the live canonical, robots, icon, and
-social-preview URLs resolve correctly; this does not assert that the domain is
-already live.
+the project authorities, and the production deployment is now connected to
+that domain. Production Release must still verify that the live canonical,
+robots, icon, social-preview, assets, and direct Resource URLs resolve
+correctly on the production domain.
 
 Completed:
 
@@ -213,7 +213,7 @@ The current routing contract to preserve is:
 - Collection membership creates context and discovery, not identity;
 - ordinary Inspection close exposes the actual underlying Collection or Query Reservoir, while explicit Back owns return to prior semantic history.
 
-Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. Production-domain behavior remains part of the remaining Public Web Essentials and release work.
+Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. The production domain is connected; remaining Public Web Essentials work is limited to manual verification of launch-facing outbound destinations and direct-access paths, while broader production-domain verification remains part of Production Release.
 
 ### Completion condition
 
