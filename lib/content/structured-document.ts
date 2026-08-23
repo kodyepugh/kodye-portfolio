@@ -121,6 +121,7 @@ export function getStructuredDocumentBody(
       break;
     case "external-link":
     case "media":
+    case "contact":
       return null;
   }
 

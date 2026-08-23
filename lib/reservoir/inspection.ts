@@ -4,6 +4,8 @@ export type ResourceInspectionSurface =
   | "structured-document"
   | "image"
   | "external-link"
+  | "contact-form"
+  | "generic-file"
   | "notebook"
   | "unsupported";
 
@@ -17,12 +19,15 @@ export function getResourceInspectionSurface(
       return "image";
     case "external-link":
       return "external-link";
+    case "contact-form":
+      return "contact-form";
+    case "generic-file":
+      return "generic-file";
     case "notebook-code":
       return "notebook";
     case "video":
     case "audio":
     case "dataset-table":
-    case "generic-file":
       return "unsupported";
   }
 }

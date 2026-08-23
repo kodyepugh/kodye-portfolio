@@ -1,5 +1,7 @@
 import { getStructuredDocumentBody } from "@/lib/content/structured-document";
+import { ContactInspectionBody } from "./ContactInspectionBody";
 import { ExternalLinkInspectionBody } from "./ExternalLinkInspectionBody";
+import { GenericFileInspectionBody } from "./GenericFileInspectionBody";
 import { getResourceInspectionSurface } from "@/lib/reservoir/inspection";
 import type { Resource, ResourceExternalRepresentation } from "@/types/content";
 import { ImageInspectionBody } from "./ImageInspectionBody";
@@ -69,6 +71,22 @@ export function InspectionWindowBody({
     return (
       <div data-inspection-body="external-link">
         <ExternalLinkInspectionBody resource={resource} />
+      </div>
+    );
+  }
+
+  if (surface === "contact-form") {
+    return (
+      <div data-inspection-body="contact-form">
+        <ContactInspectionBody resource={resource} />
+      </div>
+    );
+  }
+
+  if (surface === "generic-file") {
+    return (
+      <div data-inspection-body="generic-file">
+        <GenericFileInspectionBody resource={resource} />
       </div>
     );
   }

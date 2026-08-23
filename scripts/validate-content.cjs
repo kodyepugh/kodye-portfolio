@@ -98,6 +98,15 @@ const { assertValidContentRegistry } = require(path.join(
   projectRoot,
   "lib/content/validation.ts",
 ));
+const {
+  resolveGenericFileInspection,
+} = require(path.join(
+  projectRoot,
+  "lib/content/generic-file-inspection.ts",
+));
+const {
+  validateContactSubmission,
+} = require(path.join(projectRoot, "lib/contact-form.ts"));
 
 const result = assertValidContentRegistry(contentRegistry);
 const syntheticPublishedResource = {
@@ -366,8 +375,10 @@ const checks = [
     ),
   ],
   [
-    "Resume is ready and its PDF asset resolves",
-    getResourceById(ARTIFACT_IDS.resume)?.content?.status === "ready" &&
+    "Resume is a ready generic-file with a resolvable PDF asset",
+    getResourceById(ARTIFACT_IDS.resume)?.inspectionKind === "generic-file" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.kind === "document" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.status === "ready" &&
       getResourceRepresentations(ARTIFACT_IDS.resume).some(
         (representation) =>
           representation.kind === "asset" &&
@@ -381,15 +392,39 @@ const checks = [
           asset.mimeType === "application/pdf" &&
           asset.src === "/resume/Kodye_Pugh_Resume_2026.pdf" &&
           fs.existsSync(path.join(projectRoot, "public", asset.src)),
-      ),
+      ) &&
+      resolveGenericFileInspection(getResourceById(ARTIFACT_IDS.resume)).status ===
+        "ready",
   ],
   [
-    "Contact destinations are canonical",
-    getResourceById(ARTIFACT_IDS.contact)?.content?.kind === "structured-document" &&
-      getResourceById(ARTIFACT_IDS.contact).content.blocks.map((block) =>
-        block.type === "link" ? block.href : "",
+    "Contact is a canonical contact-form with public professional profiles only",
+    getResourceById(ARTIFACT_IDS.contact)?.inspectionKind === "contact-form" &&
+      getResourceById(ARTIFACT_IDS.contact)?.content?.kind === "contact" &&
+      getResourceById(ARTIFACT_IDS.contact)?.content?.socialLinks.map(
+        (link) => `${link.provider}:${link.url}`,
       ).join(",") ===
-        "mailto:kodyepugh@alumni.stanford.edu,https://www.linkedin.com/in/kodyepugh/,https://github.com/kodyepugh",
+        "linkedin:https://www.linkedin.com/in/kodyepugh/,github:https://github.com/kodyepugh",
+  ],
+  [
+    "Contact submissions reject malformed input and accept bounded safe input",
+    validateContactSubmission({
+      name: "Recruiter",
+      email: "recruiter@example.com",
+      subject: "Portfolio question",
+      message: "Could we schedule a conversation?",
+    }).valid === true &&
+      validateContactSubmission({ name: "", email: "invalid", message: "" }).valid === false &&
+      validateContactSubmission({
+        name: "Recruiter\nBcc: bad@example.com",
+        email: "recruiter@example.com",
+        message: "Hello",
+      }).valid === false &&
+      validateContactSubmission({
+        name: "Recruiter",
+        email: "recruiter@example.com",
+        message: "Hello",
+        website: "bot.example",
+      }).valid === false,
   ],
   [
     "resource address resolution works",

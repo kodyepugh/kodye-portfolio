@@ -65,6 +65,9 @@ const {
   getResourceInspectionSurface,
 } = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
 const {
+  resolveGenericFileInspection,
+} = require(path.join(projectRoot, "lib/content/generic-file-inspection.ts"));
+const {
   canInspectResource,
 } = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
 const {
@@ -162,6 +165,7 @@ const {
 const about = getResourceById("artifact-about");
 const bellabeat = getResourceById("artifact-bellabeat-wellness-analysis");
 const resume = getResourceById("artifact-resume");
+const contact = getResourceById("artifact-contact");
 const comprehensiveCaseStudy = getResourceById(
   "resource-bellabeat-comprehensive-case-study",
 );
@@ -1039,7 +1043,17 @@ const checks = [
   [
     "D inspectionKind determines dispatch",
     getResourceInspectionSurface("structured-document") === "structured-document" &&
+      getResourceInspectionSurface("contact-form") === "contact-form" &&
+      getResourceInspectionSurface("generic-file") === "generic-file" &&
       getResourceInspectionSurface("video") === "unsupported",
+  ],
+  [
+    "D1 Contact and Resume resolve through their dedicated content-driven surfaces",
+    contact?.content?.kind === "contact" &&
+      resume?.content?.kind === "document" &&
+      canInspectResource(contact) &&
+      canInspectResource(resume) &&
+      resolveGenericFileInspection(resume).status === "ready",
   ],
   [
     "E supported surfaces are inspectable and unsupported surfaces are not",

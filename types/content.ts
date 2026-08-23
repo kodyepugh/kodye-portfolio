@@ -41,6 +41,7 @@ export const RESOURCE_INSPECTION_KINDS = [
   "video",
   "audio",
   "external-link",
+  "contact-form",
   "dataset-table",
   "notebook-code",
   "generic-file",
@@ -173,6 +174,11 @@ export type StructuredDocumentContent =
   | StructuredDocumentBlocksContent
   | StructuredMarkdownContent;
 
+export type ContactSocialLink = {
+  provider: "linkedin" | "github";
+  url: string;
+};
+
 export type ArtifactSection = {
   id: string;
   heading: string;
@@ -211,6 +217,11 @@ export type ResourceContent =
       status: ArtifactContentStatus;
       assetId?: string;
       note?: string;
+    }
+  | {
+      kind: "contact";
+      status: ArtifactContentStatus;
+      socialLinks: readonly ContactSocialLink[];
     };
 
 export type ArtifactContent = ResourceContent;

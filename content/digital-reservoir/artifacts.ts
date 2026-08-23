@@ -259,36 +259,6 @@ export const BELLABEAT_DOCUMENT_BLOCKS = [
   },
 ] satisfies readonly StructuredDocumentBlock[];
 
-const RESUME_DOCUMENT_BLOCKS = [
-  {
-    id: "resume-pdf-link",
-    type: "link",
-    label: "Open or download the approved resume (PDF)",
-    href: "/resume/Kodye_Pugh_Resume_2026.pdf",
-  },
-] satisfies readonly StructuredDocumentBlock[];
-
-const CONTACT_DOCUMENT_BLOCKS = [
-  {
-    id: "contact-email",
-    type: "link",
-    label: "Email kodyepugh@alumni.stanford.edu",
-    href: "mailto:kodyepugh@alumni.stanford.edu",
-  },
-  {
-    id: "contact-linkedin",
-    type: "link",
-    label: "Open LinkedIn profile",
-    href: "https://www.linkedin.com/in/kodyepugh/",
-  },
-  {
-    id: "contact-github",
-    type: "link",
-    label: "Open GitHub profile",
-    href: "https://github.com/kodyepugh",
-  },
-] satisfies readonly StructuredDocumentBlock[];
-
 export const resources = [
   {
     objectType: "resource",
@@ -370,7 +340,7 @@ export const resources = [
     title: "Resume",
     subtitle: "Experience, capabilities, and selected engagements",
     type: "resume",
-    inspectionKind: "structured-document",
+    inspectionKind: "generic-file",
     isArtifact: true,
     category: "Practice / Experience",
     categoryColor: "#667d83",
@@ -389,9 +359,9 @@ export const resources = [
       },
     ],
     content: {
-      kind: "structured-document",
+      kind: "document",
       status: "ready",
-      blocks: RESUME_DOCUMENT_BLOCKS,
+      assetId: ASSET_IDS.resumePdf,
     },
   },
   {
@@ -402,7 +372,7 @@ export const resources = [
     subtitle: "Email, LinkedIn, and GitHub",
     description: "Approved professional contact destinations.",
     type: "profile",
-    inspectionKind: "structured-document",
+    inspectionKind: "contact-form",
     isArtifact: true,
     category: "Connection",
     categoryColor: "#6f8065",
@@ -411,9 +381,18 @@ export const resources = [
     featured: true,
     published: true,
     content: {
-      kind: "structured-document",
+      kind: "contact",
       status: "ready",
-      blocks: CONTACT_DOCUMENT_BLOCKS,
+      socialLinks: [
+        {
+          provider: "linkedin",
+          url: "https://www.linkedin.com/in/kodyepugh/",
+        },
+        {
+          provider: "github",
+          url: "https://github.com/kodyepugh",
+        },
+      ],
     },
   },
   {

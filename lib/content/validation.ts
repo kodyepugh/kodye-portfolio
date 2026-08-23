@@ -237,6 +237,10 @@ function reportInspectionContentCompatibility(
       ? ["structured-document", "rich-text", "case-study", "document"].includes(
           contentKind,
         )
+      : resource.inspectionKind === "contact-form"
+        ? contentKind === "contact"
+      : resource.inspectionKind === "generic-file"
+        ? contentKind === "document"
       : resource.inspectionKind === "image"
         ? contentKind === "media"
         : resource.inspectionKind === "external-link"

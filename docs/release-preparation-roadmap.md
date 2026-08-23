@@ -98,7 +98,7 @@ Wire and verify working production destinations for:
 
 No launch-facing navigation control should remain wired to a development placeholder such as `#` or an unavailable destination.
 
-A complex contact form is not required for the first release.
+The implemented Contact Resource provides a bounded form, LinkedIn, and GitHub through its dedicated Inspection surface. Production delivery remains a deployment task: configure the server-only `RESEND_API_KEY`, `CONTACT_FROM_EMAIL` (a controlled, verified sender), and optional `CONTACT_TO_EMAIL` (which otherwise defaults server-side to the approved recipient). The visitor email is used only as `Reply-To`; do not expose delivery configuration in client content or claim production delivery until the Resend sender/domain is configured and smoke-tested.
 
 ### Direct addressability
 

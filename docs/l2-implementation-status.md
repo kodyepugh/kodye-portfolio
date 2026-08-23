@@ -217,7 +217,7 @@ The remaining work is public-release preparation rather than expansion of the L2
 The roadmap currently groups the remaining launch work into five stages, beginning with a completed Bellabeat-only launch cut rather than a broad first portfolio content cut:
 
 1. **Bellabeat Launch Cut** — complete. The published root Digital Reservoir Collection now curates exactly Bellabeat, Resume, and Contact; dormant Collections and unfinished launch Resources are unpublished.
-2. **Public Web Essentials** — production identity/metadata, real outbound destinations, reliable Resume access, and a practical Bellabeat direct public address.
+2. **Public Web Essentials** — production identity/metadata, real outbound destinations, the implemented Contact form (pending production Resend sender/domain configuration and delivery verification), reliable inline/downloadable Resume PDF access, and a practical Bellabeat direct public address.
 3. **Bellabeat Recruiter-Path QA** — exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
 4. **Minimum Responsive / Accessibility / Interaction Sweep** — representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup.
 5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.
