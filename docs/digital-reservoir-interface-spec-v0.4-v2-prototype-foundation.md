@@ -541,7 +541,7 @@ Conceptually:
 │                                                  │
 ├──────────────────────────────────────────────────┤
 │                       ◉                          │
-│                   KODYEPUGH                      │
+│                    SYMBOL                        │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -563,6 +563,8 @@ The symbol is the complete identity treatment; no wordmark is rendered beneath i
 
 The center identity block should remain the visual anchor of the interface.
 
+At normal desktop and laptop widths, the accepted symbol scale remains stable rather than shrinking continuously with viewport width. Responsive reduction is reserved for meaningful width or height constraints, including narrow and very short viewports, and preserves the symbol's intrinsic aspect ratio.
+
 ---
 
 ## 6.2 Default Contents
@@ -571,7 +573,6 @@ Default reservoir state:
 
 ```text
             SYMBOL
-          KODYEPUGH
 ```
 
 Avoid cluttering the default control plane with unnecessary navigation labels.

@@ -36,28 +36,16 @@ export default function OpenGraphImage() {
             A collection of all things Kodye Pugh.
           </span>
         </div>
-        <div
-          style={{
-            alignItems: "center",
-            background: "#111816",
-            border: "1px solid #26332e",
+        <BrandSymbol
+          containerStyle={{
+            color: "#f4f5ef",
             display: "flex",
-            height: 330,
-            justifyContent: "center",
-            width: 330,
+            height: 248,
+            width: 304,
           }}
-        >
-          <BrandSymbol
-            containerStyle={{
-              color: "#f4f5ef",
-              display: "flex",
-              height: 180,
-              width: 220,
-            }}
-            variant="metadata-icon"
-            style={{ height: 180, width: 220 }}
-          />
-        </div>
+          variant="metadata-icon"
+          style={{ height: 248, width: 304 }}
+        />
       </div>
     ),
     size,
