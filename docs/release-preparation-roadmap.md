@@ -54,7 +54,7 @@ See `docs/l2-implementation-status.md` for current implementation state and the 
 
 ## 1. Bellabeat Launch Cut — Launch-Blocking
 
-**Status:** Complete in the current launch-cut implementation branch.
+**Status:** Complete in the current public-launch repository line.
 
 Treat the already-materialized Bellabeat project and supporting Resources as the substantive portfolio content required for launch. Audit the production-visible registry and hide or unpublish unfinished, synthetic, placeholder, development-only, or misleading public objects that are not intentionally required for the launch experience.
 
@@ -123,7 +123,7 @@ The first release does not require a complete public routing architecture for ev
 
 ### Approved routing contract for the next phase
 
-The routing implementation belongs to Public Web Essentials and is not implemented by this launch-cut pass. The contract to preserve is:
+The routing implementation belongs to Public Web Essentials and is not implemented by the completed Bellabeat Launch Cut. The contract to preserve is:
 
 - internal semantic ID, display title, and public slug remain distinct concepts;
 - a slug is an explicit stable address token and does not automatically change when a title changes;
@@ -134,7 +134,7 @@ The routing implementation belongs to Public Web Essentials and is not implement
 - the contextual path expresses viewing/navigation context and does not create a second Resource identity;
 - Collection membership creates context and discovery, not identity.
 
-Intended examples are `/`, `/bellabeat-wellness-analysis`, `/resume`, `/contact`, future `/work`, and future `/work/cif-oakland`. Dynamic routing, browser-history synchronization, deep-link initialization, and production-domain behavior remain outside this branch.
+Intended examples are `/`, `/bellabeat-wellness-analysis`, `/resume`, `/contact`, future `/work`, and future `/work/cif-oakland`. Dynamic routing, browser-history synchronization, deep-link initialization, and production-domain behavior remain part of Public Web Essentials rather than the completed Bellabeat Launch Cut.
 
 ### Completion condition
 
