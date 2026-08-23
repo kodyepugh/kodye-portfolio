@@ -39,7 +39,8 @@ export default function OpenGraphImage() {
         <div
           style={{
             alignItems: "center",
-            background: "#f4f5ef",
+            background: "#111816",
+            border: "1px solid #26332e",
             display: "flex",
             height: 330,
             justifyContent: "center",
@@ -48,13 +49,13 @@ export default function OpenGraphImage() {
         >
           <BrandSymbol
             containerStyle={{
-              color: "#111816",
+              color: "#f4f5ef",
               display: "flex",
-              height: "78%",
-              width: "78%",
+              height: 153,
+              width: 220,
             }}
             variant="metadata-icon"
-            style={{ height: "100%", width: "100%" }}
+            style={{ height: 153, width: 220 }}
           />
         </div>
       </div>

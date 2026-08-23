@@ -31,6 +31,7 @@ export function BrandSymbol({
     >
       <svg
         className="brand-symbol__artwork"
+        fill="currentColor"
         viewBox="0 0 199.99999 139"
         role="img"
         aria-label="Kodye Pugh"
