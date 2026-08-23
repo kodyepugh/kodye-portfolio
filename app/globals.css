@@ -213,15 +213,6 @@ body.artifact-reading-mode .reservoir-study {
   fill: currentColor;
 }
 
-.brand-symbol__artwork [data-brand-layer="wordmark"] {
-  font-family: "Now", var(--font-geist-sans), sans-serif;
-  font-size: 31.9677px;
-  font-stretch: normal;
-  font-style: normal;
-  font-variant: normal;
-  font-weight: 300;
-}
-
 .reservoir-navigation {
   position: fixed;
   z-index: 6;
@@ -2747,10 +2738,6 @@ body.artifact-reading-mode .reservoir-study {
   width: clamp(74px, 8vw, 112px);
   color: var(--artifact-text);
   line-height: 0;
-}
-
-.artifact-terminal-symbol .brand-symbol__artwork [data-brand-layer="wordmark"] {
-  display: none;
 }
 
 .reservoir-footer--artifact {

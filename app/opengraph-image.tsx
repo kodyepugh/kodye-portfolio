@@ -33,7 +33,7 @@ export default function OpenGraphImage() {
             Digital Reservoir
           </span>
           <span style={{ fontSize: 28, lineHeight: 1.35, maxWidth: 610, opacity: 0.78 }}>
-            Selected work, analysis, experience, and supporting resources.
+            A collection of all things Kodye Pugh.
           </span>
         </div>
         <div
@@ -47,7 +47,12 @@ export default function OpenGraphImage() {
           }}
         >
           <BrandSymbol
-            containerStyle={{ display: "flex", height: "78%", width: "78%" }}
+            containerStyle={{
+              color: "#111816",
+              display: "flex",
+              height: "78%",
+              width: "78%",
+            }}
             variant="metadata-icon"
             style={{ height: "100%", width: "100%" }}
           />

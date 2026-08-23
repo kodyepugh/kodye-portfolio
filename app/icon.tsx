@@ -22,7 +22,12 @@ export default function Icon() {
         }}
       >
         <BrandSymbol
-          containerStyle={{ display: "flex", height: "78%", width: "78%" }}
+          containerStyle={{
+            color: "#111816",
+            display: "flex",
+            height: "78%",
+            width: "78%",
+          }}
           variant="metadata-icon"
           style={{ height: "100%", width: "100%" }}
         />

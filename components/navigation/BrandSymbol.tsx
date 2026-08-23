@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 
 export const BRAND_SYMBOL_LAYER_SELECTORS = {
-  wordmark: "#text1-3",
   enso: "#path52-7",
   pillars: "#g1",
   lens: "#path54-7",
@@ -22,7 +21,6 @@ export function BrandSymbol({
   style,
 }: BrandSymbolProps) {
   const terminal = variant === "artifact-terminal";
-  const markOnly = terminal || variant === "metadata-icon";
 
   return (
     <div
@@ -33,7 +31,7 @@ export function BrandSymbol({
     >
       <svg
         className="brand-symbol__artwork"
-        viewBox={markOnly ? "0 0 199.99999 139" : "0 0 199.99999 194.89861"}
+        viewBox="0 0 199.99999 139"
         role="img"
         aria-label="Kodye Pugh"
         preserveAspectRatio="xMidYMid meet"
@@ -81,20 +79,6 @@ export function BrandSymbol({
             d="m 118.97793,61.790441 -1.59848,0.92267 c 0.42499,1.536743 0.65304,3.15703 0.65304,4.83043 0,9.971573 -8.06156,18.033138 -18.033134,18.033138 -9.971574,0 -18.033139,-8.061565 -18.033139,-18.033138 0,-9.971576 8.061565,-18.033143 18.033139,-18.033143 5.064424,0 9.635434,2.079676 12.908574,5.432704 l 1.58972,-0.917416 c -3.62074,-3.881073 -8.77905,-6.309848 -14.498294,-6.309848 -10.94048,0 -19.827704,8.887222 -19.827704,19.827703 0,10.940479 8.887224,19.827703 19.827704,19.827703 10.940474,0 19.827704,-8.887224 19.827704,-19.827703 0,-2.000462 -0.29663,-3.931712 -0.84913,-5.7531 z"
           />
 
-          {!markOnly ? <text
-            id="text1-3"
-            data-brand-layer="wordmark"
-            x="-2.9170372"
-            y="197.59109"
-            transform="scale(1.0046263,0.995395)"
-            xmlSpace="preserve"
-            textAnchor="start"
-          >
-            <tspan id="tspan2" x="-2.9170372" y="197.59109">
-              KODYEPUGH
-            </tspan>
-            <tspan id="tspan3" x="-2.9170372" y="237.55074" />
-          </text> : null}
         </g>
       </svg>
     </div>
