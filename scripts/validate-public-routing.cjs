@@ -104,6 +104,35 @@ const inAppResourceEntry = createPublicRouteHistoryEntry({
   returnPath: "/",
 });
 assert.equal(
+  getPublicRouteHistoryEntry(
+    createPublicRouteHistoryEntry({
+      path: "/resume",
+      initial: false,
+      closeAction: "replace",
+    }),
+  ).closeAction,
+  "replace",
+);
+assert.equal(
+  getPublicRouteHistoryEntry(
+    createPublicRouteHistoryEntry({
+      path: "/resume",
+      initial: false,
+      closeAction: "back",
+    }),
+  ).closeAction,
+  "back",
+);
+assert.equal(
+  getPublicRouteHistoryEntry(
+    createPublicRouteHistoryEntry({
+      path: "/resume",
+      initial: false,
+    }),
+  ).closeAction,
+  undefined,
+);
+assert.equal(
   getInspectionCloseHistoryAction(
     getPublicRouteHistoryEntry(inAppResourceEntry),
     "/",

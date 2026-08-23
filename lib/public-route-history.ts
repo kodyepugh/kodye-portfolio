@@ -12,12 +12,14 @@ export function createPublicRouteHistoryEntry({
   path,
   initial,
   returnPath,
+  closeAction,
 }: Omit<PublicRouteHistoryEntry, typeof PUBLIC_ROUTE_HISTORY_STATE_KEY>) {
   return {
     [PUBLIC_ROUTE_HISTORY_STATE_KEY]: true as const,
     path,
     initial,
     ...(returnPath ? { returnPath } : {}),
+    ...(closeAction ? { closeAction } : {}),
   };
 }
 
