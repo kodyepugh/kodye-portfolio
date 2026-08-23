@@ -3,8 +3,7 @@ import type { Collection, Resource } from "@/types/content";
 
 export const SITE_URL = new URL("https://kodyepugh.com");
 export const SITE_TITLE = "Kodye Pugh — Digital Reservoir";
-export const SITE_DESCRIPTION =
-  "The portfolio of Kodye Pugh, presented through the Digital Reservoir — an interactive collection of selected work, analysis, experience, and supporting resources.";
+export const SITE_DESCRIPTION = "A collection of all things Kodye Pugh.";
 
 export const siteMetadata: Metadata = {
   metadataBase: SITE_URL,
@@ -33,7 +32,7 @@ export const siteMetadata: Metadata = {
 };
 
 function resourceDescription(resource: Resource) {
-  return resource.description ?? resource.subtitle ?? SITE_DESCRIPTION;
+  return resource.description ?? SITE_DESCRIPTION;
 }
 
 function collectionDescription(collection: Collection) {

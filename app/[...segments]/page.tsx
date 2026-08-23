@@ -27,7 +27,7 @@ export async function generateMetadata({
     const resource = getResourceById(route.resourceId);
     return resource
       ? getResourceMetadata(resource, {
-          index: route.kind !== "resource",
+          index: route.kind === "resource",
         })
       : {};
   }
