@@ -134,18 +134,29 @@ production Resend delivery.
 
 ### Production identity
 
-**Status:** Next implementation.
+**Status:** Completed.
 
-Replace remaining prototype/study framing with public portfolio identity appropriate to the live portfolio.
+The root metadata and public route metadata now present **Kodye Pugh — Digital
+Reservoir** as the portfolio identity. Published Resource routes derive their
+titles and available descriptions from the canonical registry; Query Reservoir
+and contextual Resource paths canonically identify the direct Resource and are
+not independently indexed. The shared social card and app icon use the
+approved Kodye Pugh mark with explicit owned backgrounds, and the public shell
+no longer describes itself as a spatial study or initial prototype.
 
-Confirm:
+The production canonical base is `https://kodyepugh.com`, as established by
+the project authorities. Production Release must still point the deployment's
+primary domain there and verify that the live canonical, robots, icon, and
+social-preview URLs resolve correctly; this does not assert that the domain is
+already live.
 
-- production page title;
-- production description;
-- Open Graph/social metadata;
-- favicon and appropriate identity assets;
-- canonical production-domain configuration;
-- removal of visible prototype/debug/study language that is not intentionally part of the Digital Reservoir case study.
+Completed:
+
+- production page title and description;
+- Open Graph/social metadata and owned-background preview;
+- public robots defaults and canonical metadata foundation;
+- app icon identity treatment;
+- removal of public-shell prototype/study framing.
 
 The public website should present the Digital Reservoir as the interface of the portfolio, not present the entire site as an unfinished spatial experiment.
 

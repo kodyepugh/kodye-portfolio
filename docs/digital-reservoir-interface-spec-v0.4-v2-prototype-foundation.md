@@ -276,7 +276,7 @@ The persistent interface control plane is located at the **bottom of the viewpor
 
 It contains the identity system and contextual controls.
 
-Its central anchor is the Kodye Pugh symbol and wordmark.
+Its central anchor is the Kodye Pugh symbol.
 
 The control plane may expand, lift, transform, or reveal contextual information without losing its central identity.
 
@@ -374,7 +374,7 @@ Ambient motion should never compete with intentional motion.
 
 ## 3.3 Branding Is Functional
 
-The Kodye Pugh symbol and wordmark form the persistent identity anchor of the bottom control plane.
+The Kodye Pugh symbol forms the persistent identity anchor of the bottom control plane.
 
 The symbol should remain visually stable through ordinary reservoir exploration and artifact inspection. It does not need to perform artifact intake, orb-transfer, or loading animations in order to justify its presence.
 
@@ -389,7 +389,7 @@ The currently accepted resting scale and position of the symbol should be preser
 
 ### Current specification
 
-Do not animate the center circle, pillars, ensō, or wordmark as part of artifact activation unless a future design decision explicitly reintroduces such behavior.
+Do not animate the center circle, pillars, or ensō as part of artifact activation unless a future design decision explicitly reintroduces such behavior.
 
 ## 3.4 Preserve Spatial Continuity
 
@@ -503,7 +503,7 @@ L2  ENVIRONMENT / ATMOSPHERE
     Background field and atmospheric graphics
 
 L1  PERSISTENT BOTTOM CONTROL PLANE
-    Symbol, wordmark, contextual controls
+    Symbol, contextual controls
 
 L0  RESERVOIR INDEX / FOOTER REVEAL LAYERS
     Positioned beneath movable control plane
@@ -541,7 +541,7 @@ Conceptually:
 │                                                  │
 ├──────────────────────────────────────────────────┤
 │                       ◉                          │
-│                   KODYEPUGH                      │
+│                    SYMBOL                        │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -559,9 +559,11 @@ The Kodye Pugh symbol is:
 - vertically centered relative to the header region;
 - aligned so that its horizontal center corresponds with the top edge relationship originally defined by the visual identity composition.
 
-The Kodye Pugh wordmark rests beneath the symbol.
+The symbol is the complete identity treatment; no wordmark is rendered beneath it.
 
 The center identity block should remain the visual anchor of the interface.
+
+At normal desktop and laptop widths, the accepted symbol scale remains stable rather than shrinking continuously with viewport width. Responsive reduction is reserved for meaningful width or height constraints, including narrow and very short viewports, and preserves the symbol's intrinsic aspect ratio.
 
 ---
 
@@ -571,7 +573,6 @@ Default reservoir state:
 
 ```text
             SYMBOL
-          KODYEPUGH
 ```
 
 Avoid cluttering the default control plane with unnecessary navigation labels.
@@ -582,13 +583,13 @@ Contextual controls should appear only when relevant.
 
 ## 6.3 Artifact-Open Contents
 
-When an artifact is open, the symbol and wordmark remain the stable center identity block.
+When an artifact is open, the symbol remains the stable center identity block.
 
 Artifact title and descriptive metadata are not required to expand laterally from the symbol. Their primary preview location is the atmospheric information region during the selected state, while the opened Inspection Window owns the full reading hierarchy.
 
 A close control belongs to the Inspection Window.
 
-A future Home control may occupy the reserved space beneath the symbol/wordmark, but its semantics remain unresolved.
+A future Home control may occupy the reserved space beneath the symbol, but its semantics remain unresolved.
 
 Avoid turning the control plane into an animated artifact-loading mechanism.
 
@@ -1321,7 +1322,7 @@ Do not reset the reservoir to its default orientation and do not require an orb-
 
 # 19. Home Control
 
-A future Home control may appear beneath the wordmark in the reserved space created by the accepted symbol composition.
+A future Home control may appear beneath the symbol in the reserved space created by the accepted symbol composition.
 
 Its exact meaning must be carefully defined.
 
@@ -1340,7 +1341,7 @@ The Inspection Window itself already has a dedicated close control, so Home shou
 
 This remains an **open decision**.
 
-The accepted symbol/wordmark resting position should preserve sufficient responsive space for this future control without forcing the symbol to move during artifact selection or opening.
+The accepted symbol resting position should preserve sufficient responsive space for this future control without forcing the symbol to move during artifact selection or opening.
 
 # 20. Navigation Depth / Breadcrumbs
 
@@ -1358,7 +1359,7 @@ Alternative approaches should be explored.
 
 Possibilities:
 
-- compact vertical path beneath wordmark;
+- compact vertical path beneath symbol;
 - expandable navigation stack;
 - home icon revealing path;
 - subtle collection labels;
@@ -2484,7 +2485,7 @@ The visitor should reach usable content quickly.
 Potential sequence:
 
 1. environment loads;
-2. wordmark/control plane appears;
+2. symbol/control plane appears;
 3. reservoir resolves;
 4. nodes become interactive.
 
@@ -2703,7 +2704,6 @@ Potential conceptual component structure:
 
   <BottomControlPlane>
     <BrandSymbol />
-    <Wordmark />
     <HomeControl />
   </BottomControlPlane>
 
@@ -3042,7 +3042,7 @@ Selecting a collection changes the semantic contents of the persistent centered 
 
 Artifact interaction remains progressive: first selection reveals richer atmospheric information; second selection opens a conventional Inspection Window. Reading remains a 2D document interaction and closing restores the selected reservoir context.
 
-The Kodye Pugh symbol and wordmark remain the stable bottom-centered identity anchor. Reservoir Index, footer, direct navigation, queries, and artifact-reading layers remain UI-space systems rather than camera-navigation mechanisms.
+The Kodye Pugh symbol remains the stable bottom-centered identity anchor. The accepted production treatment is symbol-only: no wordmark appears in the Reservoir control plane, Inspection terminal, favicon/app icon, or social imagery. Reservoir Index, footer, direct navigation, queries, and artifact-reading layers remain UI-space systems rather than camera-navigation mechanisms.
 
 The interface continues to be governed by:
 
