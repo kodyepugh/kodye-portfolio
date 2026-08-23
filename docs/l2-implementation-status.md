@@ -225,7 +225,15 @@ The roadmap currently groups the remaining launch work into five stages, beginni
 
 Broader About, Digital Reservoir, client, and archive content are post-launch expansion work and are not required to complete this launch sequence.
 
-The approved public-routing contract remains a future Public Web Essentials concern: stable semantic IDs/slugs remain distinct from display titles; `/` is reserved for Home; direct Objects will use `/<object-slug>`; contextual Resource paths may use `/<collection-slug>/<resource-slug>` without creating a second identity; and Collection membership provides context/discovery rather than identity. No dynamic routing or browser-history synchronization is implemented by the completed L2 line or the completed Bellabeat Launch Cut.
+The approved public-routing contract is implemented by the launch-blocking
+Public Web Essentials pass: stable semantic IDs/slugs remain distinct from
+display titles; `/` is reserved for Home; direct published Objects use
+`/<object-slug>`; and a contextual Resource path
+`/<collection-slug>/<resource-slug>` is valid only for actual published
+membership and does not create a second identity. Dynamic route resolution,
+deep-link initialization, and browser-history synchronization are owned by
+that public-routing layer, while the L2 state machine remains the owner of
+semantic visits and Inspection return behavior.
 
 Implementation work should follow that roadmap rather than treating a technically logical next renderer or ingestion seam as automatically higher priority.
 
@@ -247,7 +255,12 @@ The notebook treatment required by the Bellabeat launch material is implemented.
 
 ### Public routing is no longer an L2 deferral
 
-Final public URL/deep-link behavior remains outside the semantic ontology, but it is now part of the **launch-blocking Public Web Essentials** defined by the release-preparation roadmap. The current published launch registry provides stable semantic slugs for the published root Collection, Bellabeat, Resume, Contact, and independently addressable supporting Resources; it does not implement public URL routing.
+Final public URL/deep-link behavior remains outside the semantic ontology, but
+the launch-blocking Public Web Essentials routing layer now maps the current
+published registry's stable semantic slugs for the root Collection, Bellabeat,
+Resume, Contact, and independently addressable supporting Resources. The
+registry remains the authority for identity and publication; routing does not
+create a parallel Object model.
 
 Do not classify public routing/address mapping as deferred product work when evaluating launch readiness.
 
