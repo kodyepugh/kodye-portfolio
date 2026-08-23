@@ -33,7 +33,7 @@ export function BrandSymbol({
         className="brand-symbol__artwork"
         fill="currentColor"
         overflow="visible"
-        viewBox="0 0 220 159"
+        viewBox="0 0 220 180"
         role="img"
         aria-label="Kodye Pugh"
         preserveAspectRatio="xMidYMid meet"
@@ -43,7 +43,7 @@ export function BrandSymbol({
         <g
           id="layer1"
           data-brand-composition="kodyepugh-symbol"
-          transform="translate(10,10) translate(-5.261273e-6,-2.5506923)"
+          transform="translate(10,20) translate(-5.261273e-6,-2.5506923)"
         >
           <circle
             id="path20-6-1-9"
