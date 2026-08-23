@@ -33,8 +33,16 @@ const INITIAL_FORM_STATE: ContactFormState = {
 };
 
 function getSocialIcon(link: ContactSocialLink) {
-  const path = link.provider === "linkedin" ? faLinkedin.icon[4] : siGithub.path;
-  return Array.isArray(path) ? path.join(" ") : path;
+  if (link.provider === "linkedin") {
+    return {
+      path: Array.isArray(faLinkedin.icon[4])
+        ? faLinkedin.icon[4].join(" ")
+        : faLinkedin.icon[4],
+      viewBox: `0 0 ${faLinkedin.icon[0]} ${faLinkedin.icon[1]}`,
+    };
+  }
+
+  return { path: siGithub.path, viewBox: "0 0 24 24" };
 }
 
 function getSocialLabel(link: ContactSocialLink) {
@@ -129,7 +137,8 @@ export function ContactInspectionBody({
 
   return (
     <section className="inspection-contact" data-inspection-contact-state={deliveryState}>
-      <form className="inspection-contact__form" noValidate onSubmit={submit}>
+      <div className="inspection-contact__center">
+        <form className="inspection-contact__form" noValidate onSubmit={submit}>
         <div className="inspection-contact__field">
           <label htmlFor={nameId}>Name</label>
           <input
@@ -207,27 +216,28 @@ export function ContactInspectionBody({
         <p className="inspection-contact__status" aria-live="polite" role="status">
           {statusMessage}
         </p>
-      </form>
+        </form>
 
-      <nav className="inspection-contact__social-links" aria-label="Professional profiles">
-        {contactContent.socialLinks.map((link) => {
-          const icon = getSocialIcon(link);
-          return (
-            <a
-              key={link.provider}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={getSocialLabel(link)}
-              title={getSocialLabel(link)}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d={icon} fill="currentColor" />
-              </svg>
-            </a>
-          );
-        })}
-      </nav>
+        <nav className="inspection-contact__social-links" aria-label="Professional profiles">
+          {contactContent.socialLinks.map((link) => {
+            const icon = getSocialIcon(link);
+            return (
+              <a
+                key={link.provider}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={getSocialLabel(link)}
+                title={getSocialLabel(link)}
+              >
+                <svg viewBox={icon.viewBox} aria-hidden="true" focusable="false">
+                  <path d={icon.path} fill="currentColor" />
+                </svg>
+              </a>
+            );
+          })}
+        </nav>
+      </div>
     </section>
   );
 }

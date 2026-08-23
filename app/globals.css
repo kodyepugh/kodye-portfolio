@@ -1877,8 +1877,14 @@ body.artifact-reading-mode .reservoir-study {
 
 .inspection-contact {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 660px) minmax(0, 1fr);
+  width: 100%;
+}
+
+.inspection-contact__center {
+  grid-column: 2;
+  display: grid;
   gap: 28px;
-  width: min(100%, 660px);
 }
 
 .inspection-contact__form {
@@ -1958,8 +1964,7 @@ body.artifact-reading-mode .reservoir-study {
   white-space: nowrap;
 }
 
-.inspection-contact__submit,
-.inspection-generic-file__download {
+.inspection-contact__submit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1983,9 +1988,7 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .inspection-contact__submit:hover:not(:disabled),
-.inspection-contact__submit:focus-visible,
-.inspection-generic-file__download:hover,
-.inspection-generic-file__download:focus-visible {
+.inspection-contact__submit:focus-visible {
   border-color: var(--artifact-focus);
   background: color-mix(in srgb, var(--artifact-surface-raised) 88%, var(--artifact-focus) 12%);
   outline: 2px solid var(--artifact-focus);
@@ -2057,15 +2060,6 @@ body.artifact-reading-mode .reservoir-study {
   text-align: center;
 }
 
-.inspection-generic-file__download {
-  margin-inline: auto;
-}
-
-.inspection-generic-file__download svg {
-  width: 14px;
-  height: 14px;
-}
-
 .inspection-generic-file--unavailable {
   display: grid;
   gap: 14px;
@@ -2084,7 +2078,11 @@ body.artifact-reading-mode .reservoir-study {
 
 @media (max-width: 640px) {
   .inspection-contact {
-    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inspection-contact__center {
+    grid-column: 1;
   }
 
   .inspection-generic-file__preview {

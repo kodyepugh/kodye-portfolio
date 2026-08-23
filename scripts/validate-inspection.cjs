@@ -215,6 +215,14 @@ const inspectionCssSource = fs.readFileSync(
   path.join(projectRoot, "app/globals.css"),
   "utf8",
 );
+const contactInspectionBodySource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/ContactInspectionBody.tsx"),
+  "utf8",
+);
+const genericFileInspectionBodySource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/GenericFileInspectionBody.tsx"),
+  "utf8",
+);
 const inspectionContextTraySource = fs.readFileSync(
   path.join(projectRoot, "components/reservoir/InspectionContextTray.tsx"),
   "utf8",
@@ -1785,6 +1793,22 @@ const checks = [
       inspectionViewerSource.match(
         /inspection-image-viewer__nav[\s\S]*?onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g,
       )?.length === 2,
+  ],
+  [
+    "BF Contact content is centered in a responsive three-column stack and uses native icon viewBoxes",
+    inspectionCssSource.includes(
+      "grid-template-columns: minmax(0, 1fr) minmax(0, 660px) minmax(0, 1fr)",
+    ) &&
+      inspectionCssSource.includes(".inspection-contact__center") &&
+      contactInspectionBodySource.includes("viewBox={icon.viewBox}") &&
+      contactInspectionBodySource.includes("faLinkedin.icon[0]") &&
+      contactInspectionBodySource.includes("faLinkedin.icon[1]"),
+  ],
+  [
+    "BG Resume PDF relies on the embedded viewer controls",
+    genericFileInspectionBodySource.includes('type="application/pdf"') &&
+      !genericFileInspectionBodySource.includes("Download PDF") &&
+      !genericFileInspectionBodySource.includes("inspection-generic-file__download"),
   ],
 ];
 
