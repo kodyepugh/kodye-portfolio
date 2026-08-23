@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "validate:content": "node scripts/validate-content.cjs",
     "validate:inspection": "node scripts/validate-inspection.cjs",
+    "validate:routing": "node scripts/validate-public-routing.cjs",
     "validate:label-geometry": "node --experimental-strip-types scripts/validate-label-geometry.mjs"
   },
   "dependencies": {

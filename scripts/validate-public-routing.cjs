@@ -1,0 +1,89 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- This focused runner loads the typed registry directly. */
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const Module = require("node:module");
+const ts = require("typescript");
+
+require.extensions[".ts"] = function loadTypeScript(module, filename) {
+  const output = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+      esModuleInterop: true,
+    },
+    fileName: filename,
+  }).outputText;
+  module._compile(output, filename);
+};
+
+const projectRoot = path.resolve(__dirname, "..");
+const originalResolveFilename = Module._resolveFilename;
+Module._resolveFilename = function resolveRepositoryAliases(
+  request,
+  parent,
+  isMain,
+  options,
+) {
+  if (request.startsWith("@/")) {
+    return originalResolveFilename.call(
+      this,
+      path.join(projectRoot, request.slice(2)),
+      parent,
+      isMain,
+      options,
+    );
+  }
+  return originalResolveFilename.call(this, request, parent, isMain, options);
+};
+
+const { ROOT_COLLECTION_ID } = require(path.join(
+  projectRoot,
+  "content/digital-reservoir/collections.ts",
+));
+const { ARTIFACT_IDS } = require(path.join(
+  projectRoot,
+  "content/digital-reservoir/artifacts.ts",
+));
+const { resolvePublicRoute } = require(path.join(
+  projectRoot,
+  "lib/public-routing.ts",
+));
+
+assert.deepEqual(resolvePublicRoute(), { kind: "root" });
+assert.deepEqual(resolvePublicRoute(["bellabeat-wellness-analysis"]), {
+  kind: "resource",
+  resourceId: ARTIFACT_IDS.bellabeat,
+});
+assert.deepEqual(resolvePublicRoute(["resume"]), {
+  kind: "resource",
+  resourceId: ARTIFACT_IDS.resume,
+});
+assert.deepEqual(resolvePublicRoute(["contact"]), {
+  kind: "resource",
+  resourceId: ARTIFACT_IDS.contact,
+});
+assert.equal(
+  resolvePublicRoute(["bellabeat-wellness-analysis-repository"]).kind,
+  "resource",
+);
+assert.deepEqual(resolvePublicRoute(["digital-reservoir"]), {
+  kind: "redirect-root",
+});
+assert.equal(resolvePublicRoute(["about"]).kind, "not-found");
+assert.equal(resolvePublicRoute(["unknown-slug"]).kind, "not-found");
+assert.deepEqual(
+  resolvePublicRoute(["digital-reservoir", "bellabeat-wellness-analysis"]),
+  {
+    kind: "contextual-resource",
+    collectionId: ROOT_COLLECTION_ID,
+    resourceId: ARTIFACT_IDS.bellabeat,
+  },
+);
+assert.equal(
+  resolvePublicRoute(["digital-reservoir", "kodyepugh-symbol"]).kind,
+  "not-found",
+);
+assert.equal(resolvePublicRoute(["work"]).kind, "not-found");
+
+console.log("Public routing validation passed.");
