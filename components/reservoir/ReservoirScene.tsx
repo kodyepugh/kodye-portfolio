@@ -1480,14 +1480,6 @@ export function ReservoirScene() {
     () => activeReservoirResources.filter((node) => !node.isArtifact),
     [activeReservoirResources],
   );
-  const activeReservoirChildCollections = useMemo(
-    () =>
-      activeReservoirNodes.filter(
-        (node): node is Extract<ReservoirContentNode, { kind: "collection" }> =>
-          node.kind === "collection",
-      ),
-    [activeReservoirNodes],
-  );
   const activeReservoirNodeSizingTargets = getReservoirNodeSizingTargets(
     activeReservoirNodes.length,
   );
@@ -4241,35 +4233,6 @@ export function ReservoirScene() {
         mode={layoutMode}
         onChange={requestLayoutMode}
       />
-      <section className="sr-only" aria-label="Reservoir objects">
-        <h1>{activeCollection.title} collection</h1>
-        <p>
-          An interactive reservoir containing {activeReservoirArtifacts.length}{" "}
-          {activeReservoirArtifacts.length === 1 ? "artifact" : "artifacts"},{" "}
-          {activeReservoirNonArtifactResources.length}{" "}
-          {activeReservoirNonArtifactResources.length === 1
-            ? "resource"
-            : "resources"}, and {activeReservoirChildCollections.length} dormant{" "}
-          {activeReservoirChildCollections.length === 1
-            ? "collection"
-            : "collections"}.
-        </p>
-        <ul>
-          {activeReservoirArtifacts.map((artifact) => (
-            <li key={artifact.id}>
-              Artifact {artifact.type}: {artifact.title}
-            </li>
-          ))}
-          {activeReservoirNonArtifactResources.map((resource) => (
-            <li key={resource.id}>
-              Resource {resource.type}: {resource.title}
-            </li>
-          ))}
-          {activeReservoirChildCollections.map((collection) => (
-            <li key={collection.id}>Collection: {collection.title}</li>
-          ))}
-        </ul>
-      </section>
       <div
       ref={interaction}
       className="reservoir-interaction"
