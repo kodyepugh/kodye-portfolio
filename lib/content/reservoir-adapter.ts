@@ -5,10 +5,12 @@ import {
   getResourceById,
 } from "./selectors";
 import type {
+  ObjectMedium,
   Resource,
   ResourceInspectionKind,
   ResourceType,
 } from "../../types/content";
+import { getMediumColor, getMediumLabel, getObjectMedium } from "./object-metadata";
 
 export type ReservoirContentNode =
   | {
@@ -21,12 +23,12 @@ export type ReservoirContentNode =
       subtitle?: string;
       type: ResourceType;
       inspectionKind: ResourceInspectionKind;
-      typeLabel: string;
+      medium: ObjectMedium;
+      mediumLabel: string;
+      mediumColor: string;
       icon?: string;
       category?: string;
-      categoryColor?: string;
       date?: string;
-      medium?: string;
       format?: string;
     }
   | {
@@ -39,12 +41,12 @@ export type ReservoirContentNode =
       subtitle?: string;
       type: ResourceType;
       inspectionKind: ResourceInspectionKind;
-      typeLabel: string;
+      medium: ObjectMedium;
+      mediumLabel: string;
+      mediumColor: string;
       icon?: string;
       category?: string;
-      categoryColor?: string;
       date?: string;
-      medium?: string;
       format?: string;
     }
   | {
@@ -56,7 +58,9 @@ export type ReservoirContentNode =
       subtitle?: string;
       icon?: string;
       category?: string;
-      categoryColor?: string;
+      medium: "collection";
+      mediumLabel: string;
+      mediumColor: string;
     };
 
 export type ReservoirInspectableResourceNode = Extract<
@@ -76,28 +80,22 @@ export function getReservoirNodeSizingFamily(node: ReservoirContentNode) {
     : ("collection" as const);
 }
 
-function getTypeLabel(type: ResourceType) {
-  return type
-    .split("-")
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-}
-
 export function adaptResourceToReservoirContentNode(
   resource: Resource,
 ): ReservoirInspectableResourceNode {
+  const medium = getObjectMedium(resource);
   const metadata = {
     id: resource.id,
     title: resource.title,
     subtitle: resource.subtitle,
     type: resource.type,
     inspectionKind: resource.inspectionKind,
-    typeLabel: getTypeLabel(resource.type),
+    medium,
+    mediumLabel: getMediumLabel(medium),
+    mediumColor: getMediumColor(medium),
     icon: resource.icon,
     category: resource.category,
-    categoryColor: resource.categoryColor,
     date: resource.date,
-    medium: resource.medium,
     format: resource.format,
   };
 
@@ -129,7 +127,9 @@ export function getReservoirContentNodes(
       subtitle: collection.subtitle,
       icon: collection.icon,
       category: collection.category,
-      categoryColor: collection.categoryColor,
+      medium: "collection",
+      mediumLabel: getMediumLabel("collection"),
+      mediumColor: getMediumColor("collection"),
     };
   });
 }
@@ -151,7 +151,9 @@ export function getReservoirContentNodeBySemanticId(
       subtitle: collection.subtitle,
       icon: collection.icon,
       category: collection.category,
-      categoryColor: collection.categoryColor,
+      medium: "collection",
+      mediumLabel: getMediumLabel("collection"),
+      mediumColor: getMediumColor("collection"),
     };
   }
 
@@ -192,6 +194,8 @@ export function getReservoirCollectionNodeById(collectionId: string) {
     subtitle: collection.subtitle,
     icon: collection.icon,
     category: collection.category,
-    categoryColor: collection.categoryColor,
+    medium: "collection",
+    mediumLabel: getMediumLabel("collection"),
+    mediumColor: getMediumColor("collection"),
   };
 }

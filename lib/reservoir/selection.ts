@@ -124,7 +124,7 @@ export function getNodeSelectionHighlightColor(node: ReservoirContentNode) {
     return new THREE.Color(RESERVOIR_THEME.inspection);
   }
 
-  return new THREE.Color(node.categoryColor ?? RESERVOIR_THEME.inspection);
+  return new THREE.Color(node.mediumColor);
 }
 
 function getContinuationEnvelope(progress: number) {

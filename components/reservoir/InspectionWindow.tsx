@@ -660,8 +660,8 @@ export function InspectionWindow({
         data-footer-progress={footerProgress.toFixed(4)}
         data-inspection-atmosphere-bottom={Math.ceil(atmosphereBottom)}
         data-artifact-atmosphere-bottom={Math.ceil(atmosphereBottom)}
-        data-inspection-top-rule="max(18svh, atmosphere bottom + responsive gap)"
-        data-artifact-top-rule="max(18svh, atmosphere bottom + responsive gap)"
+        data-inspection-top-rule="atmosphere bottom + responsive gap"
+        data-artifact-top-rule="atmosphere bottom + responsive gap"
         style={style}
       >
         <InspectionImageViewerProvider>

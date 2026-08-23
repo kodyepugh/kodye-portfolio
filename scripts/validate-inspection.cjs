@@ -499,6 +499,9 @@ const nonArtifactDocument = {
   inspectionKind: "structured-document",
   isArtifact: false,
   published: true,
+  medium: "document",
+  createdAt: "2026-08-20",
+  updatedAt: "2026-08-22",
   content: {
     kind: "structured-document",
     status: "ready",
@@ -521,6 +524,9 @@ const syntheticExternalLinkResource = {
   inspectionKind: "external-link",
   isArtifact: false,
   published: true,
+  medium: "link",
+  createdAt: "2026-08-20",
+  updatedAt: "2026-08-22",
   representations: [
     {
       id: "qa-external-link-rep-b",

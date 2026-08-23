@@ -35,6 +35,30 @@ export const RESOURCE_TYPES = [
 
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
 
+export const OBJECT_MEDIA = [
+  "collection",
+  "document",
+  "image",
+  "video",
+  "audio",
+  "form",
+  "link",
+  "data",
+  "code",
+  "other",
+] as const;
+
+export type ObjectMedium = (typeof OBJECT_MEDIA)[number];
+
+export const OBJECT_RELATION_TYPES = ["by", "for", "on"] as const;
+export type ObjectRelationType = (typeof OBJECT_RELATION_TYPES)[number];
+
+export type ObjectRelationship = {
+  relation: ObjectRelationType;
+  label: string;
+  objectId?: string;
+};
+
 export const RESOURCE_INSPECTION_KINDS = [
   "structured-document",
   "image",
@@ -297,6 +321,10 @@ export type Collection = {
   icon?: string;
   category?: string;
   categoryColor?: string;
+  medium?: "collection";
+  relationships?: readonly ObjectRelationship[];
+  createdAt?: string;
+  updatedAt?: string;
   featured?: boolean;
   published?: boolean;
 };
@@ -317,8 +345,9 @@ export type Resource = {
   date?: string;
   dateStart?: string;
   dateEnd?: string;
-  medium?: string;
+  medium?: Exclude<ObjectMedium, "collection">;
   format?: string;
+  relationships?: readonly ObjectRelationship[];
   featured?: boolean;
   published?: boolean;
   representations?: readonly ResourceRepresentation[];

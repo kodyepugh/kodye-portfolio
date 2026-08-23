@@ -1,15 +1,11 @@
 import type { Ref } from "react";
-import type { Resource } from "@/types/content";
-import type { Collection } from "@/types/content";
-import { resolveImageInspection } from "@/lib/content/image-inspection";
-import { getResourceAtmosphereMetadata } from "@/lib/content/selectors";
-
-function getTypeLabel(type: string) {
-  return type
-    .split("-")
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-}
+import type { Collection, Resource } from "@/types/content";
+import {
+  formatObjectDate,
+  formatObjectRelationships,
+  getMediumLabel,
+  getObjectMedium,
+} from "@/lib/content/object-metadata";
 
 type AtmosphereContentProps = {
   containerRef?: Ref<HTMLElement>;
@@ -24,108 +20,40 @@ export function AtmosphereContent({
   selectedCollection,
   activeCollection,
 }: AtmosphereContentProps) {
-  if (!selectedResource && !selectedCollection) {
-    return (
-      <header
-        ref={containerRef}
-        className="atmosphere-content atmosphere-content--home"
-        aria-hidden="true"
-      >
-        <span>{activeCollection.title}</span>
-        <span>{activeCollection.subtitle ?? "Spatial study / 01"}</span>
-      </header>
-    );
-  }
-
-  const selectedMetadata = selectedResource
-    ? getResourceAtmosphereMetadata(
-        selectedResource.id,
-        selectedCollection?.id,
-      )
-    : null;
-  const selectedImageResolution =
-    selectedResource?.inspectionKind === "image"
-      ? resolveImageInspection(selectedResource)
-      : null;
-  const selectedImageAsset =
-    selectedImageResolution?.status === "ready"
-      ? selectedImageResolution.asset
-      : null;
-  const selectedNode = selectedResource ?? selectedCollection;
-  if (!selectedNode) return null;
-  const selectedType = selectedResource
-    ? getTypeLabel(selectedResource.type)
-    : "Collection";
-  const selectedSubtitle =
-    selectedMetadata?.subtitle ?? selectedNode.subtitle ?? selectedCollection?.description;
-  const metadata = [
-    { label: "Date", value: selectedMetadata?.date },
-    {
-      label: selectedResource ? "Context" : "Lens",
-      value: selectedMetadata?.category ?? selectedCollection?.category,
-    },
-    {
-      label: selectedResource ? "Medium" : "Contents",
-      value: selectedResource?.medium ?? selectedCollection?.description,
-    },
-    {
-      label: selectedResource ? "Format" : "Category",
-      value: selectedResource?.format ?? selectedCollection?.category,
-    },
-    {
-      label: "File",
-      value: selectedImageAsset?.filename,
-    },
-    {
-      label: "Dimensions",
-      value:
-        selectedImageAsset?.width && selectedImageAsset?.height
-          ? `${selectedImageAsset.width} × ${selectedImageAsset.height}px`
-          : undefined,
-    },
-    {
-      label: "MIME",
-      value: selectedImageAsset?.mimeType,
-    },
-    {
-      label: "Collection",
-      value: selectedMetadata?.relationshipContext?.join(", "),
-    },
-  ].filter(
-    (entry): entry is { label: string; value: string } =>
-      Boolean(entry.value),
-  );
+  const selectedNode = selectedResource ?? selectedCollection ?? activeCollection;
+  const isHome = !selectedResource && !selectedCollection;
+  const dates = [
+    formatObjectDate(selectedNode.createdAt) ? `Added ${formatObjectDate(selectedNode.createdAt)}` : null,
+    formatObjectDate(selectedNode.updatedAt) ? `Modified ${formatObjectDate(selectedNode.updatedAt)}` : null,
+  ].filter((value): value is string => Boolean(value));
+  const relationships = formatObjectRelationships(selectedNode.relationships);
+  const isResource = Boolean(selectedResource);
 
   return (
     <section
       ref={containerRef}
-      key={`${selectedResource ? "resource" : "collection"}-${selectedNode.id}`}
-      className="atmosphere-content atmosphere-content--artifact"
-      aria-live="polite"
-      aria-atomic="true"
+      key={`${selectedNode.objectType}-${selectedNode.id}`}
+      className={`atmosphere-content ${isResource ? "atmosphere-content--resource" : "atmosphere-content--collection"} ${isHome ? "atmosphere-content--home" : ""}`}
+      aria-live={isHome ? undefined : "polite"}
+      aria-atomic={isHome || undefined}
+      aria-hidden={isHome || undefined}
     >
-      <p className="atmosphere-content__type">{selectedType}</p>
-      <h2 className="atmosphere-content__title">{selectedNode.title}</h2>
-      {selectedSubtitle ? (
-        <p className="atmosphere-content__subtitle">
-          {selectedSubtitle}
-        </p>
-      ) : null}
-      {selectedMetadata?.description ? (
-        <p className="atmosphere-content__description">
-          {selectedMetadata.description}
-        </p>
-      ) : null}
-      {metadata.length > 0 ? (
-        <dl className="atmosphere-content__metadata">
-          {metadata.map((entry) => (
-            <div className="atmosphere-content__metadata-item" key={entry.label}>
-              <dt>{entry.label}</dt>
-              <dd>{entry.value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
+      {isResource ? (
+        <>
+          <h2 className="atmosphere-content__title">{selectedNode.title}</h2>
+          {selectedNode.subtitle ? <p className="atmosphere-content__subtitle">{selectedNode.subtitle}</p> : null}
+          <p className="atmosphere-content__summary">{[getMediumLabel(getObjectMedium(selectedNode)), ...dates].join(" | ")}</p>
+          {relationships.length > 0 ? <p className="atmosphere-content__relationships">{relationships.map((relationship) => `${relationship.relation[0].toUpperCase()}${relationship.relation.slice(1)} ${relationship.label}`).join(" · ")}</p> : null}
+        </>
+      ) : (
+        <>
+          <div className="atmosphere-content__identity">
+            <h2 className="atmosphere-content__title">{selectedNode.title}</h2>
+            {dates.length > 0 ? <p className="atmosphere-content__dates">{dates.join(" | ")}</p> : null}
+          </div>
+          {selectedNode.subtitle ? <p className="atmosphere-content__subtitle">{selectedNode.subtitle}</p> : null}
+        </>
+      )}
     </section>
   );
 }

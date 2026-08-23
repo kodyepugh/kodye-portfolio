@@ -38,7 +38,7 @@ const MAX_LABEL_CONTENT_WIDTH =
 const LABEL_ACCENT_WIDTH = 34;
 const LABEL_TYPE_Y = 58;
 const LABEL_TITLE_Y = 126;
-const LABEL_TARGET_HEIGHT_PIXELS = 52;
+const LABEL_TARGET_HEIGHT_PIXELS = 64;
 const LABEL_CENTER_DEAD_ZONE_PIXELS = 14;
 const LABEL_MIN_GAP_PIXELS = 12;
 const LABEL_MAX_GAP_PIXELS = 34;
@@ -1064,11 +1064,11 @@ export function ArtifactLabel({
 }: ArtifactLabelProps) {
   const content = useMemo(
     () => ({
-      accentColor: artifact.categoryColor ?? RESERVOIR_THEME.inspection,
-      eyebrow: artifact.typeLabel,
+      accentColor: artifact.mediumColor,
+      eyebrow: artifact.mediumLabel,
       title: artifact.title,
     }),
-    [artifact],
+    [artifact.mediumColor, artifact.mediumLabel, artifact.title],
   );
 
   return (

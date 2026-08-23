@@ -153,11 +153,11 @@ export function CollectionNode({
   );
   const labelContent = useMemo(
     () => ({
-      accentColor: collection.categoryColor ?? RESERVOIR_THEME.dormantCollection,
-      eyebrow: "Collection",
+      accentColor: collection.mediumColor,
+      eyebrow: collection.mediumLabel,
       title: collection.title,
     }),
-    [collection.categoryColor, collection.title],
+    [collection.mediumColor, collection.mediumLabel, collection.title],
   );
   const placement = useMemo(
     () =>
