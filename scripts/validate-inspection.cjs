@@ -1841,9 +1841,12 @@ const checks = [
     resume.content.blocks.at(-1)?.type === "download" &&
     resume.content.blocks.at(-1)?.label === "Download PDF" &&
       structuredDocumentBodySource.includes("structured-document__download") &&
+      structuredDocumentBodySource.includes("structured-document__block--${block.type}") &&
       structuredDocumentBodySource.includes("download={asset.filename}") &&
       !structuredDocumentBodySource.includes("artifact-resume") &&
       inspectionCssSource.includes(".structured-document--compact") &&
+      inspectionCssSource.includes(".structured-document__block--download") &&
+      inspectionCssSource.includes(".structured-document a.structured-document__download") &&
       genericFileInspectionBodySource.includes('type="application/pdf"') &&
       !genericFileInspectionBodySource.includes("Download PDF") &&
     !genericFileInspectionBodySource.includes("inspection-generic-file__download"),

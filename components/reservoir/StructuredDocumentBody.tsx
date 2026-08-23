@@ -409,7 +409,7 @@ export function StructuredDocumentBody({
                 return (
                   <div
                     key={block.id}
-                    className="structured-document__block"
+                    className={`structured-document__block structured-document__block--${block.type}`}
                     data-structured-document-block-id={block.id}
                     data-structured-document-block-type={block.type}
                   >

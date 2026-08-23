@@ -2253,7 +2253,12 @@ body.artifact-reading-mode .reservoir-study {
   margin-top: 2px !important;
 }
 
-.structured-document__download {
+.structured-document__block--download {
+  display: flex;
+  justify-content: center;
+}
+
+.structured-document a.structured-document__download {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -2273,6 +2278,8 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .structured-document__download svg {
+  display: block;
+  flex: 0 0 auto;
   width: 14px;
   height: 14px;
 }
