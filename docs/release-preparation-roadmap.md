@@ -89,8 +89,9 @@ custom-domain configuration, or production Resend delivery.
 
 Public URLs now resolve published canonical Objects through the shared
 Reservoir shell: `/` is Home, a published Collection uses
-`/<collection-slug>`, and a published Resource uses `/<resource-slug>` to
-enter the established single-result Query Reservoir and Inspection flow.
+`/<collection-slug>`, a single-result Query Reservoir uses the derived
+`/q/<resource-slug>`, and an open Resource Inspection uses
+`/<resource-slug>` (or its valid contextual Resource address).
 `/<collection-slug>/<resource-slug>` is accepted only for an actual published
 Collection membership and records that Collection as the Resource's return
 context; it does not create a second Resource identity. The root Collection
@@ -100,7 +101,8 @@ non-member contextual paths render Next's unavailable surface.
 The resolver is registry-backed and validates the existing global semantic
 address namespace rather than deriving URLs from display text. Reservoir
 history remains the owner of semantic visits. A closed Reservoir exposes its
-Collection URL; an open Inspection exposes the Resource URL. Browser history
+actual Collection or addressable single-result Query URL; an open Inspection
+exposes the Resource URL. Browser history
 records committed semantic destinations and owned Resource entries carry only
 their return path and initial-entry status. `popstate` asks the same coordinator
 to restore or retract the visible semantic state without adding another browser

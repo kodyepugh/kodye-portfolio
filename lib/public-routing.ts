@@ -9,6 +9,7 @@ export type PublicRoute =
   | { kind: "root" }
   | { kind: "collection"; collectionId: string }
   | { kind: "resource"; resourceId: string }
+  | { kind: "query-resource"; resourceId: string }
   | {
       kind: "contextual-resource";
       collectionId: string;
@@ -26,6 +27,14 @@ export function resolvePublicRoute(
   }
 
   const [firstSegment, secondSegment] = segments;
+  if (firstSegment === "q") {
+    const queryResource = secondSegment
+      ? getResourceBySlug(secondSegment)
+      : null;
+    return queryResource?.published === true
+      ? { kind: "query-resource", resourceId: queryResource.id }
+      : { kind: "not-found" };
+  }
   const collection = getCollectionBySlug(firstSegment);
   const resource = getResourceBySlug(firstSegment);
 

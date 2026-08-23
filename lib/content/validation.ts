@@ -98,6 +98,19 @@ function reportSemanticAddressNamespace(
   }
 }
 
+function reportReservedPublicRouteNamespace(
+  registry: ContentRegistry,
+  errors: string[],
+) {
+  for (const object of [...registry.resources, ...registry.collections]) {
+    if (object.slug === "q") {
+      errors.push(
+        `${object.objectType === "collection" ? "Collection" : "Resource"} ${object.id} uses reserved public route slug q`,
+      );
+    }
+  }
+}
+
 function reportStructuredDocumentBlocks(
   resource: Resource,
   registry: ContentRegistry,
@@ -373,6 +386,7 @@ export function validateContentRegistry(
   const representationIds = new Set<string>();
 
   reportSemanticAddressNamespace(registry, errors);
+  reportReservedPublicRouteNamespace(registry, errors);
 
   for (const resource of registry.resources) {
     reportInspectionContentCompatibility(resource, errors);

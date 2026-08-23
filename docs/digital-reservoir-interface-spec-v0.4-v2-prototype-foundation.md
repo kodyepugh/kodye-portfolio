@@ -2139,8 +2139,9 @@ A directly addressed Collection resolves to its persistent Collection Reservoir.
 
 A directly addressed Resource resolves through the established direct Resource
 Query Reservoir seam and opens the shared Inspection surface. An open
-Inspection owns the Resource URL; after ordinary close, the exposed persistent
-Collection owns the URL again. A contextual Resource path retains its actual
+Inspection owns the Resource URL; after ordinary close, the actual exposed
+Reservoir owns the URL again: a persistent Collection uses its Collection URL
+and an addressable single-result Query uses `/q/<resource-slug>`. A contextual Resource path retains its actual
 published Collection membership as that return context without creating a
 second Resource identity.
 
@@ -2169,6 +2170,13 @@ second visit-history store. Browser Back from an open Inspection retracts it
 and requests the target semantic visit. Ordinary close is distinct: it returns
 to the exposed Reservoir context and never assumes that browser Back is safe
 for a directly loaded URL.
+
+The `q` prefix is reserved routing infrastructure, not a Collection or Resource
+slug. `/q/<resource-slug>` is a derived address only for a published,
+single-result Query Reservoir; it never alters Object identity, Collection
+membership, or serializes arbitrary/multi-result queries. Ordinary X/Escape
+close leaves that Query visit active. Explicit Back remains responsible for
+returning to prior history and restoring an InspectionReturnFrame where present.
 
 Example:
 

@@ -68,6 +68,13 @@ assert.deepEqual(resolvePublicRoute(["contact"]), {
   kind: "resource",
   resourceId: ARTIFACT_IDS.contact,
 });
+assert.deepEqual(resolvePublicRoute(["q", "resume"]), {
+  kind: "query-resource",
+  resourceId: ARTIFACT_IDS.resume,
+});
+assert.equal(resolvePublicRoute(["q"]).kind, "not-found");
+assert.equal(resolvePublicRoute(["q", "unknown-resource"]).kind, "not-found");
+assert.equal(resolvePublicRoute(["q", "about"]).kind, "not-found");
 assert.equal(
   resolvePublicRoute(["bellabeat-wellness-analysis-repository"]).kind,
   "resource",

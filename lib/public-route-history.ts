@@ -5,6 +5,7 @@ export type PublicRouteHistoryEntry = {
   path: string;
   initial: boolean;
   returnPath?: string;
+  closeAction?: "back" | "replace";
 };
 
 export function createPublicRouteHistoryEntry({
@@ -43,6 +44,7 @@ export function getInspectionCloseHistoryAction(
   entry: PublicRouteHistoryEntry | null,
   returnPath: string,
 ) {
+  if (entry?.closeAction) return entry.closeAction;
   return entry && !entry.initial && entry.returnPath === returnPath
     ? "back"
     : "replace";

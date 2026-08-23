@@ -14,6 +14,8 @@ export function ReservoirRouteEntry({ route }: ReservoirRouteEntryProps) {
         ? `collection:${route.collectionId}`
         : route.kind === "resource"
           ? `resource:${route.resourceId}`
+          : route.kind === "query-resource"
+            ? `query-resource:${route.resourceId}`
           : `contextual-resource:${route.collectionId}:${route.resourceId}`;
 
   return (
