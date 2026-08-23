@@ -1,7 +1,7 @@
 # KP Website — Release Preparation Roadmap
 
 **Status:** Current sequencing authority for near-term work
-**Updated:** August 22, 2026
+**Updated:** August 23, 2026
 
 ## Objective
 
@@ -84,6 +84,27 @@ labels are Medium plus Title, and Inspection landing derives only from the
 measured atmosphere bottom plus responsive gap. This pass does not implement
 public routing, browser-history synchronization, production SEO metadata,
 custom-domain configuration, or production Resend delivery.
+
+### Reservoir Index and semantic footer — completed on `feat/reservoir-index-navigation`
+
+The public interface now provides a conventional semantic-DOM Reservoir Index
+as a projection of the active canonical Reservoir context. It does not create
+an alternate content registry: Collection entries retain the existing
+Collection transition and history behavior, while Resource entries use the
+active Reservoir's ordinary select-then-open Inspection path without creating
+a new Query Reservoir. Footer Resource selectors likewise rotate an already
+active Resource to the canonical forehead point; only an absent Resource uses
+the direct Query Reservoir path. The Index
+shows Title, Medium, Added, and Modified with deterministic Medium icons, is keyboard reachable, uses the same holographic control-panel visual treatment, and remains synchronized
+to semantic context commits during Collection reconstitution.
+
+The environmental footer now exposes published, explicitly designated Resource
+destinations through that same direct Resource coordinator. The launch cut
+publishes Resume and Contact there; professional social destinations remain
+owned by Contact rather than duplicated as global footer links. This does not
+implement public routing, browser-history synchronization, deep-link
+initialization, production SEO metadata, custom-domain configuration, or
+production Resend delivery.
 
 ### Production identity
 
@@ -185,7 +206,7 @@ Also exercise the relevant launch paths and preserve:
 - canonical Resource identity and semantic/navigation invariants;
 - root, Home, Back, ancestry, direct Resource query, and Query Reservoir behavior;
 - Inspection open/close, footer/terminal reveal, and Resource/Collection context navigation;
-- the established layout, zoom, label, menu, and control behavior where exercised by the launch path.
+- the established layout, zoom, label, Reservoir Index, and control behavior where exercised by the launch path.
 
 Do not reopen closed L2 architecture absent a reproducible defect.
 
@@ -217,7 +238,7 @@ Verify particularly:
 - labels;
 - atmosphere;
 - control plane;
-- menu;
+- Reservoir Index;
 - Inspection landing geometry;
 - structured-document layout;
 - image Inspection;
@@ -243,7 +264,7 @@ Verify:
 
 Bellabeat and other essential launch actions must also be reachable through a semantic DOM-based path rather than requiring direct manipulation of WebGL/R3F nodes.
 
-This may be implemented through the existing menu or another restrained index/navigation surface.
+The Reservoir Index is the required restrained index/navigation surface.
 
 The first release does not require a complete alternate 2D version of the Digital Reservoir.
 

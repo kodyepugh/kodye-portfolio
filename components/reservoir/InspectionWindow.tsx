@@ -616,6 +616,10 @@ export function InspectionWindow({
     onNavigateToResource(resourceId, createCurrentInspectionReturnFrame());
   }
 
+  function navigateToFooterResource(resourceId: string) {
+    onNavigateToResource(resourceId, createCurrentInspectionReturnFrame());
+  }
+
   function createCurrentInspectionReturnFrame() {
     const measurements = revealMeasurementsRef.current;
     const measuredRevealDistance =
@@ -679,7 +683,10 @@ export function InspectionWindow({
               aria-label="Site footer"
               aria-hidden={!footerInteractive}
             >
-              <ReservoirFooterContent interactive={footerInteractive} />
+              <ReservoirFooterContent
+                interactive={footerInteractive}
+                onResourceSelect={navigateToFooterResource}
+              />
             </footer>
             <div ref={controlPlaneRef} className="artifact-terminal-layer__signature">
               <BrandSymbol variant="artifact-terminal" />

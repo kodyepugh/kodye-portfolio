@@ -116,10 +116,7 @@ import {
   isDirectResourceInspectionIntentStale,
   type DirectResourceInspectionIntent,
 } from "@/lib/reservoir/direct-resource-inspection-intent";
-import type {
-  ActiveExploreFilter,
-  DirectArtifactId,
-} from "@/types/reservoir";
+import type { ActiveExploreFilter } from "@/types/reservoir";
 import type { Collection } from "@/types/content";
 import type { ReservoirContext } from "@/types/reservoir";
 import { AtmosphereContent } from "./AtmosphereContent";
@@ -128,9 +125,9 @@ import { ReservoirLayoutModeSwitch } from "../navigation/ReservoirLayoutModeSwit
 import { ReservoirSphere } from "./ReservoirSphere";
 import { ReservoirHistoryNavigation } from "../navigation/ReservoirHistoryNavigation";
 import {
-  ReservoirMenu,
-  type ReservoirMenuState,
-} from "../navigation/ReservoirMenu";
+  ReservoirIndex,
+  type ReservoirIndexState,
+} from "../navigation/ReservoirIndex";
 import {
   ReservoirFooter,
   type ReservoirFooterState,
@@ -147,6 +144,7 @@ const DRAG_SENSITIVITY = 0.0042;
 const NODE_CLICK_MAX_TRAVEL = 6;
 const FOOTER_TRIGGER_OVERSCAN = 28;
 const LAYOUT_MODE_SWITCH_DURATION = 0.62;
+const INDEX_FOCAL_ROTATION_DURATION = 0.48;
 
 type ReservoirLayoutTransitionState =
   | "idle"
@@ -187,6 +185,21 @@ type QueryReconciliation = {
 
 type QueryActivityMode = "success" | "empty";
 
+type IndexInspectionIntent = {
+  resourceId: string;
+  contextKey: string;
+};
+
+type FocalInspectionOrigin = "index" | "footer";
+
+type FocalInspectionIntent = IndexInspectionIntent & {
+  origin: FocalInspectionOrigin;
+};
+
+type FocalInspectionRotation = FocalInspectionIntent & {
+  targetQuaternion: QuaternionTuple;
+};
+
 type ReservoirLayoutPlacementPolicy =
   | "normal"
   | "canonical-focal-single-result";
@@ -210,11 +223,6 @@ const SEMANTIC_EXPLORE_LENSES = new Map<string, readonly ActiveExploreFilter[]>(
   ["artifact-about", ["self", "inquiry"]],
   ["artifact-reservoir-interface-study", ["work", "inquiry"]],
   ["artifact-kodyepugh-symbol", ["self", "world"]],
-]);
-
-const DIRECT_ARTIFACT_TARGETS = new Map<DirectArtifactId, string>([
-  ["resume", "artifact-resume"],
-  ["contact", "artifact-contact"],
 ]);
 
 type QueryReservoirSelectionSnapshot = {
@@ -989,8 +997,14 @@ export function ReservoirScene() {
   const [isDragging, setIsDragging] = useState(false);
   const [activeExploreFilter, setActiveExploreFilter] =
     useState<ActiveExploreFilter>("all");
-  const [menuState, setMenuState] =
-    useState<ReservoirMenuState>("closed");
+  const [indexState, setIndexState] =
+    useState<ReservoirIndexState>("closed");
+  const [pendingFocalInspection, setPendingFocalInspection] =
+    useState<FocalInspectionIntent | null>(null);
+  const [focalInspectionRotation, setFocalInspectionRotation] =
+    useState<FocalInspectionRotation | null>(null);
+  const [indexInspectionReturn, setIndexInspectionReturn] =
+    useState<IndexInspectionIntent | null>(null);
   const [footerState, setFooterState] =
     useState<ReservoirFooterState>("closed");
   const [queryActivityRevision, setQueryActivityRevision] = useState<
@@ -1178,7 +1192,7 @@ export function ReservoirScene() {
   const requestCollectionRef = useRef<
     (
       destinationCollectionId: string,
-      allowDuringMenuOpen?: boolean,
+      allowDuringIndexOpen?: boolean,
     ) => boolean
   >(() => false);
   const commitReservoirHistory = useCallback(
@@ -1318,8 +1332,8 @@ export function ReservoirScene() {
       const transitionEvent = event as globalThis.TransitionEvent;
       if (transitionEvent.target !== study) return;
 
-      if (transitionEvent.propertyName === "--menu-stack-progress") {
-        setMenuState((currentState) =>
+      if (transitionEvent.propertyName === "--index-stack-progress") {
+        setIndexState((currentState) =>
           currentState === "opening"
             ? "open"
             : currentState === "closing"
@@ -1465,14 +1479,6 @@ export function ReservoirScene() {
   const activeReservoirNonArtifactResources = useMemo(
     () => activeReservoirResources.filter((node) => !node.isArtifact),
     [activeReservoirResources],
-  );
-  const activeReservoirChildCollections = useMemo(
-    () =>
-      activeReservoirNodes.filter(
-        (node): node is Extract<ReservoirContentNode, { kind: "collection" }> =>
-          node.kind === "collection",
-      ),
-    [activeReservoirNodes],
   );
   const activeReservoirNodeSizingTargets = getReservoirNodeSizingTargets(
     activeReservoirNodes.length,
@@ -1711,7 +1717,7 @@ export function ReservoirScene() {
     transitionState === "reconstitutingCollection" ||
     queryReservoirTransitionPhase !== "idle";
   const queryTransitionActive = queryActivityRevision !== null;
-  const menuActive = menuState !== "closed";
+  const indexActive = indexState !== "closed";
   const footerVisible = footerState !== "closed";
   const footerTransitionActive =
     footerState === "opening" || footerState === "closing";
@@ -1720,7 +1726,7 @@ export function ReservoirScene() {
   const inputLocked =
     transitionState !== "idle" ||
     layoutModeTransitionActive ||
-    menuActive ||
+    indexActive ||
     queryTransitionActive ||
     footerTransitionActive;
   const layoutModeControlDisabled =
@@ -2440,6 +2446,7 @@ export function ReservoirScene() {
         });
         return;
       }
+      setIndexInspectionReturn(null);
       pendingInspectionNavigationTargetRef.current = resourceId;
       pendingInspectionCollectionTargetRef.current = null;
       pendingInspectionReturnFrameRef.current = returnFrame;
@@ -2467,6 +2474,8 @@ export function ReservoirScene() {
   const requestInspectionCollectionNavigation = useCallback(
     (collectionId: string, returnFrame: InspectionReturnFrame) => {
       if (transitionState !== "readingInspection") return;
+
+      setIndexInspectionReturn(null);
 
       const targetContextKey = getReservoirContextKey({
         kind: "collection",
@@ -2526,6 +2535,34 @@ export function ReservoirScene() {
 
     return () => cancelAnimationFrame(animationFrameId);
   }, [preservedReservoirState, transitionState]);
+
+  useEffect(() => {
+    if (
+      !indexInspectionReturn ||
+      transitionState !== "idle" ||
+      inspectedResourceId !== null ||
+      indexState !== "closed"
+    ) {
+      return;
+    }
+
+    if (
+      getReservoirContextKey(settledReservoirContext) !==
+      indexInspectionReturn.contextKey
+    ) {
+      setIndexInspectionReturn(null);
+      return;
+    }
+
+    setIndexInspectionReturn(null);
+    setIndexState("opening");
+  }, [
+    indexInspectionReturn,
+    indexState,
+    inspectedResourceId,
+    settledReservoirContext,
+    transitionState,
+  ]);
 
   useEffect(() => {
     if (
@@ -3127,7 +3164,7 @@ export function ReservoirScene() {
       layoutModeTransitionActive ||
       inspectionWindowPhase !== null ||
       collectionNavigation.transitionPhase !== "idle" ||
-      menuActive ||
+      indexActive ||
       queryTransitionActive ||
       footerTransitionActive
     ) {
@@ -3228,16 +3265,151 @@ export function ReservoirScene() {
   }
   beginResourceInspectionRef.current = beginResourceInspection;
 
+  function rotateResourceToCanonicalForehead(
+    resourceId: string,
+    origin: FocalInspectionOrigin,
+  ) {
+    const surface = surfaceRef.current;
+    const camera = cameraRef.current;
+    const rotationGroup = sphereRotationRef.current;
+    const direction = layoutOwnership.activeLayout.directions.get(resourceId);
+    if (
+      !surface ||
+      !camera ||
+      !rotationGroup ||
+      layoutOwnership.transitionPlan ||
+      !direction
+    ) {
+      return false;
+    }
+
+    const focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
+    const surfaceWorldQuaternion = surface.getWorldQuaternion(
+      new THREE.Quaternion(),
+    );
+    const selectedWorldDirection = new THREE.Vector3(...direction)
+      .applyQuaternion(surfaceWorldQuaternion)
+      .normalize();
+    const rotationDelta = new THREE.Quaternion().setFromUnitVectors(
+      selectedWorldDirection,
+      new THREE.Vector3(...focalDiagnostics.targetWorld),
+    );
+    const targetQuaternion = rotationDelta
+      .multiply(rotationGroup.quaternion.clone())
+      .normalize();
+
+    recordLayoutFocalDiagnostics(focalDiagnostics);
+    if (interaction.current) {
+      interaction.current.dataset.indexFocalResourceId = resourceId;
+      interaction.current.dataset.indexFocalTargetWorld = formatDirectionTuple(
+        focalDiagnostics.targetWorld,
+      );
+    }
+    setFocalInspectionRotation({
+      resourceId,
+      contextKey: layoutOwnership.activeLayout.contextKey,
+      origin,
+      targetQuaternion: toQuaternionTuple(targetQuaternion),
+    });
+    return true;
+  }
+
+  useEffect(() => {
+    if (!focalInspectionRotation) return;
+
+    const rotationGroup = sphereRotationRef.current;
+    if (!rotationGroup) {
+      setFocalInspectionRotation(null);
+      return;
+    }
+
+    const activeRotationGroup = rotationGroup;
+    const rotationIntent = focalInspectionRotation;
+    const startQuaternion = activeRotationGroup.quaternion.clone();
+    const targetQuaternion = new THREE.Quaternion(
+      ...rotationIntent.targetQuaternion,
+    );
+    const duration = reducedMotion ? 0.16 : INDEX_FOCAL_ROTATION_DURATION;
+    const startTime = performance.now();
+    let animationFrameId = 0;
+
+    function updateIndexFocalRotation(now: number) {
+      const progress = clamp((now - startTime) / (duration * 1000), 0, 1);
+      activeRotationGroup.quaternion.slerpQuaternions(
+        startQuaternion,
+        targetQuaternion,
+        smoothstep(progress),
+      );
+      activeRotationGroup.updateMatrixWorld();
+
+      if (interaction.current) {
+        interaction.current.dataset.indexFocalRotationProgress =
+          progress.toFixed(6);
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(updateIndexFocalRotation);
+        return;
+      }
+
+      activeRotationGroup.quaternion.copy(targetQuaternion);
+      activeRotationGroup.updateMatrixWorld();
+      setRotationDiagnostics(
+        getRotationDiagnostics(activeRotationGroup.quaternion),
+      );
+      if (interaction.current) {
+        interaction.current.dataset.indexFocalRotationProgress = "1.000000";
+      }
+      setFocalInspectionRotation(null);
+      setPendingFocalInspection({
+        resourceId: rotationIntent.resourceId,
+        contextKey: rotationIntent.contextKey,
+        origin: rotationIntent.origin,
+      });
+    }
+
+    animationFrameId = requestAnimationFrame(updateIndexFocalRotation);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [focalInspectionRotation, reducedMotion]);
+
+  useEffect(() => {
+    if (!pendingFocalInspection || transitionState !== "idle") return;
+
+    const { resourceId, contextKey, origin } = pendingFocalInspection;
+    if (
+      layoutOwnership.activeLayout.contextKey !== contextKey ||
+      !layoutOwnership.activeLayout.directions.has(resourceId)
+    ) {
+      setPendingFocalInspection(null);
+      return;
+    }
+
+    if (!beginResourceInspection(resourceId)) {
+      setPendingFocalInspection(null);
+      return;
+    }
+
+    setPendingFocalInspection(null);
+    if (origin === "index") {
+      setIndexInspectionReturn({ resourceId, contextKey });
+      setIndexState("closing");
+    }
+  }, [
+    layoutOwnership.activeLayout,
+    pendingFocalInspection,
+    transitionState,
+  ]);
+
   function requestCollection(
     destinationCollectionId: string,
-    allowDuringMenuOpen = false,
+    allowDuringIndexOpen = false,
   ) {
     const destinationContext: ReservoirContext = {
       kind: "collection",
       collectionId: destinationCollectionId,
     };
     if (
-      (!allowDuringMenuOpen && inputLocked) ||
+      (!allowDuringIndexOpen && inputLocked) ||
       getReservoirContextKey(destinationContext) ===
         layoutOwnership.activeLayout.contextKey ||
       getCollectionById(destinationCollectionId)?.published !== true
@@ -3510,14 +3682,14 @@ export function ReservoirScene() {
     const panel = document.querySelector<HTMLElement>(
       ".reservoir-control-panel",
     );
-    const menu = document.querySelector<HTMLElement>(
-      ".reservoir-menu-reveal",
+    const index = document.querySelector<HTMLElement>(
+      ".reservoir-index-reveal",
     );
     const panelTop = panel?.getBoundingClientRect().top ?? window.innerHeight;
-    const menuTop = menuActive
-      ? menu?.getBoundingClientRect().top ?? panelTop
+    const indexTop = indexActive
+      ? index?.getBoundingClientRect().top ?? panelTop
       : panelTop;
-    return clientY >= Math.min(panelTop, menuTop) - FOOTER_TRIGGER_OVERSCAN;
+    return clientY >= Math.min(panelTop, indexTop) - FOOTER_TRIGGER_OVERSCAN;
   }
 
   function consumeFooterWheel(
@@ -3557,7 +3729,7 @@ export function ReservoirScene() {
     consumeFooterWheel(event, true);
   }
 
-  function handleMenuOutsideWheel(event: WheelEvent<HTMLElement>) {
+  function handleIndexOutsideWheel(event: WheelEvent<HTMLElement>) {
     consumeFooterWheel(event, false);
   }
 
@@ -3581,10 +3753,10 @@ export function ReservoirScene() {
     });
   }
 
-  function openReservoirMenu() {
+  function openReservoirIndex() {
     if (
       transitionState !== "idle" ||
-      menuState !== "closed" ||
+      indexState !== "closed" ||
       footerTransitionActive
     ) {
       return;
@@ -3592,75 +3764,12 @@ export function ReservoirScene() {
 
     setHoveredResourceId(null);
     setSelectedPressActive(false);
-    setMenuState("opening");
+    setIndexState("opening");
   }
 
-  function closeReservoirMenu() {
-    if (menuState !== "opening" && menuState !== "open") return;
-    setMenuState("closing");
-  }
-
-  function selectExploreFilter(filter: ActiveExploreFilter) {
-    if (
-      menuState !== "open" ||
-      queryActivityRevision !== null ||
-      filter === activeExploreFilter
-    ) {
-      return;
-    }
-    setPendingDirectInspectionIntent(null);
-
-    const targetVisibleIds = getExploreNodeIds(activeReservoirNodes, filter);
-    const currentVisibleIds = new Set(
-      queryReservoirContext?.kind === "query"
-        ? queryVisibleNodeIds
-        : getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
-    );
-    const leaving = new Set(
-      [...currentVisibleIds].filter((id) => !targetVisibleIds.has(id)),
-    );
-    const staying = new Set(
-      [...currentVisibleIds].filter((id) => targetVisibleIds.has(id)),
-    );
-    const entering = new Set(
-      [...targetVisibleIds].filter((id) => !currentVisibleIds.has(id)),
-    );
-
-    if (targetVisibleIds.size === 0) {
-      queryRevisionRef.current += 1;
-      setQueryReconciliation(null);
-      setQueryActivityMode("empty");
-      setRejectedExploreFilter(filter);
-      setQueryActivityRevision(queryRevisionRef.current);
-      return;
-    }
-
-    queryRevisionRef.current += 1;
-    setQueryVisibleNodeIds(targetVisibleIds);
-    setQueryReconciliation({
-      entering,
-      leaving,
-      staying,
-      target: targetVisibleIds,
-    });
-    setQueryActivityMode("success");
-    setRejectedExploreFilter(null);
-    setQueryActivityRevision(queryRevisionRef.current);
-    setActiveExploreFilter(filter);
-    setHoveredResourceId((currentHoveredResourceId) =>
-      currentHoveredResourceId &&
-      targetVisibleIds.has(currentHoveredResourceId)
-        ? currentHoveredResourceId
-        : null,
-    );
-    const selectedNodeId = selectedResourceId ?? selectedCollectionId;
-    const preserveSelection =
-      selectedNodeId !== null && targetVisibleIds.has(selectedNodeId);
-    if (!preserveSelection) {
-      setSelectedResourceId(null);
-      setSelectedCollectionId(null);
-      setSelectedPressActive(false);
-    }
+  function closeReservoirIndex() {
+    if (indexState !== "opening" && indexState !== "open") return;
+    setIndexState("closing");
   }
 
   function requestQueryReservoirContext(
@@ -3997,11 +4106,75 @@ export function ReservoirScene() {
     setInspectionReturnRuntime(null);
   }
 
-  function selectDirectArtifact(directArtifactId: DirectArtifactId) {
-    if (menuState !== "open" || queryActivityRevision !== null) return;
-    const resourceAddress = DIRECT_ARTIFACT_TARGETS.get(directArtifactId);
-    if (!resourceAddress || !requestDirectResource(resourceAddress)) return;
-    setMenuState("closing");
+  function selectReservoirIndexNode(node: ReservoirContentNode) {
+    if (
+      indexState !== "open" ||
+      queryActivityRevision !== null ||
+      pendingFocalInspection ||
+      focalInspectionRotation
+    ) {
+      return;
+    }
+
+    if (node.kind === "collection") {
+      const destinationContext: ReservoirContext = {
+        kind: "collection",
+        collectionId: node.id,
+      };
+      pendingReservoirHistoryResolutionRef.current = {
+        history: appendReservoirHistoryFrame(
+          reservoirHistoryRef.current,
+          createReservoirHistoryFrame(destinationContext),
+        ),
+        spatialSelectionId: node.id,
+      };
+      if (!requestCollection(node.id, true)) {
+        pendingReservoirHistoryResolutionRef.current = null;
+      }
+      return;
+    }
+
+    const selectionAction = getReservoirResourceSelectionAction(node, node.id);
+    if (selectionAction === "unsupported-resource-inspection") {
+      if (interaction.current) {
+        interaction.current.dataset.resourceInspectionUnsupported = node.id;
+        interaction.current.dataset.resourceInspectionUnsupportedKind =
+          node.inspectionKind;
+      }
+      return;
+    }
+
+    setTransitionState("idle");
+    setSelectedCollectionId(null);
+    setSelectedResourceId(node.id);
+    setSelectedPressActive(false);
+    rotateResourceToCanonicalForehead(node.id, "index");
+  }
+
+  function selectFooterResource(resourceId: string) {
+    if (inputLocked) return;
+
+    const activeResourceNode = activeReservoirResources.find(
+      (node) => node.id === resourceId,
+    );
+    if (activeResourceNode) {
+      const selectionAction = getReservoirResourceSelectionAction(
+        activeResourceNode,
+        resourceId,
+      );
+      if (selectionAction === "unsupported-resource-inspection") return;
+
+      setTransitionState("idle");
+      setSelectedCollectionId(null);
+      setSelectedResourceId(resourceId);
+      setSelectedPressActive(false);
+      if (!rotateResourceToCanonicalForehead(resourceId, "footer")) return;
+      setFooterState("closing");
+      return;
+    }
+
+    if (!requestDirectResource(resourceId)) return;
+    setFooterState("closing");
   }
 
   return (
@@ -4009,7 +4182,7 @@ export function ReservoirScene() {
       <div
         className="reservoir-control-panel"
         aria-hidden="true"
-        data-menu-state={menuState}
+        data-index-state={indexState}
         data-footer-state={footerState}
       />
       <div
@@ -4017,20 +4190,26 @@ export function ReservoirScene() {
         aria-hidden="true"
         data-secondary-dimmed={secondaryControlsDimmed}
       />
-      <ReservoirMenu
-        activeFilter={activeExploreFilter}
-        controlsLocked={queryTransitionActive || collectionContextTransition}
-        state={menuState}
-        onClose={closeReservoirMenu}
-        onDirectSelect={selectDirectArtifact}
-        onFilterSelect={selectExploreFilter}
-        onOpen={openReservoirMenu}
+      <ReservoirIndex
+        contextLabel={getReservoirHistoryLabel(renderedReservoirContext)}
+        controlsLocked={
+          queryTransitionActive ||
+          collectionContextTransition ||
+          pendingFocalInspection !== null ||
+          focalInspectionRotation !== null
+        }
+        nodes={activeReservoirNodes}
+        state={indexState}
+        onClose={closeReservoirIndex}
+        onOpen={openReservoirIndex}
+        onSelectNode={selectReservoirIndexNode}
         onInterfaceWheel={handleBottomInterfaceWheel}
-        onOutsideWheel={handleMenuOutsideWheel}
+        onOutsideWheel={handleIndexOutsideWheel}
       />
       <ReservoirFooter
         state={footerState}
         onInterfaceWheel={handleBottomInterfaceWheel}
+        onResourceSelect={selectFooterResource}
       />
       <AtmosphereContent
         containerRef={atmosphereRef}
@@ -4054,35 +4233,6 @@ export function ReservoirScene() {
         mode={layoutMode}
         onChange={requestLayoutMode}
       />
-      <section className="sr-only" aria-label="Reservoir objects">
-        <h1>{activeCollection.title} collection</h1>
-        <p>
-          An interactive reservoir containing {activeReservoirArtifacts.length}{" "}
-          {activeReservoirArtifacts.length === 1 ? "artifact" : "artifacts"},{" "}
-          {activeReservoirNonArtifactResources.length}{" "}
-          {activeReservoirNonArtifactResources.length === 1
-            ? "resource"
-            : "resources"}, and {activeReservoirChildCollections.length} dormant{" "}
-          {activeReservoirChildCollections.length === 1
-            ? "collection"
-            : "collections"}.
-        </p>
-        <ul>
-          {activeReservoirArtifacts.map((artifact) => (
-            <li key={artifact.id}>
-              Artifact {artifact.type}: {artifact.title}
-            </li>
-          ))}
-          {activeReservoirNonArtifactResources.map((resource) => (
-            <li key={resource.id}>
-              Resource {resource.type}: {resource.title}
-            </li>
-          ))}
-          {activeReservoirChildCollections.map((collection) => (
-            <li key={collection.id}>Collection: {collection.title}</li>
-          ))}
-        </ul>
-      </section>
       <div
       ref={interaction}
       className="reservoir-interaction"
@@ -4392,7 +4542,7 @@ export function ReservoirScene() {
       data-layout-switch-progress={layoutModeTransitionProgressRef.current.toFixed(
         6,
       )}
-      data-menu-state={menuState}
+      data-index-state={indexState}
       data-footer-state={footerState}
       data-footer-visible={footerVisible}
       data-footer-transition-active={footerTransitionActive}

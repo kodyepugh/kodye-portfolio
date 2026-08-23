@@ -1310,12 +1310,18 @@ const checks = [
       ),
   ],
   [
-    "menu and Inspection support navigation share the canonical direct Resource coordinator",
+    "footer falls back to the canonical direct Resource coordinator while Inspection support navigation always uses it",
     reservoirSceneSource.includes(
       "requestDirectResourceRef.current(\n          supportNavigationTarget",
     ) &&
       reservoirSceneSource.includes(
-        "requestDirectResource(resourceAddress)",
+        "function requestDirectResource(\n    resourceAddress: string",
+      ) &&
+      reservoirSceneSource.includes(
+        "requestDirectResource(resourceId)",
+      ) &&
+      reservoirSceneSource.includes(
+        "rotateResourceToCanonicalForehead(resourceId, \"footer\")",
       ) &&
       reservoirSceneSource.includes(
         "createDirectResourceInspectionIntent(",

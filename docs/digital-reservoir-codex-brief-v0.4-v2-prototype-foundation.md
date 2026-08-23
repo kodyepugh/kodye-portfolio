@@ -278,7 +278,7 @@ components/
 
   navigation/
     BottomControlPlane.tsx
-    ReservoirMenu.tsx
+    ReservoirIndex.tsx
     Footer.tsx
 
   environment/
@@ -387,7 +387,7 @@ Responsible for conventional 2D artifact content, opening, scrolling, closing, a
 
 Artifact reading remains independent from reservoir zoom.
 
-## BottomControlPlane / Menu / Footer
+## BottomControlPlane / Reservoir Index / Footer
 
 Responsible for stable UI-space navigation and controls.
 
@@ -465,7 +465,7 @@ This allows:
 
 ```text
 HEADER
-MENU
+RESERVOIR INDEX
 FOOTER
 ```
 
@@ -1135,7 +1135,7 @@ PRESERVE
 
 - Existing artifact selection/open behavior.
 - Bottom control plane.
-- Menu/footer behavior.
+- Reservoir Index/footer behavior.
 - Current content/data definitions.
 
 SCOPE
@@ -1166,7 +1166,7 @@ VALIDATION
 - drag remains stable at all scales;
 - nodes do not jump when scale changes;
 - artifact open/close still preserves orientation and zoom;
-- no obvious regression in menu/footer/input ownership.
+- no obvious regression in Reservoir Index/footer/input ownership.
 ```
 
 # 42. Working Relationship With the Specification
@@ -1289,7 +1289,7 @@ Accepted foundation includes:
 - Distributed / Focused modes;
 - progressive Resource selection and conventional Inspection;
 - recursive Collection navigation through Active + Destination state;
-- bottom control plane, menu, footer, and query coordination;
+- bottom control plane, Reservoir Index, footer, and query coordination;
 - directional Query Reservoir ancestry;
 - Resource/Collection registry and addressability;
 - Resource-oriented Inspection Window;
@@ -1345,7 +1345,7 @@ Current stages:
 - Resource identity and Artifact-status semantics;
 - shared InspectionWindow architecture;
 - Inspection return context;
-- menu/footer independence;
+- Reservoir Index/footer independence;
 - reduced-motion and accessibility behavior already established.
 
 ### Do not reopen by default

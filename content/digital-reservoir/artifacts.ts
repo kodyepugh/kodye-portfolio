@@ -530,6 +530,8 @@ export const resources = [
     createdAt: "2026-08-22",
     updatedAt: "2026-08-22",
     format: "Resume",
+    footerNavigation: true,
+    footerNavigationOrder: 1,
     featured: true,
     published: true,
     representations: [
@@ -566,6 +568,8 @@ export const resources = [
     createdAt: "2026-08-22",
     updatedAt: "2026-08-22",
     format: "Links",
+    footerNavigation: true,
+    footerNavigationOrder: 2,
     featured: true,
     published: true,
     content: {
@@ -595,6 +599,8 @@ export const resources = [
     category: "About / Self",
     categoryColor: "#8d7257",
     medium: "other",
+    footerNavigation: true,
+    footerNavigationOrder: 3,
     createdAt: "2026-08-19",
     updatedAt: "2026-08-22",
     featured: true,

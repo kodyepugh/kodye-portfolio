@@ -122,6 +122,17 @@ function compareSupportOrder(
   );
 }
 
+function compareFooterNavigationOrder(
+  a: { footerNavigationOrder?: number; id: string },
+  b: { footerNavigationOrder?: number; id: string },
+) {
+  return (
+    (a.footerNavigationOrder ?? Number.MAX_SAFE_INTEGER) -
+      (b.footerNavigationOrder ?? Number.MAX_SAFE_INTEGER) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
 function resolveResource(resource: Resource | null) {
   return resource ?? null;
 }
@@ -136,6 +147,15 @@ export function getResourceBySlug(slug: string) {
 
 export function getResourceByAddress(address: string) {
   return getResourceById(address) ?? getResourceBySlug(address);
+}
+
+export function getPublishedFooterResources() {
+  return contentRegistry.resources
+    .filter(
+      (resource) =>
+        resource.published === true && resource.footerNavigation === true,
+    )
+    .sort(compareFooterNavigationOrder);
 }
 
 export function getArtifactById(artifactId: string) {
