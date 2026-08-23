@@ -72,7 +72,7 @@ The current launch registry publishes only the root Digital Reservoir Collection
 
 Complete the production essentials needed for a credible live portfolio.
 
-### Foundational presentation metadata — completed on `feat/public-web-metadata`
+### Foundational presentation metadata — completed
 
 The launch registry now resolves a controlled public-facing Medium independently
 from Resource `type`, with one deterministic Medium-to-node-color authority.
@@ -111,7 +111,7 @@ Reservoir history therefore converge on the same public address policy. URLs
 never encode presentation-only state such as Index visibility, Inspection
 scroll, zoom, or layout mode.
 
-### Reservoir Index and semantic footer — completed on `feat/reservoir-index-navigation`
+### Reservoir Index and semantic footer — completed
 
 The public interface now provides a conventional semantic-DOM Reservoir Index
 as a projection of the active canonical Reservoir context. It does not create
@@ -133,6 +133,8 @@ initialization, production SEO metadata, custom-domain configuration, or
 production Resend delivery.
 
 ### Production identity
+
+**Status:** Next implementation.
 
 Replace remaining prototype/study framing with public portfolio identity appropriate to the live portfolio.
 
@@ -181,20 +183,22 @@ For Bellabeat, preserve:
 
 The first release does not require a complete public routing architecture for every possible future Resource.
 
-### Approved routing contract for the next phase
+### Implemented routing contract
 
-The routing implementation belongs to Public Web Essentials and is not implemented by the completed Bellabeat Launch Cut. The contract to preserve is:
+The current routing contract to preserve is:
 
 - internal semantic ID, display title, and public slug remain distinct concepts;
 - a slug is an explicit stable address token and does not automatically change when a title changes;
 - Home/root is reserved for `/`;
-- a directly addressed persistent Object will eventually use `/<object-slug>`;
+- a directly addressed published Collection uses `/<collection-slug>`;
+- an addressable single-result Query Reservoir uses the derived `/q/<resource-slug>` namespace without becoming a persistent Object;
+- an open Resource Inspection uses `/<resource-slug>` unless a valid Collection context is intentionally represented by `/<collection-slug>/<resource-slug>`;
 - a Resource remains independently addressable regardless of Collection membership;
-- a contextual Resource path may eventually use `/<collection-slug>/<resource-slug>`;
 - the contextual path expresses viewing/navigation context and does not create a second Resource identity;
-- Collection membership creates context and discovery, not identity.
+- Collection membership creates context and discovery, not identity;
+- ordinary Inspection close exposes the actual underlying Collection or Query Reservoir, while explicit Back owns return to prior semantic history.
 
-Intended examples are `/`, `/bellabeat-wellness-analysis`, `/resume`, `/contact`, future `/work`, and future `/work/cif-oakland`. Dynamic routing, browser-history synchronization, deep-link initialization, and production-domain behavior remain part of Public Web Essentials rather than the completed Bellabeat Launch Cut.
+Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. Production-domain behavior remains part of the remaining Public Web Essentials and release work.
 
 ### Completion condition
 
