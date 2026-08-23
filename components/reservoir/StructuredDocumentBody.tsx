@@ -6,8 +6,10 @@ import {
 import type {
   Resource,
   StructuredDocumentBlock,
+  StructuredDocumentEntryBlock,
   StructuredDocumentFigureBlock,
   StructuredDocumentHeadingBlock,
+  StructuredDocumentPresentationProfile,
 } from "@/types/content";
 import { useInspectionImageLauncher } from "./InspectionImageViewer";
 
@@ -16,6 +18,7 @@ type StructuredDocumentBodyProps = {
   resource: Resource;
   onNavigateToResource?: (resourceId: string) => void;
   imageOrderOffset?: number;
+  presentationProfile?: StructuredDocumentPresentationProfile;
 };
 
 type StructuredDocumentSection = {
@@ -37,7 +40,7 @@ function slugifyHeading(value: string) {
 }
 
 function renderInlineMarkdown(resource: Resource, text: string) {
-  const pattern = /(\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`)/g;
+  const pattern = /(\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`)/g;
   const nodes: ReactNode[] = [];
   let cursor = 0;
 
@@ -64,7 +67,9 @@ function renderInlineMarkdown(resource: Resource, text: string) {
     } else if (match[4]) {
       nodes.push(<strong key={`${start}-strong`}>{match[4]}</strong>);
     } else if (match[5]) {
-      nodes.push(<code key={`${start}-code`}>{match[5]}</code>);
+      nodes.push(<em key={`${start}-emphasis`}>{match[5]}</em>);
+    } else if (match[6]) {
+      nodes.push(<code key={`${start}-code`}>{match[6]}</code>);
     }
     cursor = start + match[0].length;
   }
@@ -201,6 +206,54 @@ function StructuredDocumentFigure({
   );
 }
 
+function StructuredDocumentEntry({
+  block,
+  resource,
+}: {
+  block: StructuredDocumentEntryBlock;
+  resource: Resource;
+}) {
+  return (
+    <article className="structured-document__entry">
+      <div className="structured-document__entry-heading">
+        <h3>{renderInlineMarkdown(resource, block.title)}</h3>
+        {block.meta ? (
+          <p className="structured-document__entry-meta">
+            {renderInlineMarkdown(resource, block.meta)}
+          </p>
+        ) : null}
+      </div>
+      {block.subtitle ? (
+        <p className="structured-document__entry-subtitle">
+          {renderInlineMarkdown(resource, block.subtitle)}
+        </p>
+      ) : null}
+      {block.supporting ? (
+        <p className="structured-document__entry-supporting">
+          {renderInlineMarkdown(resource, block.supporting)}
+        </p>
+      ) : null}
+      {block.items?.length ? (
+        <ul className="structured-document__entry-list">
+          {block.items.map((item, index) => (
+            <li key={`${block.id}-${index}`}>
+              {renderInlineMarkdown(resource, item)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </article>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M7.25 1.5h1.5v7.21l2.18-2.17L12 7.6 8 11.6 4 7.6l1.07-1.06 2.18 2.17V1.5ZM2 13h12v1.5H2V13Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 function renderBlock(
   resource: Resource,
   block: StructuredDocumentBlock,
@@ -231,6 +284,8 @@ function renderBlock(
       ));
       return block.style === "ordered" ? <ol>{items}</ol> : <ul>{items}</ul>;
     }
+    case "entry":
+      return <StructuredDocumentEntry block={block} resource={resource} />;
     case "callout":
       return (
         <aside className="structured-document__callout" data-callout-tone={block.tone ?? "note"}>
@@ -257,6 +312,21 @@ function renderBlock(
           )}
         </div>
       );
+    case "download": {
+      const asset = getAssetById(block.assetId);
+      if (!asset?.src) return null;
+      return (
+        <a
+          className="structured-document__download"
+          href={asset.src}
+          download={asset.filename}
+          aria-label={`Download ${block.label}`}
+        >
+          <span>{block.label}</span>
+          <DownloadIcon />
+        </a>
+      );
+    }
     case "divider":
       return <hr />;
     case "table":
@@ -319,14 +389,16 @@ export function StructuredDocumentBody({
   resource,
   onNavigateToResource,
   imageOrderOffset = 0,
+  presentationProfile = "editorial",
 }: StructuredDocumentBodyProps) {
   const sections = groupStructuredDocumentBlocks(resource.id, blocks);
   let imageOccurrence = imageOrderOffset;
 
   return (
     <div
-      className="structured-document"
+      className={`structured-document structured-document--${presentationProfile}`}
       data-structured-document-resource={resource.id}
+      data-structured-document-presentation-profile={presentationProfile}
       data-structured-document-block-order={blocks.map((block) => block.id).join(",")}
     >
       {sections.map((section) => (
@@ -337,7 +409,7 @@ export function StructuredDocumentBody({
                 return (
                   <div
                     key={block.id}
-                    className="structured-document__block"
+                    className={`structured-document__block structured-document__block--${block.type}`}
                     data-structured-document-block-id={block.id}
                     data-structured-document-block-type={block.type}
                   >

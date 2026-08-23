@@ -77,11 +77,11 @@ const {
   getArtifactById,
   getArtifactBySlug,
   getArtifactStatusResources,
-  getArtifactCollections,
   getAssetsForArtifact,
   getCollectionById,
   getCollectionByAddress,
   getCollectionMembers,
+  getPublishedCollectionMembers,
   getPublishedResourceCollections,
   getPublishedSupportingResources,
   getPublishedSupportingResourcesFromRegistry,
@@ -98,6 +98,15 @@ const { assertValidContentRegistry } = require(path.join(
   projectRoot,
   "lib/content/validation.ts",
 ));
+const {
+  getStructuredDocumentBody,
+} = require(path.join(
+  projectRoot,
+  "lib/content/structured-document.ts",
+));
+const {
+  validateContactSubmission,
+} = require(path.join(projectRoot, "lib/contact-form.ts"));
 
 const result = assertValidContentRegistry(contentRegistry);
 const syntheticPublishedResource = {
@@ -323,22 +332,124 @@ const notebookContext = getPublishedResourceContextFromRegistry(
   contentRegistry,
   "resource-fitbit-identifier-revision-audit-notebook",
 );
+const resumeStructuredContent = getResourceById(ARTIFACT_IDS.resume)?.content;
+const resumeStructuredBlocks =
+  resumeStructuredContent?.kind === "structured-document"
+    ? resumeStructuredContent.blocks
+    : [];
 const checks = [
   ["root collection resolves", Boolean(getCollectionById(ROOT_COLLECTION_ID))],
   [
-    "root child collections resolve",
-    [COLLECTION_IDS.work, COLLECTION_IDS.aboutSelf].every((collectionId) =>
-      getCollectionMembers(ROOT_COLLECTION_ID).some(
-        (member) =>
-          member.kind === "collection" && member.collection.id === collectionId,
-      ),
+    "launch root has exactly Bellabeat, Resume, and Contact",
+    getPublishedCollectionMembers(ROOT_COLLECTION_ID).map((member) =>
+      member.kind === "artifact" ? member.artifact.id : member.collection.id,
+    ).join(",") ===
+      [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].join(","),
+  ],
+  [
+    "launch artifacts resolve",
+    [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].every(
+      (artifactId) => Boolean(getArtifactById(artifactId)),
     ),
   ],
   [
-    "representative artifacts resolve",
-    [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.about].every(
-      (artifactId) => Boolean(getArtifactById(artifactId)),
+    "only root collection is published",
+    contentRegistry.collections.filter((collection) => collection.published === true).length === 1 &&
+      contentRegistry.collections.find((collection) => collection.published === true)?.id === ROOT_COLLECTION_ID,
+  ],
+  [
+    "launch artifacts are published and artifact-status",
+    [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].every(
+      (artifactId) => {
+        const artifact = getArtifactById(artifactId);
+        return artifact?.published === true && artifact.isArtifact === true;
+      },
     ),
+  ],
+  [
+    "unfinished launch Resources are unpublished",
+    [ARTIFACT_IDS.about, ARTIFACT_IDS.reservoirStudy].every(
+      (artifactId) => getResourceById(artifactId)?.published === false,
+    ),
+  ],
+  [
+    "no published placeholder Resources remain",
+    contentRegistry.resources.every(
+      (resource) =>
+        resource.published !== true || resource.content?.status !== "placeholder",
+    ),
+  ],
+  [
+    "Resume is a compact native structured document with a registered PDF download",
+    getResourceById(ARTIFACT_IDS.resume)?.inspectionKind === "structured-document" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.kind === "structured-document" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.status === "ready" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.presentationProfile === "compact" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.blocks.at(-1)?.type === "download" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.blocks.at(-1)?.label ===
+        "Download PDF" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.blocks.at(-1)?.assetId ===
+        ASSET_IDS.resumePdf &&
+      getResourceRepresentations(ARTIFACT_IDS.resume).some(
+        (representation) =>
+          representation.kind === "asset" &&
+          representation.assetId === ASSET_IDS.resumePdf &&
+          representation.published !== false,
+      ) &&
+      getAssetsForArtifact(ARTIFACT_IDS.resume).some(
+        (asset) =>
+          asset.id === ASSET_IDS.resumePdf &&
+          asset.kind === "document" &&
+          asset.mimeType === "application/pdf" &&
+          asset.src === "/resume/Kodye_Pugh_Resume_2026.pdf" &&
+          fs.existsSync(path.join(projectRoot, "public", asset.src)),
+      ) &&
+      getStructuredDocumentBody(getResourceById(ARTIFACT_IDS.resume)).presentationProfile ===
+        "compact",
+  ],
+  [
+    "Contact is a canonical contact-form with public professional profiles only",
+    getResourceById(ARTIFACT_IDS.contact)?.inspectionKind === "contact-form" &&
+      getResourceById(ARTIFACT_IDS.contact)?.content?.kind === "contact" &&
+      getResourceById(ARTIFACT_IDS.contact)?.content?.socialLinks.map(
+        (link) => `${link.provider}:${link.url}`,
+      ).join(",") ===
+        "linkedin:https://www.linkedin.com/in/kodyepugh/,github:https://github.com/kodyepugh",
+  ],
+  [
+    "Resume semantic content preserves the approved section and entry hierarchy",
+    resumeStructuredBlocks.filter((block) => block.type === "heading" && block.level === 2)
+      .map((block) => block.text)
+      .join(",") ===
+        "Skills,Selected Data Analytics Project,Professional Experience,Additional Experience,Education,Certifications" &&
+      resumeStructuredBlocks[0]?.type === "paragraph" &&
+      resumeStructuredBlocks[0]?.text ===
+        "Analyst and digital product professional who redesigned a federal task-tracking workflow, built CMS structures and information architectures for three client organizations, and developed a validated BigQuery analysis across more than 15 million wellness data rows. Combines SQL, Excel, Tableau, Python-supported workflows, requirements analysis, and stakeholder communication to turn ambiguous operational needs into reliable systems, defensible insights, and actionable recommendations." &&
+      resumeStructuredBlocks.filter((block) => block.type === "entry")
+        .map((block) => block.title)
+        .join(",") ===
+          "Bellabeat Wellness-Behavior Analysis,Independent Web & Digital Product Consultant,U.S. Department of Education - Federal Student Aid,Netflix Productions,Various Production Companies,Stanford University & Loyola Marymount University,Loyola Marymount University,Stanford University,Google Data Analytics Professional Certificate,Finance & Quantitative Modeling for Analysts Specialization",
+  ],
+  [
+    "Contact submissions reject malformed input and accept bounded safe input",
+    validateContactSubmission({
+      name: "Recruiter",
+      email: "recruiter@example.com",
+      subject: "Portfolio question",
+      message: "Could we schedule a conversation?",
+    }).valid === true &&
+      validateContactSubmission({ name: "", email: "invalid", message: "" }).valid === false &&
+      validateContactSubmission({
+        name: "Recruiter\nBcc: bad@example.com",
+        email: "recruiter@example.com",
+        message: "Hello",
+      }).valid === false &&
+      validateContactSubmission({
+        name: "Recruiter",
+        email: "recruiter@example.com",
+        message: "Hello",
+        website: "bot.example",
+      }).valid === false,
   ],
   [
     "resource address resolution works",
@@ -364,19 +475,25 @@ const checks = [
     ),
   ],
   [
-    "one artifact belongs to multiple collections without duplication",
-    getArtifactCollections(ARTIFACT_IDS.bellabeat).length >= 2 &&
+    "Bellabeat has one published launch Collection without duplication",
+    getPublishedResourceCollections(ARTIFACT_IDS.bellabeat).length === 1 &&
+      getPublishedResourceCollections(ARTIFACT_IDS.bellabeat)[0].id === ROOT_COLLECTION_ID &&
       contentRegistry.artifacts.filter(
         (artifact) => artifact.id === ARTIFACT_IDS.bellabeat,
       ).length === 1,
   ],
   [
-    "child collections belong to parent collections",
-    getCollectionMembers(ROOT_COLLECTION_ID).some(
-      (member) =>
-        member.kind === "collection" &&
-        member.collection.id === COLLECTION_IDS.work,
-    ),
+    "unpublished future Collections are not root launch members",
+    getCollectionMembers(ROOT_COLLECTION_ID).every(
+      (member) => member.kind === "artifact",
+    ) &&
+      [
+        COLLECTION_IDS.work,
+        COLLECTION_IDS.dataAnalytics,
+        COLLECTION_IDS.web,
+        COLLECTION_IDS.filmCreative,
+        COLLECTION_IDS.aboutSelf,
+      ].every((collectionId) => getCollectionById(collectionId)?.published === false),
   ],
   [
     "asset resolves independently through artifact content",
@@ -617,11 +734,11 @@ const checks = [
       ),
   ],
   [
-    "collection contents adapt without spatial placement",
-    getReservoirContentNodes(COLLECTION_IDS.dataAnalytics).some(
+    "launch collection contents adapt without spatial placement",
+    getReservoirContentNodes(ROOT_COLLECTION_ID).every(
       (node) =>
         node.kind === "artifact" &&
-        node.id === ARTIFACT_IDS.bellabeat &&
+        [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].includes(node.id) &&
         !("vertexId" in node),
     ),
   ],

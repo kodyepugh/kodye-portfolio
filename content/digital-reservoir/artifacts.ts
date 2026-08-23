@@ -9,6 +9,7 @@ import { bellabeatSupportingResources } from "./bellabeat-resources";
 export const ARTIFACT_IDS = {
   bellabeat: "artifact-bellabeat-wellness-analysis",
   resume: "artifact-resume",
+  contact: "artifact-contact",
   about: "artifact-about",
   reservoirStudy: "artifact-reservoir-interface-study",
   brandSymbol: "artifact-kodyepugh-symbol",
@@ -17,6 +18,181 @@ export const ARTIFACT_IDS = {
 export const RESOURCE_IDS = {
   bellabeatRepository: "resource-bellabeat-wellness-analysis-repository",
 } as const;
+
+export const RESUME_DOCUMENT_BLOCKS = [
+  {
+    id: "professional-summary",
+    type: "paragraph",
+    text: "Analyst and digital product professional who redesigned a federal task-tracking workflow, built CMS structures and information architectures for three client organizations, and developed a validated BigQuery analysis across more than 15 million wellness data rows. Combines SQL, Excel, Tableau, Python-supported workflows, requirements analysis, and stakeholder communication to turn ambiguous operational needs into reliable systems, defensible insights, and actionable recommendations.",
+  },
+  { id: "skills", type: "heading", level: 2, text: "Skills" },
+  {
+    id: "skills-data-analytics",
+    type: "paragraph",
+    text: "**Data & Analytics:** SQL, BigQuery, Excel, Tableau; data cleaning, data validation, exploratory analysis, aggregation, visualization, reporting",
+  },
+  {
+    id: "skills-product-operations",
+    type: "paragraph",
+    text: "**Product & Operations:** business analysis, requirements analysis, process improvement, workflow design, information architecture, stakeholder communication, presentation",
+  },
+  {
+    id: "skills-programming-web",
+    type: "paragraph",
+    text: "**Programming & Web:** Python, Git/GitHub, HTML/CSS, JavaScript, Velo, Wix Studio/CMS, WordPress",
+  },
+  {
+    id: "selected-data-analytics-project",
+    type: "heading",
+    level: 2,
+    text: "Selected Data Analytics Project",
+  },
+  {
+    id: "bellabeat-wellness-behavior-analysis",
+    type: "entry",
+    title: "Bellabeat Wellness-Behavior Analysis",
+    meta: "2026",
+    subtitle: "Independent Data Analytics Case Study",
+    items: [
+      "Built a reproducible analytical workflow for 29 Fitbit source tables and more than 15 million rows using Excel, BigQuery/Standard SQL, Python-supported workflows, and Git to profile, transform, join, aggregate, and validate data.",
+      "Separated preserved source data from staging, cleaned, analytical, and reporting layers; investigated duplicate boundaries, inconsistent feature coverage, unresolved user identity, and differences across daily, hourly, minute, and second-level observations before defining defensible analytical units.",
+      "Across 1,935 observed activity session-days, found that light activity represented 84.9% of active minutes and translated the result into testable Bellabeat app hypotheses around personal baselines, approachable movement, and user-controlled timing.",
+      "Used sensitivity testing to reject unsupported segmentation and causal claims; documented analytical boundaries and additional telemetry needed for product experimentation while preserving traceability from source data through QA and publication.",
+    ],
+  },
+  {
+    id: "professional-experience",
+    type: "heading",
+    level: 2,
+    text: "Professional Experience",
+  },
+  {
+    id: "independent-consultant",
+    type: "entry",
+    title: "Independent Web & Digital Product Consultant",
+    meta: "2025 - Present",
+    subtitle: "Client Website Reconstruction & Product Support",
+    items: [
+      "Reconstructed three client websites, translating stakeholder and organizational requirements into information architectures, CMS structures, content workflows, responsive interfaces, and maintainable production websites.",
+    ],
+  },
+  { id: "cif-oakland", type: "heading", level: 4, text: "CIF Oakland City Section" },
+  {
+    id: "cif-oakland-details",
+    type: "list",
+    style: "unordered",
+    items: [
+      "Configured structured relationships in Wix CMS across sports, schools, tournaments, participating teams, tournament rounds, and games to support schedules, results, standings, championships, and public communications.",
+      "Designed and iterated workflows for schedules, results, standings, and playoff brackets within platform constraints; continue to maintain the production site as organizational, content, and functionality requirements evolve.",
+    ],
+  },
+  { id: "workforce-development", type: "heading", level: 4, text: "Workforce Development Unit" },
+  {
+    id: "workforce-development-details",
+    type: "list",
+    style: "unordered",
+    items: [
+      "Converted an incomplete Wix implementation with placeholder content, unclear navigation, inconsistent branding, incomplete service information, and usability gaps into a production-ready site; reorganized navigation and content around education pathways, workforce development, leadership, partnerships, and consulting services.",
+    ],
+  },
+  { id: "gospelfest-oakland", type: "heading", level: 4, text: "GospelFest Oakland" },
+  {
+    id: "gospelfest-oakland-details",
+    type: "list",
+    style: "unordered",
+    items: [
+      "Reconstructed an event platform supporting ticketing, fundraising, sponsorship, artist outreach, and visitor information; during the event cycle, the organization met its fundraising goal and sold all available tickets, while the site generated inquiries from 28 local artists.",
+    ],
+  },
+  {
+    id: "federal-student-aid",
+    type: "entry",
+    title: "U.S. Department of Education - Federal Student Aid",
+    meta: "Jan 2025 - Feb 2025",
+    subtitle: "Management & Program Analyst, Digital Delivery Division | Washington, DC",
+    items: [
+      "Identified a process-control weakness in an Excel task tracker whose status indicators required employees to interpret assigned dates and manually update red/yellow/green cell formatting.",
+      "Redesigned the tracker with date-driven conditional formatting to automate status signaling and surface approaching and missed deadlines; secured supervisor approval and led a team walkthrough on the revised workflow.",
+    ],
+  },
+  {
+    id: "netflix-productions",
+    type: "entry",
+    title: "Netflix Productions",
+    meta: "Oct 2023 - Mar 2024",
+    subtitle: "Director's Assistant | Los Angeles, CA",
+    supporting: "*Monster(s): The Lyle and Erik Menendez Story - Episodes 201 & 202*",
+    items: [
+      "Served as liaison between director Carl Franklin and production departments on a multimillion-dollar television production, coordinating time-sensitive information across stakeholders.",
+      "Coordinated housing, technology, equipment, and other off-set operational requirements alongside changing production schedules.",
+      "Managed and reported recurring expenditures for the director's off-set operations, maintained accurate records, and supported day-to-day decisions.",
+    ],
+  },
+  {
+    id: "additional-experience",
+    type: "heading",
+    level: 2,
+    text: "Additional Experience",
+  },
+  {
+    id: "various-production-companies",
+    type: "entry",
+    title: "Various Production Companies",
+    meta: "2021 - 2023",
+    subtitle: "Freelance Set Production Assistant | Los Angeles, CA",
+    items: [
+      "Coordinated real-time communication between production leadership and on-set teams, relayed changing requirements, managed production areas, and responded to time-sensitive logistics.",
+      "Selected credits: Oppenheimer, Poolman, Monster: The Jeffrey Dahmer Story, and other feature and television productions.",
+    ],
+  },
+  {
+    id: "student-athlete",
+    type: "entry",
+    title: "Stanford University & Loyola Marymount University",
+    meta: "2016 - 2021",
+    subtitle: "NCAA Division I Men's Basketball Student-Athlete",
+    items: [
+      "Five-year NCAA Division I student-athlete; three-time Pac-12 All-Academic selection and NABC Honors Court honoree.",
+    ],
+  },
+  { id: "education", type: "heading", level: 2, text: "Education" },
+  {
+    id: "loyola-marymount-university",
+    type: "entry",
+    title: "Loyola Marymount University",
+    meta: "2024",
+    subtitle: "Master of Fine Arts, Film & Television Production (Directing Fiction)",
+  },
+  {
+    id: "stanford-university",
+    type: "entry",
+    title: "Stanford University",
+    meta: "2020",
+    subtitle: "Bachelor of Arts, Film & Media Studies (Film, Media and Technology)",
+    supporting: "Relevant technical coursework: Programming Methodology, Programming Abstractions, Calculus I-III, Introductory Electronics I-II",
+  },
+  { id: "certifications", type: "heading", level: 2, text: "Certifications" },
+  {
+    id: "google-data-analytics-certificate",
+    type: "entry",
+    title: "Google Data Analytics Professional Certificate",
+    meta: "Aug 2026",
+    subtitle: "Google / Coursera",
+  },
+  {
+    id: "finance-quantitative-modeling-certificate",
+    type: "entry",
+    title: "Finance & Quantitative Modeling for Analysts Specialization",
+    meta: "Jul 2024",
+    subtitle: "Wharton Online / Coursera",
+  },
+  {
+    id: "resume-pdf-download",
+    type: "download",
+    assetId: ASSET_IDS.resumePdf,
+    label: "Download PDF",
+  },
+] satisfies readonly StructuredDocumentBlock[];
 
 export const BELLABEAT_DOCUMENT_BLOCKS = [
   {
@@ -347,10 +523,52 @@ export const resources = [
     format: "Resume",
     featured: true,
     published: true,
+    representations: [
+      {
+        id: "representation-resume-pdf",
+        kind: "asset",
+        assetId: ASSET_IDS.resumePdf,
+        label: "Approved resume PDF",
+        order: 1,
+        published: true,
+      },
+    ],
     content: {
-      kind: "document",
-      status: "placeholder",
-      note: "TODO: Add the approved resume asset and verified resume content.",
+      kind: "structured-document",
+      status: "ready",
+      presentationProfile: "compact",
+      blocks: RESUME_DOCUMENT_BLOCKS,
+    },
+  },
+  {
+    objectType: "resource",
+    id: ARTIFACT_IDS.contact,
+    slug: "contact",
+    title: "Contact",
+    subtitle: "Email, LinkedIn, and GitHub",
+    description: "Approved professional contact destinations.",
+    type: "profile",
+    inspectionKind: "contact-form",
+    isArtifact: true,
+    category: "Connection",
+    categoryColor: "#6f8065",
+    medium: "Contact links",
+    format: "Links",
+    featured: true,
+    published: true,
+    content: {
+      kind: "contact",
+      status: "ready",
+      socialLinks: [
+        {
+          provider: "linkedin",
+          url: "https://www.linkedin.com/in/kodyepugh/",
+        },
+        {
+          provider: "github",
+          url: "https://github.com/kodyepugh",
+        },
+      ],
     },
   },
   {
@@ -366,7 +584,7 @@ export const resources = [
     categoryColor: "#8d7257",
     medium: "Profile",
     featured: true,
-    published: true,
+    published: false,
     content: {
       kind: "rich-text",
       status: "placeholder",
@@ -391,7 +609,7 @@ export const resources = [
     medium: "WebGL prototype",
     format: "Interactive website",
     featured: true,
-    published: true,
+    published: false,
     content: {
       kind: "case-study",
       status: "placeholder",

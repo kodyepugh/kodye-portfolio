@@ -3,6 +3,7 @@ import { BELLABEAT_FIGURE_ALT_TEXT } from "./bellabeat-resources";
 
 export const ASSET_IDS = {
   brandSymbol: "asset-kodyepugh-symbol",
+  resumePdf: "asset-resume-2026-pdf",
   fitbitIdentifierRevisionAuditNotebook:
     "asset-fitbit-identifier-revision-audit-notebook",
   bellabeatDailyStepsDistribution: "asset-bellabeat-daily-steps-distribution",
@@ -46,6 +47,13 @@ export const assets = [
     width: 1000,
     height: 974,
     alt: "Kodye Pugh symbol and wordmark",
+  },
+  {
+    id: ASSET_IDS.resumePdf,
+    kind: "document",
+    src: "/resume/Kodye_Pugh_Resume_2026.pdf",
+    filename: "Kodye_Pugh_Resume_2026.pdf",
+    mimeType: "application/pdf",
   },
   {
     id: ASSET_IDS.fitbitIdentifierRevisionAuditNotebook,

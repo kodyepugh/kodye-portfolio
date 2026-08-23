@@ -30,7 +30,7 @@ export const collections = [
     category: "Practice",
     categoryColor: "#b9573f",
     featured: true,
-    published: true,
+    published: false,
   },
   {
     objectType: "collection",
@@ -39,7 +39,7 @@ export const collections = [
     title: "Data / Analytics",
     category: "Work",
     categoryColor: "#28758c",
-    published: true,
+    published: false,
   },
   {
     objectType: "collection",
@@ -48,7 +48,7 @@ export const collections = [
     title: "Web",
     category: "Work",
     categoryColor: "#3d8062",
-    published: true,
+    published: false,
   },
   {
     objectType: "collection",
@@ -57,7 +57,7 @@ export const collections = [
     title: "Film / Creative",
     category: "Work",
     categoryColor: "#6e5890",
-    published: true,
+    published: false,
   },
   {
     objectType: "collection",
@@ -67,6 +67,6 @@ export const collections = [
     category: "Identity",
     categoryColor: "#8d7257",
     featured: true,
-    published: true,
+    published: false,
   },
 ] satisfies readonly Collection[];

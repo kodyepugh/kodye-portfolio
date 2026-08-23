@@ -1,7 +1,7 @@
 # Digital Reservoir — L2 Implementation Status
 
 **Status:** Closed L2 implementation line / public-launch preparation
-**Updated:** August 21, 2026
+**Updated:** August 22, 2026
 **Ontology authority:** `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md` revision 0.7.1
 **Bellabeat ingestion authority:** `docs/l2-bellabeat-manual-ingestion-manifest.md`
 
@@ -62,7 +62,8 @@ Implemented in the current repository line:
 - `inspectionKind` selects the inspection surface;
 - `structured-document` is the first canonical inspection surface;
 - legacy `rich-text`, `case-study`, and `document` content adapts into the structured-document model instead of forming a second canonical document system;
-- reusable ordered structured-document blocks include headings, paragraphs, figures, lists, callouts, links, dividers, tables, quotes, code, and Resource references;
+- reusable ordered structured-document blocks include headings, paragraphs, figures, lists, entries, callouts, links, Asset-backed downloads, dividers, tables, quotes, code, and Resource references;
+- structured documents may use an explicit `editorial` or `compact` presentation profile without changing Resource identity, inspection semantics, or navigation state; Bellabeat remains editorial while the approved Resume uses compact authored semantic content with its canonical PDF retained as a downloadable Asset representation;
 - figure blocks reference stable Resource/representation identity rather than creating duplicate file identity;
 - structured-document validation covers block identity/order constraints, Resource references, representation references, figure alt text, links, lists, tables, and content/inspection compatibility;
 - unsupported inspection kinds remain explicit and do not silently render through the structured-document surface;
@@ -214,15 +215,17 @@ The remaining work is public-release preparation rather than expansion of the L2
 
 ### Public-launch work still open
 
-The roadmap currently groups the remaining launch work into five stages, beginning with a Bellabeat-only launch cut rather than a broad first portfolio content cut:
+The roadmap currently groups the remaining launch work into five stages, beginning with a completed Bellabeat-only launch cut rather than a broad first portfolio content cut:
 
-1. **Bellabeat Launch Cut** — treat the materialized Bellabeat project and supporting Resources as the substantive launch content and hide/unpublish unfinished public objects.
-2. **Public Web Essentials** — production identity/metadata, real outbound destinations, reliable Resume access, and a practical Bellabeat direct public address.
+1. **Bellabeat Launch Cut** — complete. The published root Digital Reservoir Collection now curates exactly Bellabeat, Resume, and Contact; dormant Collections and unfinished launch Resources are unpublished.
+2. **Public Web Essentials** — production identity/metadata, real outbound destinations, the implemented Contact form (pending production Resend sender/domain configuration and delivery verification), reliable inline/downloadable Resume PDF access, and a practical Bellabeat direct public address.
 3. **Bellabeat Recruiter-Path QA** — exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
 4. **Minimum Responsive / Accessibility / Interaction Sweep** — representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup.
 5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.
 
 Broader About, Digital Reservoir, client, and archive content are post-launch expansion work and are not required to complete this launch sequence.
+
+The approved public-routing contract remains a future Public Web Essentials concern: stable semantic IDs/slugs remain distinct from display titles; `/` is reserved for Home; direct Objects will use `/<object-slug>`; contextual Resource paths may use `/<collection-slug>/<resource-slug>` without creating a second identity; and Collection membership provides context/discovery rather than identity. No dynamic routing or browser-history synchronization is implemented by the completed L2 line or the completed Bellabeat Launch Cut.
 
 Implementation work should follow that roadmap rather than treating a technically logical next renderer or ingestion seam as automatically higher priority.
 
@@ -244,7 +247,7 @@ The notebook treatment required by the Bellabeat launch material is implemented.
 
 ### Public routing is no longer an L2 deferral
 
-Final public URL/deep-link behavior remains outside the semantic ontology, but it is now part of the **launch-blocking Public Web Essentials** defined by the release-preparation roadmap.
+Final public URL/deep-link behavior remains outside the semantic ontology, but it is now part of the **launch-blocking Public Web Essentials** defined by the release-preparation roadmap. The current published launch registry provides stable semantic slugs for the published root Collection, Bellabeat, Resume, Contact, and independently addressable supporting Resources; it does not implement public URL routing.
 
 Do not classify public routing/address mapping as deferred product work when evaluating launch readiness.
 

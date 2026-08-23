@@ -41,6 +41,7 @@ export const RESOURCE_INSPECTION_KINDS = [
   "video",
   "audio",
   "external-link",
+  "contact-form",
   "dataset-table",
   "notebook-code",
   "generic-file",
@@ -81,6 +82,15 @@ export type StructuredDocumentListBlock = StructuredDocumentBlockBase & {
   items: readonly string[];
 };
 
+export type StructuredDocumentEntryBlock = StructuredDocumentBlockBase & {
+  type: "entry";
+  title: string;
+  meta?: string;
+  subtitle?: string;
+  supporting?: string;
+  items?: readonly string[];
+};
+
 export type StructuredDocumentCalloutBlock = StructuredDocumentBlockBase & {
   type: "callout";
   text: string;
@@ -102,6 +112,12 @@ export type StructuredDocumentLinkBlock = StructuredDocumentBlockBase & {
         href?: never;
       }
   );
+
+export type StructuredDocumentDownloadBlock = StructuredDocumentBlockBase & {
+  type: "download";
+  assetId: string;
+  label: string;
+};
 
 export type StructuredDocumentDividerBlock = StructuredDocumentBlockBase & {
   type: "divider";
@@ -140,17 +156,22 @@ export type StructuredDocumentBlock =
   | StructuredDocumentParagraphBlock
   | StructuredDocumentFigureBlock
   | StructuredDocumentListBlock
+  | StructuredDocumentEntryBlock
   | StructuredDocumentCalloutBlock
   | StructuredDocumentLinkBlock
+  | StructuredDocumentDownloadBlock
   | StructuredDocumentDividerBlock
   | StructuredDocumentTableBlock
   | StructuredDocumentQuoteBlock
   | StructuredDocumentCodeBlock
   | StructuredDocumentResourceReferenceBlock;
 
+export type StructuredDocumentPresentationProfile = "editorial" | "compact";
+
 type StructuredDocumentContentBase = {
   kind: "structured-document";
   status: ResourceContentStatus;
+  presentationProfile?: StructuredDocumentPresentationProfile;
 };
 
 export type StructuredDocumentBlocksContent =
@@ -172,6 +193,11 @@ export type StructuredMarkdownContent = StructuredDocumentContentBase & {
 export type StructuredDocumentContent =
   | StructuredDocumentBlocksContent
   | StructuredMarkdownContent;
+
+export type ContactSocialLink = {
+  provider: "linkedin" | "github";
+  url: string;
+};
 
 export type ArtifactSection = {
   id: string;
@@ -211,6 +237,11 @@ export type ResourceContent =
       status: ArtifactContentStatus;
       assetId?: string;
       note?: string;
+    }
+  | {
+      kind: "contact";
+      status: ArtifactContentStatus;
+      socialLinks: readonly ContactSocialLink[];
     };
 
 export type ArtifactContent = ResourceContent;

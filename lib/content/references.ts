@@ -15,6 +15,7 @@ export function getResourceContentAssetIds(
     case "structured-document":
     case "external-link":
     case "rich-text":
+    case "contact":
       return [];
   }
 }

@@ -212,9 +212,9 @@ const SEMANTIC_EXPLORE_LENSES = new Map<string, readonly ActiveExploreFilter[]>(
   ["artifact-kodyepugh-symbol", ["self", "world"]],
 ]);
 
-const DIRECT_ARTIFACT_TARGETS = new Map<Exclude<DirectArtifactId, "contact">, string>([
-  ["about", "artifact-about"],
+const DIRECT_ARTIFACT_TARGETS = new Map<DirectArtifactId, string>([
   ["resume", "artifact-resume"],
+  ["contact", "artifact-contact"],
 ]);
 
 type QueryReservoirSelectionSnapshot = {
@@ -3999,19 +3999,6 @@ export function ReservoirScene() {
 
   function selectDirectArtifact(directArtifactId: DirectArtifactId) {
     if (menuState !== "open" || queryActivityRevision !== null) return;
-    if (directArtifactId === "contact") {
-      if (interaction.current) {
-        interaction.current.dataset.directContactAction = "ui-only";
-      }
-      setHoveredResourceId(null);
-      setSelectedResourceId(null);
-      setSelectedCollectionId(null);
-      setSelectedPressActive(false);
-      setTransitionState("idle");
-      setMenuState("closing");
-      return;
-    }
-
     const resourceAddress = DIRECT_ARTIFACT_TARGETS.get(directArtifactId);
     if (!resourceAddress || !requestDirectResource(resourceAddress)) return;
     setMenuState("closing");

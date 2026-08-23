@@ -65,6 +65,9 @@ const {
   getResourceInspectionSurface,
 } = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
 const {
+  resolveGenericFileInspection,
+} = require(path.join(projectRoot, "lib/content/generic-file-inspection.ts"));
+const {
   canInspectResource,
 } = require(path.join(projectRoot, "lib/reservoir/inspection.ts"));
 const {
@@ -161,6 +164,19 @@ const {
 
 const about = getResourceById("artifact-about");
 const bellabeat = getResourceById("artifact-bellabeat-wellness-analysis");
+const resume = getResourceById("artifact-resume");
+const contact = getResourceById("artifact-contact");
+const opaquePdfResource = {
+  ...resume,
+  id: "qa-opaque-pdf-resource",
+  slug: "qa-opaque-pdf-resource",
+  inspectionKind: "generic-file",
+  content: {
+    kind: "document",
+    status: "ready",
+    assetId: "asset-resume-2026-pdf",
+  },
+};
 const comprehensiveCaseStudy = getResourceById(
   "resource-bellabeat-comprehensive-case-study",
 );
@@ -208,6 +224,18 @@ const reservoirHistoryNavigationSource = fs.readFileSync(
 );
 const inspectionCssSource = fs.readFileSync(
   path.join(projectRoot, "app/globals.css"),
+  "utf8",
+);
+const structuredDocumentBodySource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/StructuredDocumentBody.tsx"),
+  "utf8",
+);
+const contactInspectionBodySource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/ContactInspectionBody.tsx"),
+  "utf8",
+);
+const genericFileInspectionBodySource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/GenericFileInspectionBody.tsx"),
   "utf8",
 );
 const inspectionContextTraySource = fs.readFileSync(
@@ -430,13 +458,27 @@ const structuredBlocks = [
     alt: "Brand symbol",
   },
   { id: "list", type: "list", style: "unordered", items: ["One"] },
+  {
+    id: "entry",
+    type: "entry",
+    title: "Entry",
+    meta: "2026",
+    subtitle: "Role",
+    items: ["Detail"],
+  },
   { id: "callout", type: "callout", text: "Callout" },
   { id: "link", type: "link", href: "https://example.com", label: "Example" },
   {
     id: "internal-link",
     type: "link",
-    resourceId: about.id,
-    label: "About",
+    resourceId: resume.id,
+    label: "Resume",
+  },
+  {
+    id: "download",
+    type: "download",
+    assetId: "asset-resume-2026-pdf",
+    label: "Download PDF",
   },
   { id: "divider", type: "divider" },
   { id: "table", type: "table", columns: ["A"], rows: [["B"]] },
@@ -445,7 +487,7 @@ const structuredBlocks = [
   {
     id: "resource-reference",
     type: "resource-reference",
-    resourceId: about.id,
+    resourceId: resume.id,
   },
 ];
 const nonArtifactDocument = {
@@ -809,9 +851,9 @@ const unpublishedInternalLinkRegistry = {
   ],
 };
 const validSyntheticResult = validateContentRegistry(validSyntheticRegistry);
-const brandSymbolCollections = getPublishedResourceCollections(brandSymbol.id);
+const resumeCollections = getPublishedResourceCollections(resume.id);
 const resourcePill = getInspectionResourcePill(supportTargetResource);
-const collectionPill = getInspectionCollectionPill(brandSymbolCollections[0]);
+const collectionPill = getInspectionCollectionPill(resumeCollections[0]);
 const publishedExternalLinkRepresentations =
   getPublishedExternalLinkRepresentations(syntheticExternalLinkResource);
 const resolvedExternalLinkInspection = resolveExternalLinkInspection(
@@ -1038,7 +1080,20 @@ const checks = [
   [
     "D inspectionKind determines dispatch",
     getResourceInspectionSurface("structured-document") === "structured-document" &&
+      getResourceInspectionSurface("contact-form") === "contact-form" &&
+      getResourceInspectionSurface("generic-file") === "generic-file" &&
       getResourceInspectionSurface("video") === "unsupported",
+  ],
+  [
+    "D1 Contact and Resume resolve through their dedicated content-driven surfaces",
+    contact?.content?.kind === "contact" &&
+      resume?.inspectionKind === "structured-document" &&
+      resume?.content?.kind === "structured-document" &&
+      resume.content.presentationProfile === "compact" &&
+      canInspectResource(contact) &&
+      canInspectResource(resume) &&
+      getStructuredDocumentBody(resume).presentationProfile === "compact" &&
+      resolveGenericFileInspection(opaquePdfResource).status === "ready",
   ],
   [
     "E supported surfaces are inspectable and unsupported surfaces are not",
@@ -1082,9 +1137,9 @@ const checks = [
       ),
   ],
   [
-    "K published collection memberships resolve in order",
-    brandSymbolCollections.map((collection) => collection.id).join(",") ===
-      "collection-web,collection-about-self",
+    "K published launch membership resolves in order",
+    resumeCollections.map((collection) => collection.id).join(",") ===
+      ROOT_COLLECTION_ID,
   ],
   [
     "L Resource and Collection region visibility follows actual context",
@@ -1116,8 +1171,8 @@ const checks = [
       resourcePill.name === supportTargetResource.title &&
       JSON.stringify(Object.keys(collectionPill).sort()) ===
         JSON.stringify(["iconKey", "id", "name"]) &&
-      collectionPill.id === brandSymbolCollections[0].id &&
-      collectionPill.name === brandSymbolCollections[0].title,
+      collectionPill.id === resumeCollections[0].id &&
+      collectionPill.name === resumeCollections[0].title,
   ],
   [
     "N image alt text follows asset, caption, then Resource title",
@@ -1770,6 +1825,31 @@ const checks = [
       inspectionViewerSource.match(
         /inspection-image-viewer__nav[\s\S]*?onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/g,
       )?.length === 2,
+  ],
+  [
+    "BF Contact content is centered in a responsive three-column stack and uses native icon viewBoxes",
+    inspectionCssSource.includes(
+      "grid-template-columns: minmax(0, 1fr) minmax(0, 660px) minmax(0, 1fr)",
+    ) &&
+      inspectionCssSource.includes(".inspection-contact__center") &&
+      contactInspectionBodySource.includes("viewBox={icon.viewBox}") &&
+      contactInspectionBodySource.includes("faLinkedin.icon[0]") &&
+      contactInspectionBodySource.includes("faLinkedin.icon[1]"),
+  ],
+  [
+    "BG Resume uses compact native structured content while opaque PDFs retain generic-file inspection",
+    resume.content.blocks.at(-1)?.type === "download" &&
+    resume.content.blocks.at(-1)?.label === "Download PDF" &&
+      structuredDocumentBodySource.includes("structured-document__download") &&
+      structuredDocumentBodySource.includes("structured-document__block--${block.type}") &&
+      structuredDocumentBodySource.includes("download={asset.filename}") &&
+      !structuredDocumentBodySource.includes("artifact-resume") &&
+      inspectionCssSource.includes(".structured-document--compact") &&
+      inspectionCssSource.includes(".structured-document__block--download") &&
+      inspectionCssSource.includes(".structured-document a.structured-document__download") &&
+      genericFileInspectionBodySource.includes('type="application/pdf"') &&
+      !genericFileInspectionBodySource.includes("Download PDF") &&
+    !genericFileInspectionBodySource.includes("inspection-generic-file__download"),
   ],
 ];
 
