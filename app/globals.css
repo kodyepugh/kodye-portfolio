@@ -734,10 +734,17 @@ body.artifact-reading-mode .reservoir-study {
   top: 20px;
 }
 
-.atmosphere-content--artifact {
+.atmosphere-content--resource {
+  display: block;
+  right: auto;
+  width: min(620px, calc(100% - 48px));
   color: var(--foreground);
   text-transform: none;
   animation: atmosphere-content-enter 180ms ease-out both;
+}
+
+.atmosphere-content--collection {
+  color: var(--foreground);
 }
 
 .atmosphere-content__identity {
@@ -746,7 +753,9 @@ body.artifact-reading-mode .reservoir-study {
 
 .atmosphere-content__title,
 .atmosphere-content__subtitle,
-.atmosphere-content__dates {
+.atmosphere-content__dates,
+.atmosphere-content__summary,
+.atmosphere-content__relationships {
   margin: 0;
 }
 
@@ -769,8 +778,24 @@ body.artifact-reading-mode .reservoir-study {
   text-align: right;
 }
 
+.atmosphere-content--resource .atmosphere-content__subtitle {
+  margin-top: 8px;
+  text-align: left;
+}
+
 .atmosphere-content__dates {
   margin-top: 5px;
+  color: var(--foreground-muted);
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+.atmosphere-content__summary,
+.atmosphere-content__relationships {
+  max-width: 72ch;
+  margin-top: 12px;
   color: var(--foreground-muted);
   font-size: 10px;
   letter-spacing: 0.01em;
@@ -2767,7 +2792,7 @@ body.artifact-reading-mode .reservoir-study {
     right: 16px;
   }
 
-  .atmosphere-content--artifact {
+  .atmosphere-content--resource {
     width: auto;
   }
 
@@ -2795,7 +2820,7 @@ body.artifact-reading-mode .reservoir-study {
     transition-duration: 40ms, 40ms;
   }
 
-  .atmosphere-content--artifact {
+  .atmosphere-content--resource {
     animation: none;
   }
 
