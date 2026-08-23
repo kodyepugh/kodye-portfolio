@@ -22,8 +22,8 @@
   --artifact-text-muted: rgba(242, 244, 239, 0.72);
   --artifact-border: rgba(242, 244, 239, 0.18);
   --artifact-focus: #ffffff;
-  --brand-symbol-width: clamp(96px, 8vw, 300px);
-  --brand-symbol-half-width: clamp(48px, 4vw, 150px);
+  --brand-symbol-width: clamp(86px, 7.2vw, 270px);
+  --brand-symbol-half-width: clamp(43px, 3.6vw, 135px);
   --brand-symbol-bottom: 50px;
   --control-panel-height: calc(
     var(--brand-symbol-bottom) + clamp(64px, 5.28vw, 198px)
@@ -167,14 +167,19 @@ body.artifact-reading-mode .reservoir-study {
   bottom: var(--control-stack-translation);
   left: 0;
   height: var(--control-panel-height);
-  background: linear-gradient(
-    to bottom,
-    rgba(52, 62, 60, 0) 0%,
-    rgba(52, 62, 60, 0.045) 22%,
-    rgba(52, 62, 60, 0.22) 50%,
-    rgba(52, 62, 60, 0.47) 78%,
-    rgba(52, 62, 60, 0.76) 100%
-  );
+  background:
+    radial-gradient(
+      ellipse 68% 115% at 50% 112%,
+      rgba(182, 236, 218, 0.16) 0%,
+      rgba(128, 183, 172, 0.08) 32%,
+      transparent 74%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(16, 21, 20, 0) 0%,
+      rgba(20, 28, 26, 0.03) 64%,
+      rgba(27, 37, 34, 0.16) 100%
+    );
   pointer-events: none;
 }
 
@@ -730,18 +735,18 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .atmosphere-content--artifact {
-  display: block;
-  right: auto;
-  width: min(620px, calc(100% - 48px));
   color: var(--foreground);
   text-transform: none;
   animation: atmosphere-content-enter 180ms ease-out both;
 }
 
+.atmosphere-content__identity {
+  min-width: 0;
+}
+
 .atmosphere-content__title,
 .atmosphere-content__subtitle,
-.atmosphere-content__summary,
-.atmosphere-content__relationships {
+.atmosphere-content__dates {
   margin: 0;
 }
 
@@ -756,17 +761,16 @@ body.artifact-reading-mode .reservoir-study {
 
 .atmosphere-content__subtitle {
   max-width: 52ch;
-  margin-top: 8px;
+  margin-top: 7px;
   color: var(--foreground-muted);
   font-size: 11px;
   letter-spacing: 0;
   line-height: 1.45;
+  text-align: right;
 }
 
-.atmosphere-content__summary,
-.atmosphere-content__relationships {
-  max-width: 72ch;
-  margin-top: 12px;
+.atmosphere-content__dates {
+  margin-top: 5px;
   color: var(--foreground-muted);
   font-size: 10px;
   letter-spacing: 0.01em;
@@ -2764,8 +2768,7 @@ body.artifact-reading-mode .reservoir-study {
   }
 
   .atmosphere-content--artifact {
-    right: auto;
-    width: calc(100% - 32px);
+    width: auto;
   }
 
   .artifact-window {
