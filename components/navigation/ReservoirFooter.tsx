@@ -1,6 +1,8 @@
 "use client";
 
 import type { WheelEvent } from "react";
+import type { Resource } from "@/types/content";
+import { getPublishedFooterResources } from "@/lib/content/selectors";
 
 export type ReservoirFooterState =
   | "closed"
@@ -10,32 +12,34 @@ export type ReservoirFooterState =
 
 type ReservoirFooterProps = {
   onInterfaceWheel: (event: WheelEvent<HTMLElement>) => void;
+  onResourceSelect: (resourceId: string) => void;
   state: ReservoirFooterState;
 };
 
-const FOOTER_LINKS = ["LinkedIn", "GitHub", "Email"] as const;
-
 type ReservoirFooterContentProps = {
   interactive?: boolean;
+  onResourceSelect?: (resourceId: string) => void;
+  resources?: readonly Resource[];
 };
 
 export function ReservoirFooterContent({
   interactive = true,
+  onResourceSelect,
+  resources = getPublishedFooterResources(),
 }: ReservoirFooterContentProps) {
   return (
     <>
       <p className="reservoir-footer__copyright">© Kodye Pugh</p>
-      <nav className="reservoir-footer__links" aria-label="Footer links">
-        {FOOTER_LINKS.map((label) => (
-          <a
-            key={label}
-            href="#"
-            aria-label={`${label} placeholder`}
-            tabIndex={interactive ? 0 : -1}
-            onClick={(event) => event.preventDefault()}
+      <nav className="reservoir-footer__links" aria-label="Portfolio destinations">
+        {resources.map((resource) => (
+          <button
+            key={resource.id}
+            type="button"
+            disabled={!interactive || !onResourceSelect}
+            onClick={() => onResourceSelect?.(resource.id)}
           >
-            {label}
-          </a>
+            {resource.title}
+          </button>
         ))}
       </nav>
     </>
@@ -44,6 +48,7 @@ export function ReservoirFooterContent({
 
 export function ReservoirFooter({
   onInterfaceWheel,
+  onResourceSelect,
   state,
 }: ReservoirFooterProps) {
   const interactive = state === "open";
@@ -60,7 +65,10 @@ export function ReservoirFooter({
         aria-label="Site footer"
         onWheel={onInterfaceWheel}
       >
-        <ReservoirFooterContent interactive={interactive} />
+        <ReservoirFooterContent
+          interactive={interactive}
+          onResourceSelect={onResourceSelect}
+        />
       </footer>
     </div>
   );

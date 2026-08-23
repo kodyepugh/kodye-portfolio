@@ -62,6 +62,7 @@ const { contentRegistry } = require(path.join(
 const {
   adaptResourceToReservoirContentNode,
   getReservoirContentNodes,
+  getReservoirContentNodesBySemanticIds,
   getReservoirNodeSizingFamily,
   getReservoirCollectionNodeById,
 } = require(path.join(projectRoot, "lib/content/reservoir-adapter.ts"));
@@ -87,6 +88,7 @@ const {
   getCollectionMembers,
   getPublishedCollectionMembers,
   getPublishedResourceCollections,
+  getPublishedFooterResources,
   getPublishedSupportingResources,
   getPublishedSupportingResourcesFromRegistry,
   getPublishedResourcesSupportedByFromRegistry,
@@ -341,6 +343,22 @@ const resumeStructuredBlocks =
   resumeStructuredContent?.kind === "structured-document"
     ? resumeStructuredContent.blocks
     : [];
+const rootReservoirIndexNodes = getReservoirContentNodes(ROOT_COLLECTION_ID);
+const queryReservoirIndexNodes = getReservoirContentNodesBySemanticIds([
+  RESOURCE_IDS.bellabeatRepository,
+]);
+const reservoirIndexSource = fs.readFileSync(
+  path.join(projectRoot, "components/navigation/ReservoirIndex.tsx"),
+  "utf8",
+);
+const reservoirSceneSource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/ReservoirScene.tsx"),
+  "utf8",
+);
+const reservoirFooterSource = fs.readFileSync(
+  path.join(projectRoot, "components/navigation/ReservoirFooter.tsx"),
+  "utf8",
+);
 const checks = [
   [
     "published Objects carry canonical Medium and system dates",
@@ -371,6 +389,49 @@ const checks = [
       member.kind === "artifact" ? member.artifact.id : member.collection.id,
     ).join(",") ===
       [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].join(","),
+  ],
+  [
+    "Reservoir Index projects the active canonical nodes as a semantic Medium and Title list",
+    rootReservoirIndexNodes.map((node) => node.id).join(",") ===
+      [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].join(",") &&
+      rootReservoirIndexNodes.every(
+        (node) => node.mediumLabel === getMediumLabel(node.medium) && node.title,
+      ) &&
+      reservoirIndexSource.includes("<ul") &&
+      reservoirIndexSource.includes("nodes.map") &&
+      reservoirIndexSource.includes("node.mediumLabel") &&
+      reservoirIndexSource.includes("node.title") &&
+      !reservoirIndexSource.includes("node.description") &&
+      !reservoirIndexSource.includes("node.relationship"),
+  ],
+  [
+    "Reservoir Index can project a published non-Artifact Query Resource without Collection membership",
+    queryReservoirIndexNodes.length === 1 &&
+      queryReservoirIndexNodes[0].id === RESOURCE_IDS.bellabeatRepository &&
+      queryReservoirIndexNodes[0].kind === "resource" &&
+      queryReservoirIndexNodes[0].isArtifact === false &&
+      !contentRegistry.memberships.some(
+        (membership) => membership.memberId === RESOURCE_IDS.bellabeatRepository,
+      ),
+  ],
+  [
+    "Index selection retains the canonical Collection and direct Resource coordinators",
+    reservoirSceneSource.includes('if (node.kind === "collection")') &&
+      reservoirSceneSource.includes("requestCollection(node.id, true)") &&
+      reservoirSceneSource.includes("requestDirectResource(node.id)") &&
+      reservoirSceneSource.includes('setIndexState("closing")') &&
+      !reservoirSceneSource.includes("ReservoirMenu"),
+  ],
+  [
+    "footer destinations are published canonical Resources in deterministic order",
+    getPublishedFooterResources().map((resource) => resource.id).join(",") ===
+      [ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].join(",") &&
+      getResourceById(ARTIFACT_IDS.about)?.footerNavigation === true &&
+      getResourceById(ARTIFACT_IDS.about)?.published === false &&
+      reservoirFooterSource.includes("getPublishedFooterResources") &&
+      reservoirFooterSource.includes("onResourceSelect") &&
+      !reservoirFooterSource.includes("href=\"#\"") &&
+      !reservoirFooterSource.includes("LinkedIn"),
   ],
   [
     "launch artifacts resolve",

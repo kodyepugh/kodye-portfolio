@@ -353,7 +353,7 @@ Movement caused by interface state changes.
 Examples:
 
 - bottom header lifting;
-- menu reveal;
+- Reservoir Index reveal;
 - footer exposure;
 - content window deployment;
 - enso rotation.
@@ -475,7 +475,7 @@ Examples:
 - bottom control plane;
 - title;
 - subtitle;
-- menu;
+- Reservoir Index;
 - footer;
 - home control;
 - close button;
@@ -505,7 +505,7 @@ L2  ENVIRONMENT / ATMOSPHERE
 L1  PERSISTENT BOTTOM CONTROL PLANE
     Symbol, wordmark, contextual controls
 
-L0  MENU / FOOTER REVEAL LAYERS
+L0  RESERVOIR INDEX / FOOTER REVEAL LAYERS
     Positioned beneath movable control plane
 ```
 
@@ -596,7 +596,7 @@ Avoid turning the control plane into an animated artifact-loading mechanism.
 
 The bottom header behaves like a **movable plate**.
 
-The menu and footer exist underneath it.
+The Reservoir Index and footer exist underneath it.
 
 The header moves vertically to expose them.
 
@@ -604,13 +604,13 @@ This is preferable to treating each state as an unrelated drawer or modal.
 
 ---
 
-# 7. Menu Behavior
+# 7. Reservoir Index Behavior
 
 ## 7.1 Opening
 
-Selecting the menu control causes the bottom control plane to slide upward.
+Selecting the Index control causes the bottom control plane to slide upward.
 
-The menu is revealed beneath it.
+The Index is revealed beneath it. Opening and closing the Index is local interface state only; it does not create a Reservoir history visit or change the active semantic context.
 
 Concept:
 
@@ -619,55 +619,40 @@ MAIN VIEW
 
 HEADER
 ↑
-MENU
+INDEX
 ```
 
-The menu itself should remain anchored underneath.
+The Index itself remains anchored underneath.
 
 The header is the moving element.
 
 ---
 
-## 7.2 Menu Purpose
+## 7.2 Canonical Object Projection
 
-The menu should not merely duplicate traditional site navigation.
+The Reservoir Index is the conventional semantic-DOM projection of the active Reservoir context, not an alternate registry or filter surface. It lists exactly the same published canonical Objects as the rendered Reservoir context, including a temporary Query Reservoir when one is active.
 
-It should provide **alternative traversal modes** for the reservoir.
+Each entry presents only:
 
-Potential menu architecture:
+- Medium;
+- Title.
 
-```text
-EXPLORE
+The Index must not add descriptions, categories, relationship context, dates, paths, or visual-only ordering. Medium labels derive from the same canonical Medium resolver used by reservoir nodes and labels.
 
-All Objects
-Collections
-Work
-Self
-World
-Inquiry
+The list is a semantic `ul` with interactive entries. It supports normal keyboard focus, Escape dismissal, outside dismissal, and focus restoration to the Index trigger after close. Reduced-motion handling follows the existing control-plane timing contract.
 
-INDEX
+### Selection behavior
 
-Search
-Timeline
-Categories
+- Selecting a Collection keeps the Index open and delegates to the canonical Collection coordinator. During its fixed-reservoir reconstitution, Index entry interaction and scene controls are locked. The visible entries change only when the Collection context commits semantically, not at transition start.
+- Selecting a Resource closes the Index and delegates to the canonical direct Resource / Query Reservoir coordinator. It must work for Artifact-status and non-Artifact Resources alike, including Query-only Resources, and relies on that coordinator's ordinary automatic Inspection-opening behavior.
 
-DIRECT
+No Index selection simulates a canvas click, creates duplicate presentation state, or bypasses Collection/Query/Inspection transitions and history rules.
 
-About
-Resume
-Contact
-```
+## 7.3 Closing
 
-Final menu taxonomy remains an open design decision.
+Closing the Index causes the control plane to descend and cover it.
 
----
-
-## 7.3 Menu Closing
-
-Closing the menu causes the control plane to descend and cover the menu.
-
-If the footer is independently exposed, menu closure must not hide the footer.
+If the footer is independently exposed, Index closure must not hide the footer.
 
 ---
 
@@ -703,32 +688,28 @@ When the visitor moves upward away from the bottom boundary, the control plane d
 
 ## 8.3 Footer Contents
 
-Likely footer information:
+The footer presents:
 
 - copyright;
-- LinkedIn;
-- GitHub;
-- email/contact;
-- optional site credits;
-- optional technology statement.
+- published Resources explicitly designated for footer navigation, in deterministic order.
 
-Final content is not yet locked.
+Footer destinations use the same canonical direct Resource / Query Reservoir coordinator as other Resource navigation. The current launch cut publishes Resume and Contact in the footer; Contact's Inspection owns professional social destinations. An unpublished designated Resource remains excluded until it is published.
 
 ---
 
-# 9. Menu + Footer Edge Case
+# 9. Reservoir Index + Footer Edge Case
 
-Menu visibility and footer visibility are independent states.
+Index visibility and footer visibility are independent states.
 
-If the footer is already exposed and the menu is opened:
+If the footer is already exposed and the Index is opened:
 
 ```text
 HEADER
-MENU
+INDEX
 FOOTER
 ```
 
-If the menu is subsequently closed:
+If the Index is subsequently closed:
 
 ```text
 HEADER
@@ -742,14 +723,14 @@ The implementation must therefore **not** treat bottom-panel state as one mutual
 Conceptually:
 
 ```javascript
-menuOpen: boolean
+indexOpen: boolean
 footerVisible: boolean
 ```
 
 rather than:
 
 ```javascript
-bottomPanel: "menu" | "footer" | "closed"
+bottomPanel: "index" | "footer" | "closed"
 ```
 
 ---
@@ -762,7 +743,7 @@ The active reservoir is a persistent spherical reference frame centered in the u
 
 The reservoir should no longer be composed as a sphere intentionally displaced toward the lower portion of the screen in order to create a dedicated atmospheric band above it. The sphere itself is the primary spatial reference and should remain geometrically centered within the visual frame available to reservoir exploration.
 
-The surrounding atmosphere, metadata, control plane, Inspection Window, menu, and footer should compose around this centered reference rather than determine its world-space position.
+The surrounding atmosphere, metadata, control plane, Inspection Window, Reservoir Index, and footer should compose around this centered reference rather than determine its world-space position.
 
 ### Foundational rule
 
@@ -1138,7 +1119,7 @@ DESTINATION COLLECTION
 
 Direction is derived from navigation history or requested destination, not from separate physical parent/child sphere slots.
 
-Home, Back, breadcrumbs, menu commands, and collection-node selection are all destination queries into the same transition system.
+Home, Back, breadcrumbs, Reservoir Index selections, and collection-node selection are all destination queries into the same transition system.
 
 ## 15.3 Recursive Behavior
 
@@ -1380,7 +1361,7 @@ Possibilities:
 - home icon revealing path;
 - subtle collection labels;
 - back navigation built into sphere transition;
-- mini-path inside menu.
+- mini-path inside Reservoir Index.
 
 The system must provide recoverability even if the breadcrumb is visually unconventional.
 
@@ -1785,7 +1766,7 @@ Important architectural requirements:
 - failed filter requests return the red reservoir response rather than mutating the semantic model;
 - direct Resource Query Reservoirs auto-select on arrival and automatically open the Inspection Window;
 - artifact-selected and artifact-open remain distinct states;
-- menu and footer remain independent states.
+- Reservoir Index and footer remain independent states.
 
 # 28. Interface State Map
 
@@ -1811,11 +1792,11 @@ HOME RESERVOIR
 │      ├── selected + hovered → gentle white pulse
 │      └── second selection → ARTIFACT OPENING
 │
-├── MENU OPEN
+├── RESERVOIR INDEX OPEN
 │
 ├── FOOTER EXPOSED
 │
-├── MENU + FOOTER
+├── RESERVOIR INDEX + FOOTER
 │
 ├── COLLECTION TRANSITION
 │      │
@@ -1852,7 +1833,7 @@ node sink / sphere dim       200–450 ms
 content window deployment    300–650 ms
 content window close         250–550 ms
 header lift                  250–450 ms
-menu reveal                  250–450 ms
+Reservoir Index reveal       250–450 ms
 collection transition        600–1200 ms
 ```
 
@@ -1958,9 +1939,9 @@ Minimum requirements:
 
 - Tab reaches interactive nodes;
 - Enter/Space activates node;
-- Escape exits artifact or menu;
+- Escape exits artifact or Reservoir Index;
 - focus indicator remains visible;
-- menu is fully keyboard navigable;
+- Reservoir Index is fully keyboard navigable;
 - content window traps focus only if implemented as a modal-like surface;
 - focus returns logically after artifact exit.
 
@@ -1992,7 +1973,7 @@ A semantic DOM representation should exist containing equivalent:
 Possible implementation:
 
 - accessible offscreen navigation tree;
-- menu/index as semantic alternative;
+- Reservoir Index as the semantic alternative;
 - DOM overlay labels tied to WebGL objects.
 
 Screen-reader users must be able to reach all public artifacts without manipulating WebGL.
@@ -2085,7 +2066,7 @@ Potential mobile principles:
 - swipe rotation;
 - simplified environmental text;
 - content windows become nearly full-screen;
-- menu becomes more prominent as alternative navigation.
+- Reservoir Index becomes more prominent as alternative navigation.
 
 The bottom-control concept may be especially appropriate for mobile interaction.
 
@@ -2567,7 +2548,7 @@ Build / revise only what is required to establish:
 10. stable node identity and position independent from the render mesh;
 11. generated initial orientation that exposes a useful visible population without flattening distribution to one hemisphere;
 12. preservation of the existing artifact first-select / second-select / Inspection-Window interaction where compatible;
-13. preservation of the persistent control plane, menu, footer, query system, and artifact scroll behavior unless directly affected by the spatial rewrite;
+13. preservation of the persistent control plane, Reservoir Index, footer, query system, and artifact scroll behavior unless directly affected by the spatial rewrite;
 14. collection transitions using active/destination semantic state rather than physical ancestor/child sphere slots or camera pathways;
 15. reduced-motion and performance-safe spatial transitions.
 
@@ -2599,7 +2580,7 @@ Sections 62–66 originally described pre-V2 prototype sequencing.
 
 They are retained only as historical context and are **not current sequencing authority**.
 
-Many items once listed as excluded or future — recursive collections, menu/footer behavior, dynamic layout, Bellabeat content architecture, responsive work, Query Reservoirs, and Inspection systems — have since been implemented or materially advanced.
+Many items once listed as excluded or future — recursive collections, Reservoir Index/footer behavior, dynamic layout, Bellabeat content architecture, responsive work, Query Reservoirs, and Inspection systems — have since been implemented or materially advanced.
 
 Current sequencing is controlled by:
 
@@ -2741,7 +2722,7 @@ components/
 
   navigation/
     BottomControlPlane.tsx
-    ReservoirMenu.tsx
+    ReservoirIndex.tsx
     Footer.tsx
 
   environment/
@@ -2809,7 +2790,7 @@ Preferred task style:
 Implement Prototype 1 artifact selection according to sections
 16–18 and 61 of the Digital Reservoir Interface Specification.
 
-Do not implement recursive collections, menu, footer, or database
+Do not implement recursive collections, a new navigation surface beyond the Reservoir Index, footer expansion, or database
 features.
 
 Preserve current project configuration.
@@ -3039,7 +3020,7 @@ Selecting a collection changes the semantic contents of the persistent centered 
 
 Artifact interaction remains progressive: first selection reveals richer atmospheric information; second selection opens a conventional Inspection Window. Reading remains a 2D document interaction and closing restores the selected reservoir context.
 
-The Kodye Pugh symbol and wordmark remain the stable bottom-centered identity anchor. Menu, footer, direct navigation, queries, and artifact-reading layers remain UI-space systems rather than camera-navigation mechanisms.
+The Kodye Pugh symbol and wordmark remain the stable bottom-centered identity anchor. Reservoir Index, footer, direct navigation, queries, and artifact-reading layers remain UI-space systems rather than camera-navigation mechanisms.
 
 The interface continues to be governed by:
 

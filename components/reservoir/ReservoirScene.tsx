@@ -116,10 +116,7 @@ import {
   isDirectResourceInspectionIntentStale,
   type DirectResourceInspectionIntent,
 } from "@/lib/reservoir/direct-resource-inspection-intent";
-import type {
-  ActiveExploreFilter,
-  DirectArtifactId,
-} from "@/types/reservoir";
+import type { ActiveExploreFilter } from "@/types/reservoir";
 import type { Collection } from "@/types/content";
 import type { ReservoirContext } from "@/types/reservoir";
 import { AtmosphereContent } from "./AtmosphereContent";
@@ -128,9 +125,9 @@ import { ReservoirLayoutModeSwitch } from "../navigation/ReservoirLayoutModeSwit
 import { ReservoirSphere } from "./ReservoirSphere";
 import { ReservoirHistoryNavigation } from "../navigation/ReservoirHistoryNavigation";
 import {
-  ReservoirMenu,
-  type ReservoirMenuState,
-} from "../navigation/ReservoirMenu";
+  ReservoirIndex,
+  type ReservoirIndexState,
+} from "../navigation/ReservoirIndex";
 import {
   ReservoirFooter,
   type ReservoirFooterState,
@@ -210,11 +207,6 @@ const SEMANTIC_EXPLORE_LENSES = new Map<string, readonly ActiveExploreFilter[]>(
   ["artifact-about", ["self", "inquiry"]],
   ["artifact-reservoir-interface-study", ["work", "inquiry"]],
   ["artifact-kodyepugh-symbol", ["self", "world"]],
-]);
-
-const DIRECT_ARTIFACT_TARGETS = new Map<DirectArtifactId, string>([
-  ["resume", "artifact-resume"],
-  ["contact", "artifact-contact"],
 ]);
 
 type QueryReservoirSelectionSnapshot = {
@@ -989,8 +981,8 @@ export function ReservoirScene() {
   const [isDragging, setIsDragging] = useState(false);
   const [activeExploreFilter, setActiveExploreFilter] =
     useState<ActiveExploreFilter>("all");
-  const [menuState, setMenuState] =
-    useState<ReservoirMenuState>("closed");
+  const [indexState, setIndexState] =
+    useState<ReservoirIndexState>("closed");
   const [footerState, setFooterState] =
     useState<ReservoirFooterState>("closed");
   const [queryActivityRevision, setQueryActivityRevision] = useState<
@@ -1178,7 +1170,7 @@ export function ReservoirScene() {
   const requestCollectionRef = useRef<
     (
       destinationCollectionId: string,
-      allowDuringMenuOpen?: boolean,
+      allowDuringIndexOpen?: boolean,
     ) => boolean
   >(() => false);
   const commitReservoirHistory = useCallback(
@@ -1318,8 +1310,8 @@ export function ReservoirScene() {
       const transitionEvent = event as globalThis.TransitionEvent;
       if (transitionEvent.target !== study) return;
 
-      if (transitionEvent.propertyName === "--menu-stack-progress") {
-        setMenuState((currentState) =>
+      if (transitionEvent.propertyName === "--index-stack-progress") {
+        setIndexState((currentState) =>
           currentState === "opening"
             ? "open"
             : currentState === "closing"
@@ -1711,7 +1703,7 @@ export function ReservoirScene() {
     transitionState === "reconstitutingCollection" ||
     queryReservoirTransitionPhase !== "idle";
   const queryTransitionActive = queryActivityRevision !== null;
-  const menuActive = menuState !== "closed";
+  const indexActive = indexState !== "closed";
   const footerVisible = footerState !== "closed";
   const footerTransitionActive =
     footerState === "opening" || footerState === "closing";
@@ -1720,7 +1712,7 @@ export function ReservoirScene() {
   const inputLocked =
     transitionState !== "idle" ||
     layoutModeTransitionActive ||
-    menuActive ||
+    indexActive ||
     queryTransitionActive ||
     footerTransitionActive;
   const layoutModeControlDisabled =
@@ -3127,7 +3119,7 @@ export function ReservoirScene() {
       layoutModeTransitionActive ||
       inspectionWindowPhase !== null ||
       collectionNavigation.transitionPhase !== "idle" ||
-      menuActive ||
+      indexActive ||
       queryTransitionActive ||
       footerTransitionActive
     ) {
@@ -3230,14 +3222,14 @@ export function ReservoirScene() {
 
   function requestCollection(
     destinationCollectionId: string,
-    allowDuringMenuOpen = false,
+    allowDuringIndexOpen = false,
   ) {
     const destinationContext: ReservoirContext = {
       kind: "collection",
       collectionId: destinationCollectionId,
     };
     if (
-      (!allowDuringMenuOpen && inputLocked) ||
+      (!allowDuringIndexOpen && inputLocked) ||
       getReservoirContextKey(destinationContext) ===
         layoutOwnership.activeLayout.contextKey ||
       getCollectionById(destinationCollectionId)?.published !== true
@@ -3510,14 +3502,14 @@ export function ReservoirScene() {
     const panel = document.querySelector<HTMLElement>(
       ".reservoir-control-panel",
     );
-    const menu = document.querySelector<HTMLElement>(
-      ".reservoir-menu-reveal",
+    const index = document.querySelector<HTMLElement>(
+      ".reservoir-index-reveal",
     );
     const panelTop = panel?.getBoundingClientRect().top ?? window.innerHeight;
-    const menuTop = menuActive
-      ? menu?.getBoundingClientRect().top ?? panelTop
+    const indexTop = indexActive
+      ? index?.getBoundingClientRect().top ?? panelTop
       : panelTop;
-    return clientY >= Math.min(panelTop, menuTop) - FOOTER_TRIGGER_OVERSCAN;
+    return clientY >= Math.min(panelTop, indexTop) - FOOTER_TRIGGER_OVERSCAN;
   }
 
   function consumeFooterWheel(
@@ -3557,7 +3549,7 @@ export function ReservoirScene() {
     consumeFooterWheel(event, true);
   }
 
-  function handleMenuOutsideWheel(event: WheelEvent<HTMLElement>) {
+  function handleIndexOutsideWheel(event: WheelEvent<HTMLElement>) {
     consumeFooterWheel(event, false);
   }
 
@@ -3581,10 +3573,10 @@ export function ReservoirScene() {
     });
   }
 
-  function openReservoirMenu() {
+  function openReservoirIndex() {
     if (
       transitionState !== "idle" ||
-      menuState !== "closed" ||
+      indexState !== "closed" ||
       footerTransitionActive
     ) {
       return;
@@ -3592,75 +3584,12 @@ export function ReservoirScene() {
 
     setHoveredResourceId(null);
     setSelectedPressActive(false);
-    setMenuState("opening");
+    setIndexState("opening");
   }
 
-  function closeReservoirMenu() {
-    if (menuState !== "opening" && menuState !== "open") return;
-    setMenuState("closing");
-  }
-
-  function selectExploreFilter(filter: ActiveExploreFilter) {
-    if (
-      menuState !== "open" ||
-      queryActivityRevision !== null ||
-      filter === activeExploreFilter
-    ) {
-      return;
-    }
-    setPendingDirectInspectionIntent(null);
-
-    const targetVisibleIds = getExploreNodeIds(activeReservoirNodes, filter);
-    const currentVisibleIds = new Set(
-      queryReservoirContext?.kind === "query"
-        ? queryVisibleNodeIds
-        : getExploreNodeIds(activeReservoirNodes, activeExploreFilter),
-    );
-    const leaving = new Set(
-      [...currentVisibleIds].filter((id) => !targetVisibleIds.has(id)),
-    );
-    const staying = new Set(
-      [...currentVisibleIds].filter((id) => targetVisibleIds.has(id)),
-    );
-    const entering = new Set(
-      [...targetVisibleIds].filter((id) => !currentVisibleIds.has(id)),
-    );
-
-    if (targetVisibleIds.size === 0) {
-      queryRevisionRef.current += 1;
-      setQueryReconciliation(null);
-      setQueryActivityMode("empty");
-      setRejectedExploreFilter(filter);
-      setQueryActivityRevision(queryRevisionRef.current);
-      return;
-    }
-
-    queryRevisionRef.current += 1;
-    setQueryVisibleNodeIds(targetVisibleIds);
-    setQueryReconciliation({
-      entering,
-      leaving,
-      staying,
-      target: targetVisibleIds,
-    });
-    setQueryActivityMode("success");
-    setRejectedExploreFilter(null);
-    setQueryActivityRevision(queryRevisionRef.current);
-    setActiveExploreFilter(filter);
-    setHoveredResourceId((currentHoveredResourceId) =>
-      currentHoveredResourceId &&
-      targetVisibleIds.has(currentHoveredResourceId)
-        ? currentHoveredResourceId
-        : null,
-    );
-    const selectedNodeId = selectedResourceId ?? selectedCollectionId;
-    const preserveSelection =
-      selectedNodeId !== null && targetVisibleIds.has(selectedNodeId);
-    if (!preserveSelection) {
-      setSelectedResourceId(null);
-      setSelectedCollectionId(null);
-      setSelectedPressActive(false);
-    }
+  function closeReservoirIndex() {
+    if (indexState !== "opening" && indexState !== "open") return;
+    setIndexState("closing");
   }
 
   function requestQueryReservoirContext(
@@ -3997,11 +3926,34 @@ export function ReservoirScene() {
     setInspectionReturnRuntime(null);
   }
 
-  function selectDirectArtifact(directArtifactId: DirectArtifactId) {
-    if (menuState !== "open" || queryActivityRevision !== null) return;
-    const resourceAddress = DIRECT_ARTIFACT_TARGETS.get(directArtifactId);
-    if (!resourceAddress || !requestDirectResource(resourceAddress)) return;
-    setMenuState("closing");
+  function selectReservoirIndexNode(node: ReservoirContentNode) {
+    if (indexState !== "open" || queryActivityRevision !== null) return;
+
+    if (node.kind === "collection") {
+      const destinationContext: ReservoirContext = {
+        kind: "collection",
+        collectionId: node.id,
+      };
+      pendingReservoirHistoryResolutionRef.current = {
+        history: appendReservoirHistoryFrame(
+          reservoirHistoryRef.current,
+          createReservoirHistoryFrame(destinationContext),
+        ),
+        spatialSelectionId: node.id,
+      };
+      if (!requestCollection(node.id, true)) {
+        pendingReservoirHistoryResolutionRef.current = null;
+      }
+      return;
+    }
+
+    if (!requestDirectResource(node.id)) return;
+    setIndexState("closing");
+  }
+
+  function selectFooterResource(resourceId: string) {
+    if (inputLocked || !requestDirectResource(resourceId)) return;
+    setFooterState("closing");
   }
 
   return (
@@ -4009,7 +3961,7 @@ export function ReservoirScene() {
       <div
         className="reservoir-control-panel"
         aria-hidden="true"
-        data-menu-state={menuState}
+        data-index-state={indexState}
         data-footer-state={footerState}
       />
       <div
@@ -4017,20 +3969,21 @@ export function ReservoirScene() {
         aria-hidden="true"
         data-secondary-dimmed={secondaryControlsDimmed}
       />
-      <ReservoirMenu
-        activeFilter={activeExploreFilter}
+      <ReservoirIndex
+        contextLabel={getReservoirHistoryLabel(renderedReservoirContext)}
         controlsLocked={queryTransitionActive || collectionContextTransition}
-        state={menuState}
-        onClose={closeReservoirMenu}
-        onDirectSelect={selectDirectArtifact}
-        onFilterSelect={selectExploreFilter}
-        onOpen={openReservoirMenu}
+        nodes={activeReservoirNodes}
+        state={indexState}
+        onClose={closeReservoirIndex}
+        onOpen={openReservoirIndex}
+        onSelectNode={selectReservoirIndexNode}
         onInterfaceWheel={handleBottomInterfaceWheel}
-        onOutsideWheel={handleMenuOutsideWheel}
+        onOutsideWheel={handleIndexOutsideWheel}
       />
       <ReservoirFooter
         state={footerState}
         onInterfaceWheel={handleBottomInterfaceWheel}
+        onResourceSelect={selectFooterResource}
       />
       <AtmosphereContent
         containerRef={atmosphereRef}
@@ -4392,7 +4345,7 @@ export function ReservoirScene() {
       data-layout-switch-progress={layoutModeTransitionProgressRef.current.toFixed(
         6,
       )}
-      data-menu-state={menuState}
+      data-index-state={indexState}
       data-footer-state={footerState}
       data-footer-visible={footerVisible}
       data-footer-transition-active={footerTransitionActive}

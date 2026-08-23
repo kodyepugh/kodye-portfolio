@@ -349,6 +349,8 @@ export type Resource = {
   format?: string;
   relationships?: readonly ObjectRelationship[];
   featured?: boolean;
+  footerNavigation?: boolean;
+  footerNavigationOrder?: number;
   published?: boolean;
   representations?: readonly ResourceRepresentation[];
   content?: ResourceContent;

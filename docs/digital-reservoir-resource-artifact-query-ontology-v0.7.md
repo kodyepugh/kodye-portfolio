@@ -220,7 +220,7 @@ Every Collection receives its own stable semantic address regardless of whether 
 
 - root;
 - nested;
-- reachable from a menu;
+- reachable from the Reservoir Index;
 - reachable from a parent node;
 - currently visible in another Reservoir.
 

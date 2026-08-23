@@ -1310,12 +1310,15 @@ const checks = [
       ),
   ],
   [
-    "menu and Inspection support navigation share the canonical direct Resource coordinator",
+    "Index and Inspection support navigation share the canonical direct Resource coordinator",
     reservoirSceneSource.includes(
       "requestDirectResourceRef.current(\n          supportNavigationTarget",
     ) &&
       reservoirSceneSource.includes(
-        "requestDirectResource(resourceAddress)",
+        "function requestDirectResource(\n    resourceAddress: string",
+      ) &&
+      reservoirSceneSource.includes(
+        "requestDirectResource(node.id)",
       ) &&
       reservoirSceneSource.includes(
         "createDirectResourceInspectionIntent(",
