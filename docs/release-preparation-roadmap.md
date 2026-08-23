@@ -145,10 +145,10 @@ approved Kodye Pugh mark with explicit owned backgrounds, and the public shell
 no longer describes itself as a spatial study or initial prototype.
 
 The production canonical base is `https://kodyepugh.com`, as established by
-the project authorities. Production Release must still point the deployment's
-primary domain there and verify that the live canonical, robots, icon, and
-social-preview URLs resolve correctly; this does not assert that the domain is
-already live.
+the project authorities, and the production deployment is now connected to
+that domain. Production Release must still verify that the live canonical,
+robots, icon, social-preview, assets, and direct Resource URLs resolve
+correctly on the production domain.
 
 Completed:
 
@@ -171,7 +171,11 @@ Wire and verify working production destinations for:
 
 No launch-facing navigation control should remain wired to a development placeholder such as `#` or an unavailable destination.
 
-The implemented Contact Resource provides a bounded form, LinkedIn, and GitHub through its dedicated Inspection surface. Production delivery remains a deployment task: configure the server-only `RESEND_API_KEY`, `CONTACT_FROM_EMAIL` (a controlled, verified sender), and optional `CONTACT_TO_EMAIL` (which otherwise defaults server-side to the approved recipient). The visitor email is used only as `Reply-To`; do not expose delivery configuration in client content or claim production delivery until the Resend sender/domain is configured and smoke-tested.
+The implemented Contact Resource provides a bounded form, LinkedIn, and GitHub through its dedicated Inspection surface.
+
+### Production Contact delivery — completed
+
+Production Contact delivery is configured and smoke-tested. The production deployment uses the server-only `RESEND_API_KEY`, `CONTACT_FROM_EMAIL=contact@kodyepugh.com`, and `CONTACT_TO_EMAIL=contact@kodyepugh.com`. The `kodyepugh.com` sending domain is authenticated with Resend, and a live form submission reached the configured mailbox. A reply addressed the visitor through the existing `Reply-To` behavior. The delivery implementation remains server-only and does not expose the API key or delivery configuration to client code.
 
 ### Direct addressability
 
@@ -209,11 +213,11 @@ The current routing contract to preserve is:
 - Collection membership creates context and discovery, not identity;
 - ordinary Inspection close exposes the actual underlying Collection or Query Reservoir, while explicit Back owns return to prior semantic history.
 
-Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. Production-domain behavior remains part of the remaining Public Web Essentials and release work.
+Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. The production domain is connected; remaining Public Web Essentials work is limited to manual verification of launch-facing outbound destinations and direct-access paths, while broader production-domain verification remains part of Production Release.
 
 ### Completion condition
 
-This stage is complete when the website behaves as a conventional public portfolio where necessary while preserving the Reservoir as its primary interface.
+This stage remains open until the other launch-facing outbound destinations and direct-access paths have also been manually verified. Contact delivery itself is complete; this closeout does not close Public Web Essentials as a whole.
 
 ---
 
