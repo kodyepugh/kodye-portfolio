@@ -1,7 +1,7 @@
 # KP Website — Release Preparation Roadmap
 
 **Status:** Current sequencing authority for near-term work
-**Updated:** August 21, 2026
+**Updated:** August 22, 2026
 
 ## Objective
 
@@ -54,6 +54,8 @@ See `docs/l2-implementation-status.md` for current implementation state and the 
 
 ## 1. Bellabeat Launch Cut — Launch-Blocking
 
+**Status:** Complete in the current launch-cut implementation branch.
+
 Treat the already-materialized Bellabeat project and supporting Resources as the substantive portfolio content required for launch. Audit the production-visible registry and hide or unpublish unfinished, synthetic, placeholder, development-only, or misleading public objects that are not intentionally required for the launch experience.
 
 Do not require additional portfolio projects merely to create Reservoir density. If an object is not ready, remove it from the public launch surface rather than filling it with speculative content.
@@ -61,6 +63,8 @@ Do not require additional portfolio projects merely to create Reservoir density.
 ### Completion condition
 
 This stage is complete when the production-visible registry presents Bellabeat and its supporting Resources as an intentional, truthful launch cut without unfinished public objects that a recruiter would be expected to interpret as portfolio work.
+
+The current launch registry publishes only the root Digital Reservoir Collection. Its Home membership is exactly Bellabeat, Resume, and Contact. Bellabeat's supporting Resources remain published and independently addressable through the established support graph without receiving Collection membership. Dormant Collections and unfinished About and Reservoir Interface Study Resources remain in the canonical registry as unpublished compatibility/future records.
 
 ---
 
@@ -116,6 +120,21 @@ For Bellabeat, preserve:
 - canonical Resource identity.
 
 The first release does not require a complete public routing architecture for every possible future Resource.
+
+### Approved routing contract for the next phase
+
+The routing implementation belongs to Public Web Essentials and is not implemented by this launch-cut pass. The contract to preserve is:
+
+- internal semantic ID, display title, and public slug remain distinct concepts;
+- a slug is an explicit stable address token and does not automatically change when a title changes;
+- Home/root is reserved for `/`;
+- a directly addressed persistent Object will eventually use `/<object-slug>`;
+- a Resource remains independently addressable regardless of Collection membership;
+- a contextual Resource path may eventually use `/<collection-slug>/<resource-slug>`;
+- the contextual path expresses viewing/navigation context and does not create a second Resource identity;
+- Collection membership creates context and discovery, not identity.
+
+Intended examples are `/`, `/bellabeat-wellness-analysis`, `/resume`, `/contact`, future `/work`, and future `/work/cif-oakland`. Dynamic routing, browser-history synchronization, deep-link initialization, and production-domain behavior remain outside this branch.
 
 ### Completion condition
 

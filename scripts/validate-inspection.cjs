@@ -161,6 +161,7 @@ const {
 
 const about = getResourceById("artifact-about");
 const bellabeat = getResourceById("artifact-bellabeat-wellness-analysis");
+const resume = getResourceById("artifact-resume");
 const comprehensiveCaseStudy = getResourceById(
   "resource-bellabeat-comprehensive-case-study",
 );
@@ -435,8 +436,8 @@ const structuredBlocks = [
   {
     id: "internal-link",
     type: "link",
-    resourceId: about.id,
-    label: "About",
+    resourceId: resume.id,
+    label: "Resume",
   },
   { id: "divider", type: "divider" },
   { id: "table", type: "table", columns: ["A"], rows: [["B"]] },
@@ -445,7 +446,7 @@ const structuredBlocks = [
   {
     id: "resource-reference",
     type: "resource-reference",
-    resourceId: about.id,
+    resourceId: resume.id,
   },
 ];
 const nonArtifactDocument = {
@@ -809,9 +810,9 @@ const unpublishedInternalLinkRegistry = {
   ],
 };
 const validSyntheticResult = validateContentRegistry(validSyntheticRegistry);
-const brandSymbolCollections = getPublishedResourceCollections(brandSymbol.id);
+const resumeCollections = getPublishedResourceCollections(resume.id);
 const resourcePill = getInspectionResourcePill(supportTargetResource);
-const collectionPill = getInspectionCollectionPill(brandSymbolCollections[0]);
+const collectionPill = getInspectionCollectionPill(resumeCollections[0]);
 const publishedExternalLinkRepresentations =
   getPublishedExternalLinkRepresentations(syntheticExternalLinkResource);
 const resolvedExternalLinkInspection = resolveExternalLinkInspection(
@@ -1082,9 +1083,9 @@ const checks = [
       ),
   ],
   [
-    "K published collection memberships resolve in order",
-    brandSymbolCollections.map((collection) => collection.id).join(",") ===
-      "collection-web,collection-about-self",
+    "K published launch membership resolves in order",
+    resumeCollections.map((collection) => collection.id).join(",") ===
+      ROOT_COLLECTION_ID,
   ],
   [
     "L Resource and Collection region visibility follows actual context",
@@ -1116,8 +1117,8 @@ const checks = [
       resourcePill.name === supportTargetResource.title &&
       JSON.stringify(Object.keys(collectionPill).sort()) ===
         JSON.stringify(["iconKey", "id", "name"]) &&
-      collectionPill.id === brandSymbolCollections[0].id &&
-      collectionPill.name === brandSymbolCollections[0].title,
+      collectionPill.id === resumeCollections[0].id &&
+      collectionPill.name === resumeCollections[0].title,
   ],
   [
     "N image alt text follows asset, caption, then Resource title",

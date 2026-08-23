@@ -65,8 +65,15 @@ export const sourceRecords = [
     id: "source-resume-prototype-record",
     resourceId: ARTIFACT_IDS.resume,
     sourceType: "local-file",
-    originalPath: "content/reservoir/artifacts.ts",
-    sourceLabel: "Existing direct-feature prototype record",
+    originalPath: "public/resume/Kodye_Pugh_Resume_2026.pdf",
+    sourceLabel: "Approved portfolio resume PDF",
+  },
+  {
+    id: "source-resume-pdf-file",
+    assetId: ASSET_IDS.resumePdf,
+    sourceType: "local-file",
+    originalPath: "public/resume/Kodye_Pugh_Resume_2026.pdf",
+    sourceLabel: "Approved portfolio resume PDF",
   },
   {
     id: "source-about-prototype-record",

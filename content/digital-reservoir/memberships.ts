@@ -4,18 +4,25 @@ import { COLLECTION_IDS } from "./collections";
 
 export const memberships = [
   {
-    id: "membership-root-work",
+    id: "membership-root-bellabeat",
     collectionId: COLLECTION_IDS.root,
-    memberType: "collection",
-    memberId: COLLECTION_IDS.work,
+    memberType: "resource",
+    memberId: ARTIFACT_IDS.bellabeat,
     order: 1,
   },
   {
-    id: "membership-root-about-self",
+    id: "membership-root-resume",
     collectionId: COLLECTION_IDS.root,
-    memberType: "collection",
-    memberId: COLLECTION_IDS.aboutSelf,
+    memberType: "resource",
+    memberId: ARTIFACT_IDS.resume,
     order: 2,
+  },
+  {
+    id: "membership-root-contact",
+    collectionId: COLLECTION_IDS.root,
+    memberType: "resource",
+    memberId: ARTIFACT_IDS.contact,
+    order: 3,
   },
   {
     id: "membership-work-data-analytics",

@@ -383,7 +383,7 @@ export function validateContentRegistry(
       }
     }
 
-    if (resource.content?.status === "placeholder") {
+    if (resource.published === true && resource.content?.status === "placeholder") {
       warnings.push(`Resource ${resource.id} still has placeholder content`);
     }
   }

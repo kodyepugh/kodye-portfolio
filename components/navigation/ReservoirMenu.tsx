@@ -34,7 +34,6 @@ const EXPLORE_OPTIONS: Array<{
 ];
 
 const DIRECT_OPTIONS: Array<{ id: DirectArtifactId; label: string }> = [
-  { id: "about", label: "About" },
   { id: "resume", label: "Resume" },
   { id: "contact", label: "Contact" },
 ];

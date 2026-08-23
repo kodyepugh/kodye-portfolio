@@ -77,11 +77,11 @@ const {
   getArtifactById,
   getArtifactBySlug,
   getArtifactStatusResources,
-  getArtifactCollections,
   getAssetsForArtifact,
   getCollectionById,
   getCollectionByAddress,
   getCollectionMembers,
+  getPublishedCollectionMembers,
   getPublishedResourceCollections,
   getPublishedSupportingResources,
   getPublishedSupportingResourcesFromRegistry,
@@ -326,19 +326,70 @@ const notebookContext = getPublishedResourceContextFromRegistry(
 const checks = [
   ["root collection resolves", Boolean(getCollectionById(ROOT_COLLECTION_ID))],
   [
-    "root child collections resolve",
-    [COLLECTION_IDS.work, COLLECTION_IDS.aboutSelf].every((collectionId) =>
-      getCollectionMembers(ROOT_COLLECTION_ID).some(
-        (member) =>
-          member.kind === "collection" && member.collection.id === collectionId,
-      ),
+    "launch root has exactly Bellabeat, Resume, and Contact",
+    getPublishedCollectionMembers(ROOT_COLLECTION_ID).map((member) =>
+      member.kind === "artifact" ? member.artifact.id : member.collection.id,
+    ).join(",") ===
+      [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].join(","),
+  ],
+  [
+    "launch artifacts resolve",
+    [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].every(
+      (artifactId) => Boolean(getArtifactById(artifactId)),
     ),
   ],
   [
-    "representative artifacts resolve",
-    [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.about].every(
-      (artifactId) => Boolean(getArtifactById(artifactId)),
+    "only root collection is published",
+    contentRegistry.collections.filter((collection) => collection.published === true).length === 1 &&
+      contentRegistry.collections.find((collection) => collection.published === true)?.id === ROOT_COLLECTION_ID,
+  ],
+  [
+    "launch artifacts are published and artifact-status",
+    [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].every(
+      (artifactId) => {
+        const artifact = getArtifactById(artifactId);
+        return artifact?.published === true && artifact.isArtifact === true;
+      },
     ),
+  ],
+  [
+    "unfinished launch Resources are unpublished",
+    [ARTIFACT_IDS.about, ARTIFACT_IDS.reservoirStudy].every(
+      (artifactId) => getResourceById(artifactId)?.published === false,
+    ),
+  ],
+  [
+    "no published placeholder Resources remain",
+    contentRegistry.resources.every(
+      (resource) =>
+        resource.published !== true || resource.content?.status !== "placeholder",
+    ),
+  ],
+  [
+    "Resume is ready and its PDF asset resolves",
+    getResourceById(ARTIFACT_IDS.resume)?.content?.status === "ready" &&
+      getResourceRepresentations(ARTIFACT_IDS.resume).some(
+        (representation) =>
+          representation.kind === "asset" &&
+          representation.assetId === ASSET_IDS.resumePdf &&
+          representation.published !== false,
+      ) &&
+      getAssetsForArtifact(ARTIFACT_IDS.resume).some(
+        (asset) =>
+          asset.id === ASSET_IDS.resumePdf &&
+          asset.kind === "document" &&
+          asset.mimeType === "application/pdf" &&
+          asset.src === "/resume/Kodye_Pugh_Resume_2026.pdf" &&
+          fs.existsSync(path.join(projectRoot, "public", asset.src)),
+      ),
+  ],
+  [
+    "Contact destinations are canonical",
+    getResourceById(ARTIFACT_IDS.contact)?.content?.kind === "structured-document" &&
+      getResourceById(ARTIFACT_IDS.contact).content.blocks.map((block) =>
+        block.type === "link" ? block.href : "",
+      ).join(",") ===
+        "mailto:kodyepugh@alumni.stanford.edu,https://www.linkedin.com/in/kodyepugh/,https://github.com/kodyepugh",
   ],
   [
     "resource address resolution works",
@@ -364,19 +415,25 @@ const checks = [
     ),
   ],
   [
-    "one artifact belongs to multiple collections without duplication",
-    getArtifactCollections(ARTIFACT_IDS.bellabeat).length >= 2 &&
+    "Bellabeat has one published launch Collection without duplication",
+    getPublishedResourceCollections(ARTIFACT_IDS.bellabeat).length === 1 &&
+      getPublishedResourceCollections(ARTIFACT_IDS.bellabeat)[0].id === ROOT_COLLECTION_ID &&
       contentRegistry.artifacts.filter(
         (artifact) => artifact.id === ARTIFACT_IDS.bellabeat,
       ).length === 1,
   ],
   [
-    "child collections belong to parent collections",
-    getCollectionMembers(ROOT_COLLECTION_ID).some(
-      (member) =>
-        member.kind === "collection" &&
-        member.collection.id === COLLECTION_IDS.work,
-    ),
+    "unpublished future Collections are not root launch members",
+    getCollectionMembers(ROOT_COLLECTION_ID).every(
+      (member) => member.kind === "artifact",
+    ) &&
+      [
+        COLLECTION_IDS.work,
+        COLLECTION_IDS.dataAnalytics,
+        COLLECTION_IDS.web,
+        COLLECTION_IDS.filmCreative,
+        COLLECTION_IDS.aboutSelf,
+      ].every((collectionId) => getCollectionById(collectionId)?.published === false),
   ],
   [
     "asset resolves independently through artifact content",
@@ -617,11 +674,11 @@ const checks = [
       ),
   ],
   [
-    "collection contents adapt without spatial placement",
-    getReservoirContentNodes(COLLECTION_IDS.dataAnalytics).some(
+    "launch collection contents adapt without spatial placement",
+    getReservoirContentNodes(ROOT_COLLECTION_ID).every(
       (node) =>
         node.kind === "artifact" &&
-        node.id === ARTIFACT_IDS.bellabeat &&
+        [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].includes(node.id) &&
         !("vertexId" in node),
     ),
   ],

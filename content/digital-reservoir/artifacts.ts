@@ -9,6 +9,7 @@ import { bellabeatSupportingResources } from "./bellabeat-resources";
 export const ARTIFACT_IDS = {
   bellabeat: "artifact-bellabeat-wellness-analysis",
   resume: "artifact-resume",
+  contact: "artifact-contact",
   about: "artifact-about",
   reservoirStudy: "artifact-reservoir-interface-study",
   brandSymbol: "artifact-kodyepugh-symbol",
@@ -258,6 +259,36 @@ export const BELLABEAT_DOCUMENT_BLOCKS = [
   },
 ] satisfies readonly StructuredDocumentBlock[];
 
+const RESUME_DOCUMENT_BLOCKS = [
+  {
+    id: "resume-pdf-link",
+    type: "link",
+    label: "Open or download the approved resume (PDF)",
+    href: "/resume/Kodye_Pugh_Resume_2026.pdf",
+  },
+] satisfies readonly StructuredDocumentBlock[];
+
+const CONTACT_DOCUMENT_BLOCKS = [
+  {
+    id: "contact-email",
+    type: "link",
+    label: "Email kodyepugh@alumni.stanford.edu",
+    href: "mailto:kodyepugh@alumni.stanford.edu",
+  },
+  {
+    id: "contact-linkedin",
+    type: "link",
+    label: "Open LinkedIn profile",
+    href: "https://www.linkedin.com/in/kodyepugh/",
+  },
+  {
+    id: "contact-github",
+    type: "link",
+    label: "Open GitHub profile",
+    href: "https://github.com/kodyepugh",
+  },
+] satisfies readonly StructuredDocumentBlock[];
+
 export const resources = [
   {
     objectType: "resource",
@@ -347,10 +378,42 @@ export const resources = [
     format: "Resume",
     featured: true,
     published: true,
+    representations: [
+      {
+        id: "representation-resume-pdf",
+        kind: "asset",
+        assetId: ASSET_IDS.resumePdf,
+        label: "Approved resume PDF",
+        order: 1,
+        published: true,
+      },
+    ],
     content: {
-      kind: "document",
-      status: "placeholder",
-      note: "TODO: Add the approved resume asset and verified resume content.",
+      kind: "structured-document",
+      status: "ready",
+      blocks: RESUME_DOCUMENT_BLOCKS,
+    },
+  },
+  {
+    objectType: "resource",
+    id: ARTIFACT_IDS.contact,
+    slug: "contact",
+    title: "Contact",
+    subtitle: "Email, LinkedIn, and GitHub",
+    description: "Approved professional contact destinations.",
+    type: "profile",
+    inspectionKind: "structured-document",
+    isArtifact: true,
+    category: "Connection",
+    categoryColor: "#6f8065",
+    medium: "Contact links",
+    format: "Links",
+    featured: true,
+    published: true,
+    content: {
+      kind: "structured-document",
+      status: "ready",
+      blocks: CONTACT_DOCUMENT_BLOCKS,
     },
   },
   {
@@ -366,7 +429,7 @@ export const resources = [
     categoryColor: "#8d7257",
     medium: "Profile",
     featured: true,
-    published: true,
+    published: false,
     content: {
       kind: "rich-text",
       status: "placeholder",
@@ -391,7 +454,7 @@ export const resources = [
     medium: "WebGL prototype",
     format: "Interactive website",
     featured: true,
-    published: true,
+    published: false,
     content: {
       kind: "case-study",
       status: "placeholder",

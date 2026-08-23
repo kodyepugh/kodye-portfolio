@@ -20,14 +20,16 @@ Public reservoir presentation should enter through
 marked `published: true` and never exposes source records or local source paths.
 It also contains no geometry, vertex, camera, or generated layout fields.
 
-## Content still required
+## Launch registry
 
-- approved Bellabeat methodology, findings, visualizations, and case-study copy;
-- the approved resume document and verified resume content;
-- approved About / biography copy;
-- approved Reservoir Interface Study narrative and supporting project evidence;
-- additional real web, analytics, and film/creative artifacts as they become
-  available.
+The initial public launch is intentionally sparse. The published root
+Collection curates the Bellabeat case study, the approved Resume, and Contact.
+Bellabeat's supporting Resources remain independently addressable through its
+support graph without receiving root membership.
+
+Dormant or future Collections and unfinished Resources may remain in the
+canonical registry for development and later curation, but they are unpublished
+and must not appear in the production-visible launch surface.
 
 Database persistence, uploads, ingestion, syncing, admin tools, authentication,
 and automated metadata remain intentionally deferred.
