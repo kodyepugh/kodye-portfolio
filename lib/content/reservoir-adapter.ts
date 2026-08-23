@@ -26,6 +26,8 @@ export type ReservoirContentNode =
       medium: ObjectMedium;
       mediumLabel: string;
       mediumColor: string;
+      createdAt?: string;
+      updatedAt?: string;
       icon?: string;
       category?: string;
       date?: string;
@@ -44,6 +46,8 @@ export type ReservoirContentNode =
       medium: ObjectMedium;
       mediumLabel: string;
       mediumColor: string;
+      createdAt?: string;
+      updatedAt?: string;
       icon?: string;
       category?: string;
       date?: string;
@@ -61,6 +65,8 @@ export type ReservoirContentNode =
       medium: "collection";
       mediumLabel: string;
       mediumColor: string;
+      createdAt?: string;
+      updatedAt?: string;
     };
 
 export type ReservoirInspectableResourceNode = Extract<
@@ -93,6 +99,8 @@ export function adaptResourceToReservoirContentNode(
     medium,
     mediumLabel: getMediumLabel(medium),
     mediumColor: getMediumColor(medium),
+    createdAt: resource.createdAt,
+    updatedAt: resource.updatedAt,
     icon: resource.icon,
     category: resource.category,
     date: resource.date,
@@ -130,6 +138,8 @@ export function getReservoirContentNodes(
       medium: "collection",
       mediumLabel: getMediumLabel("collection"),
       mediumColor: getMediumColor("collection"),
+      createdAt: collection.createdAt,
+      updatedAt: collection.updatedAt,
     };
   });
 }
@@ -154,6 +164,8 @@ export function getReservoirContentNodeBySemanticId(
       medium: "collection",
       mediumLabel: getMediumLabel("collection"),
       mediumColor: getMediumColor("collection"),
+      createdAt: collection.createdAt,
+      updatedAt: collection.updatedAt,
     };
   }
 

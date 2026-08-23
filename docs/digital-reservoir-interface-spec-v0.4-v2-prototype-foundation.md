@@ -634,17 +634,19 @@ The Reservoir Index is the conventional semantic-DOM projection of the active Re
 
 Each entry presents only:
 
-- Medium;
 - Title.
+- Medium;
+- Added;
+- Modified.
 
-The Index must not add descriptions, categories, relationship context, dates, paths, or visual-only ordering. Medium labels derive from the same canonical Medium resolver used by reservoir nodes and labels.
+Each vertical line item begins with the deterministic icon for its canonical Medium. The Index must not add descriptions, categories, relationship context, paths, or visual-only ordering. Medium labels and added/modified values derive from the same canonical Object metadata used by reservoir nodes and labels.
 
 The list is a semantic `ul` with interactive entries. It supports normal keyboard focus, Escape dismissal, outside dismissal, and focus restoration to the Index trigger after close. Reduced-motion handling follows the existing control-plane timing contract.
 
 ### Selection behavior
 
 - Selecting a Collection keeps the Index open and delegates to the canonical Collection coordinator. During its fixed-reservoir reconstitution, Index entry interaction and scene controls are locked. The visible entries change only when the Collection context commits semantically, not at transition start.
-- Selecting a Resource closes the Index and delegates to the canonical direct Resource / Query Reservoir coordinator. It must work for Artifact-status and non-Artifact Resources alike, including Query-only Resources, and relies on that coordinator's ordinary automatic Inspection-opening behavior.
+- Selecting a Resource marks that current active Reservoir node selected, then rotates the active Reservoir until that existing node reaches the live canonical forehead point before applying its ordinary second-selection Inspection opening behavior. The node does not relocate or emerge independently from the sphere. It does not create a new Query Reservoir or history visit. This applies equally to Artifact-status Resources and non-Artifact Resources already surfaced in the active Query Reservoir. A normal close from that Index-origin Inspection restores the same active Reservoir and reopens the Index; an Inspection navigation detour supersedes that transient Index return.
 
 No Index selection simulates a canvas click, creates duplicate presentation state, or bypasses Collection/Query/Inspection transitions and history rules.
 
@@ -693,7 +695,7 @@ The footer presents:
 - copyright;
 - published Resources explicitly designated for footer navigation, in deterministic order.
 
-Footer destinations use the same canonical direct Resource / Query Reservoir coordinator as other Resource navigation. The current launch cut publishes Resume and Contact in the footer; Contact's Inspection owns professional social destinations. An unpublished designated Resource remains excluded until it is published.
+Footer destinations first resolve against the active Reservoir. When the requested published Resource is already present, the Reservoir rotates that existing node to the canonical forehead point and opens its Inspection without creating a Query Reservoir. Otherwise, the footer uses the canonical direct Resource / Query Reservoir coordinator. The current launch cut publishes Resume and Contact in the footer; Contact's Inspection owns professional social destinations. An unpublished designated Resource remains excluded until it is published.
 
 ---
 

@@ -391,16 +391,23 @@ const checks = [
       [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].join(","),
   ],
   [
-    "Reservoir Index projects the active canonical nodes as a semantic Medium and Title list",
+    "Reservoir Index projects the active canonical nodes as a semantic Title, Medium, Added, and Modified list",
     rootReservoirIndexNodes.map((node) => node.id).join(",") ===
       [ARTIFACT_IDS.bellabeat, ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].join(",") &&
       rootReservoirIndexNodes.every(
-        (node) => node.mediumLabel === getMediumLabel(node.medium) && node.title,
+        (node) =>
+          node.mediumLabel === getMediumLabel(node.medium) &&
+          node.title &&
+          node.createdAt &&
+          node.updatedAt,
       ) &&
       reservoirIndexSource.includes("<ul") &&
       reservoirIndexSource.includes("nodes.map") &&
       reservoirIndexSource.includes("node.mediumLabel") &&
       reservoirIndexSource.includes("node.title") &&
+      reservoirIndexSource.includes("formatObjectDate(node.createdAt)") &&
+      reservoirIndexSource.includes("formatObjectDate(node.updatedAt)") &&
+      reservoirIndexSource.includes("<MediumIcon") &&
       !reservoirIndexSource.includes("node.description") &&
       !reservoirIndexSource.includes("node.relationship"),
   ],
@@ -415,21 +422,45 @@ const checks = [
       ),
   ],
   [
-    "Index selection retains the canonical Collection and direct Resource coordinators",
+    "Index selection retains canonical Collection transitions, rotates its existing Resource to the live forehead point, and returns to Index after inspection close",
     reservoirSceneSource.includes('if (node.kind === "collection")') &&
       reservoirSceneSource.includes("requestCollection(node.id, true)") &&
-      reservoirSceneSource.includes("requestDirectResource(node.id)") &&
+      reservoirSceneSource.includes(
+        "getReservoirResourceSelectionAction(node, node.id)",
+      ) &&
+      reservoirSceneSource.includes("setSelectedResourceId(node.id)") &&
+      reservoirSceneSource.includes(
+        "rotateResourceToCanonicalForehead(node.id, \"index\")",
+      ) &&
+      reservoirSceneSource.includes(
+        "activeRotationGroup.quaternion.slerpQuaternions(",
+      ) &&
+      reservoirSceneSource.includes(
+        "new THREE.Vector3(...focalDiagnostics.targetWorld)",
+      ) &&
+      reservoirSceneSource.includes("setPendingFocalInspection({") &&
+      reservoirSceneSource.includes("setIndexInspectionReturn({ resourceId, contextKey })") &&
+      reservoirSceneSource.includes('setIndexState("opening")') &&
       reservoirSceneSource.includes('setIndexState("closing")') &&
+      !reservoirSceneSource.includes(
+        "directions.set(resourceId, focalDiagnostics.targetLocal)",
+      ) &&
+      !reservoirSceneSource.includes("requestDirectResource(node.id)") &&
       !reservoirSceneSource.includes("ReservoirMenu"),
   ],
   [
-    "footer destinations are published canonical Resources in deterministic order",
+    "footer destinations rotate active Resources to the canonical forehead point before falling back to direct Query navigation",
     getPublishedFooterResources().map((resource) => resource.id).join(",") ===
       [ARTIFACT_IDS.resume, ARTIFACT_IDS.contact].join(",") &&
       getResourceById(ARTIFACT_IDS.about)?.footerNavigation === true &&
       getResourceById(ARTIFACT_IDS.about)?.published === false &&
       reservoirFooterSource.includes("getPublishedFooterResources") &&
       reservoirFooterSource.includes("onResourceSelect") &&
+      reservoirSceneSource.includes("const activeResourceNode = activeReservoirResources.find(") &&
+      reservoirSceneSource.includes(
+        "rotateResourceToCanonicalForehead(resourceId, \"footer\")",
+      ) &&
+      reservoirSceneSource.includes("if (!requestDirectResource(resourceId)) return") &&
       !reservoirFooterSource.includes("href=\"#\"") &&
       !reservoirFooterSource.includes("LinkedIn"),
   ],

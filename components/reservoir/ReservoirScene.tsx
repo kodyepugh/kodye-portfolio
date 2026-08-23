@@ -144,6 +144,7 @@ const DRAG_SENSITIVITY = 0.0042;
 const NODE_CLICK_MAX_TRAVEL = 6;
 const FOOTER_TRIGGER_OVERSCAN = 28;
 const LAYOUT_MODE_SWITCH_DURATION = 0.62;
+const INDEX_FOCAL_ROTATION_DURATION = 0.48;
 
 type ReservoirLayoutTransitionState =
   | "idle"
@@ -183,6 +184,21 @@ type QueryReconciliation = {
 };
 
 type QueryActivityMode = "success" | "empty";
+
+type IndexInspectionIntent = {
+  resourceId: string;
+  contextKey: string;
+};
+
+type FocalInspectionOrigin = "index" | "footer";
+
+type FocalInspectionIntent = IndexInspectionIntent & {
+  origin: FocalInspectionOrigin;
+};
+
+type FocalInspectionRotation = FocalInspectionIntent & {
+  targetQuaternion: QuaternionTuple;
+};
 
 type ReservoirLayoutPlacementPolicy =
   | "normal"
@@ -983,6 +999,12 @@ export function ReservoirScene() {
     useState<ActiveExploreFilter>("all");
   const [indexState, setIndexState] =
     useState<ReservoirIndexState>("closed");
+  const [pendingFocalInspection, setPendingFocalInspection] =
+    useState<FocalInspectionIntent | null>(null);
+  const [focalInspectionRotation, setFocalInspectionRotation] =
+    useState<FocalInspectionRotation | null>(null);
+  const [indexInspectionReturn, setIndexInspectionReturn] =
+    useState<IndexInspectionIntent | null>(null);
   const [footerState, setFooterState] =
     useState<ReservoirFooterState>("closed");
   const [queryActivityRevision, setQueryActivityRevision] = useState<
@@ -2432,6 +2454,7 @@ export function ReservoirScene() {
         });
         return;
       }
+      setIndexInspectionReturn(null);
       pendingInspectionNavigationTargetRef.current = resourceId;
       pendingInspectionCollectionTargetRef.current = null;
       pendingInspectionReturnFrameRef.current = returnFrame;
@@ -2459,6 +2482,8 @@ export function ReservoirScene() {
   const requestInspectionCollectionNavigation = useCallback(
     (collectionId: string, returnFrame: InspectionReturnFrame) => {
       if (transitionState !== "readingInspection") return;
+
+      setIndexInspectionReturn(null);
 
       const targetContextKey = getReservoirContextKey({
         kind: "collection",
@@ -2518,6 +2543,34 @@ export function ReservoirScene() {
 
     return () => cancelAnimationFrame(animationFrameId);
   }, [preservedReservoirState, transitionState]);
+
+  useEffect(() => {
+    if (
+      !indexInspectionReturn ||
+      transitionState !== "idle" ||
+      inspectedResourceId !== null ||
+      indexState !== "closed"
+    ) {
+      return;
+    }
+
+    if (
+      getReservoirContextKey(settledReservoirContext) !==
+      indexInspectionReturn.contextKey
+    ) {
+      setIndexInspectionReturn(null);
+      return;
+    }
+
+    setIndexInspectionReturn(null);
+    setIndexState("opening");
+  }, [
+    indexInspectionReturn,
+    indexState,
+    inspectedResourceId,
+    settledReservoirContext,
+    transitionState,
+  ]);
 
   useEffect(() => {
     if (
@@ -3219,6 +3272,141 @@ export function ReservoirScene() {
     return true;
   }
   beginResourceInspectionRef.current = beginResourceInspection;
+
+  function rotateResourceToCanonicalForehead(
+    resourceId: string,
+    origin: FocalInspectionOrigin,
+  ) {
+    const surface = surfaceRef.current;
+    const camera = cameraRef.current;
+    const rotationGroup = sphereRotationRef.current;
+    const direction = layoutOwnership.activeLayout.directions.get(resourceId);
+    if (
+      !surface ||
+      !camera ||
+      !rotationGroup ||
+      layoutOwnership.transitionPlan ||
+      !direction
+    ) {
+      return false;
+    }
+
+    const focalDiagnostics = getRuntimeFocalDiagnostics(surface, camera);
+    const surfaceWorldQuaternion = surface.getWorldQuaternion(
+      new THREE.Quaternion(),
+    );
+    const selectedWorldDirection = new THREE.Vector3(...direction)
+      .applyQuaternion(surfaceWorldQuaternion)
+      .normalize();
+    const rotationDelta = new THREE.Quaternion().setFromUnitVectors(
+      selectedWorldDirection,
+      new THREE.Vector3(...focalDiagnostics.targetWorld),
+    );
+    const targetQuaternion = rotationDelta
+      .multiply(rotationGroup.quaternion.clone())
+      .normalize();
+
+    recordLayoutFocalDiagnostics(focalDiagnostics);
+    if (interaction.current) {
+      interaction.current.dataset.indexFocalResourceId = resourceId;
+      interaction.current.dataset.indexFocalTargetWorld = formatDirectionTuple(
+        focalDiagnostics.targetWorld,
+      );
+    }
+    setFocalInspectionRotation({
+      resourceId,
+      contextKey: layoutOwnership.activeLayout.contextKey,
+      origin,
+      targetQuaternion: toQuaternionTuple(targetQuaternion),
+    });
+    return true;
+  }
+
+  useEffect(() => {
+    if (!focalInspectionRotation) return;
+
+    const rotationGroup = sphereRotationRef.current;
+    if (!rotationGroup) {
+      setFocalInspectionRotation(null);
+      return;
+    }
+
+    const activeRotationGroup = rotationGroup;
+    const rotationIntent = focalInspectionRotation;
+    const startQuaternion = activeRotationGroup.quaternion.clone();
+    const targetQuaternion = new THREE.Quaternion(
+      ...rotationIntent.targetQuaternion,
+    );
+    const duration = reducedMotion ? 0.16 : INDEX_FOCAL_ROTATION_DURATION;
+    const startTime = performance.now();
+    let animationFrameId = 0;
+
+    function updateIndexFocalRotation(now: number) {
+      const progress = clamp((now - startTime) / (duration * 1000), 0, 1);
+      activeRotationGroup.quaternion.slerpQuaternions(
+        startQuaternion,
+        targetQuaternion,
+        smoothstep(progress),
+      );
+      activeRotationGroup.updateMatrixWorld();
+
+      if (interaction.current) {
+        interaction.current.dataset.indexFocalRotationProgress =
+          progress.toFixed(6);
+      }
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(updateIndexFocalRotation);
+        return;
+      }
+
+      activeRotationGroup.quaternion.copy(targetQuaternion);
+      activeRotationGroup.updateMatrixWorld();
+      setRotationDiagnostics(
+        getRotationDiagnostics(activeRotationGroup.quaternion),
+      );
+      if (interaction.current) {
+        interaction.current.dataset.indexFocalRotationProgress = "1.000000";
+      }
+      setFocalInspectionRotation(null);
+      setPendingFocalInspection({
+        resourceId: rotationIntent.resourceId,
+        contextKey: rotationIntent.contextKey,
+        origin: rotationIntent.origin,
+      });
+    }
+
+    animationFrameId = requestAnimationFrame(updateIndexFocalRotation);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [focalInspectionRotation, reducedMotion]);
+
+  useEffect(() => {
+    if (!pendingFocalInspection || transitionState !== "idle") return;
+
+    const { resourceId, contextKey, origin } = pendingFocalInspection;
+    if (
+      layoutOwnership.activeLayout.contextKey !== contextKey ||
+      !layoutOwnership.activeLayout.directions.has(resourceId)
+    ) {
+      setPendingFocalInspection(null);
+      return;
+    }
+
+    if (!beginResourceInspection(resourceId)) {
+      setPendingFocalInspection(null);
+      return;
+    }
+
+    setPendingFocalInspection(null);
+    if (origin === "index") {
+      setIndexInspectionReturn({ resourceId, contextKey });
+      setIndexState("closing");
+    }
+  }, [
+    layoutOwnership.activeLayout,
+    pendingFocalInspection,
+    transitionState,
+  ]);
 
   function requestCollection(
     destinationCollectionId: string,
@@ -3927,7 +4115,14 @@ export function ReservoirScene() {
   }
 
   function selectReservoirIndexNode(node: ReservoirContentNode) {
-    if (indexState !== "open" || queryActivityRevision !== null) return;
+    if (
+      indexState !== "open" ||
+      queryActivityRevision !== null ||
+      pendingFocalInspection ||
+      focalInspectionRotation
+    ) {
+      return;
+    }
 
     if (node.kind === "collection") {
       const destinationContext: ReservoirContext = {
@@ -3947,12 +4142,46 @@ export function ReservoirScene() {
       return;
     }
 
-    if (!requestDirectResource(node.id)) return;
-    setIndexState("closing");
+    const selectionAction = getReservoirResourceSelectionAction(node, node.id);
+    if (selectionAction === "unsupported-resource-inspection") {
+      if (interaction.current) {
+        interaction.current.dataset.resourceInspectionUnsupported = node.id;
+        interaction.current.dataset.resourceInspectionUnsupportedKind =
+          node.inspectionKind;
+      }
+      return;
+    }
+
+    setTransitionState("idle");
+    setSelectedCollectionId(null);
+    setSelectedResourceId(node.id);
+    setSelectedPressActive(false);
+    rotateResourceToCanonicalForehead(node.id, "index");
   }
 
   function selectFooterResource(resourceId: string) {
-    if (inputLocked || !requestDirectResource(resourceId)) return;
+    if (inputLocked) return;
+
+    const activeResourceNode = activeReservoirResources.find(
+      (node) => node.id === resourceId,
+    );
+    if (activeResourceNode) {
+      const selectionAction = getReservoirResourceSelectionAction(
+        activeResourceNode,
+        resourceId,
+      );
+      if (selectionAction === "unsupported-resource-inspection") return;
+
+      setTransitionState("idle");
+      setSelectedCollectionId(null);
+      setSelectedResourceId(resourceId);
+      setSelectedPressActive(false);
+      if (!rotateResourceToCanonicalForehead(resourceId, "footer")) return;
+      setFooterState("closing");
+      return;
+    }
+
+    if (!requestDirectResource(resourceId)) return;
     setFooterState("closing");
   }
 
@@ -3971,7 +4200,12 @@ export function ReservoirScene() {
       />
       <ReservoirIndex
         contextLabel={getReservoirHistoryLabel(renderedReservoirContext)}
-        controlsLocked={queryTransitionActive || collectionContextTransition}
+        controlsLocked={
+          queryTransitionActive ||
+          collectionContextTransition ||
+          pendingFocalInspection !== null ||
+          focalInspectionRotation !== null
+        }
         nodes={activeReservoirNodes}
         state={indexState}
         onClose={closeReservoirIndex}

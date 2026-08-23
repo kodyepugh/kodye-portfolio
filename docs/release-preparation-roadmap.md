@@ -90,9 +90,12 @@ custom-domain configuration, or production Resend delivery.
 The public interface now provides a conventional semantic-DOM Reservoir Index
 as a projection of the active canonical Reservoir context. It does not create
 an alternate content registry: Collection entries retain the existing
-Collection transition and history behavior, while Resource entries retain the
-canonical direct Resource / Query Reservoir and Inspection path. The Index
-shows only Medium and Title, is keyboard reachable, and remains synchronized
+Collection transition and history behavior, while Resource entries use the
+active Reservoir's ordinary select-then-open Inspection path without creating
+a new Query Reservoir. Footer Resource selectors likewise rotate an already
+active Resource to the canonical forehead point; only an absent Resource uses
+the direct Query Reservoir path. The Index
+shows Title, Medium, Added, and Modified with deterministic Medium icons, is keyboard reachable, uses the same holographic control-panel visual treatment, and remains synchronized
 to semantic context commits during Collection reconstitution.
 
 The environmental footer now exposes published, explicitly designated Resource
