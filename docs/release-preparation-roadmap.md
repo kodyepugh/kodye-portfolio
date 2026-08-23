@@ -72,6 +72,19 @@ The current launch registry publishes only the root Digital Reservoir Collection
 
 Complete the production essentials needed for a credible live portfolio.
 
+### Foundational presentation metadata — completed on `feat/public-web-metadata`
+
+The launch registry now resolves a controlled public-facing Medium independently
+from Resource `type`, with one deterministic Medium-to-node-color authority.
+Published Objects carry system Added/Modified dates and optional ordered `By` /
+`For` / `On` relationships. Atmosphere presentation uses the shared grammar
+Title, optional Subtitle, Medium/Added/Modified, then optional relationships;
+it does not expose technical provenance or collection membership. Reservoir
+labels are Medium plus Title, and Inspection landing derives only from the
+measured atmosphere bottom plus responsive gap. This pass does not implement
+public routing, browser-history synchronization, production SEO metadata,
+custom-domain configuration, or production Resend delivery.
+
 ### Production identity
 
 Replace remaining prototype/study framing with public portfolio identity appropriate to the live portfolio.

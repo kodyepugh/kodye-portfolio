@@ -1,5 +1,12 @@
 import type { Resource } from "../../types/content";
 
+const BELLABEAT_RELATIONSHIPS = [
+  { relation: "by", label: "Kodye Pugh" },
+  { relation: "for", label: "Bellabeat" },
+] as const;
+const BELLABEAT_CREATED_AT = "2026-08-20";
+const BELLABEAT_UPDATED_AT = "2026-08-22";
+
 const REPORT_BASE_URL =
   "https://github.com/kodyepugh/bellabeat-wellness-analysis/blob/main/reports";
 
@@ -116,6 +123,10 @@ const figureResources = figureDefinitions.map(
       isArtifact: false,
       category: "Data / Analytics",
       categoryColor: "#28758c",
+      medium: "image",
+      relationships: BELLABEAT_RELATIONSHIPS,
+      createdAt: BELLABEAT_CREATED_AT,
+      updatedAt: BELLABEAT_UPDATED_AT,
       published: true,
       representations: [
         {
@@ -158,6 +169,10 @@ function documentResource(
     isArtifact: false,
     category: "Data / Analytics",
     categoryColor: "#28758c",
+    medium: "document",
+    relationships: BELLABEAT_RELATIONSHIPS,
+    createdAt: BELLABEAT_CREATED_AT,
+    updatedAt: BELLABEAT_UPDATED_AT,
     published: true,
     representations: [
       {
@@ -198,6 +213,10 @@ const supportingDocumentResources: readonly Resource[] = [
     isArtifact: false,
     category: "Data / Analytics",
     categoryColor: "#28758c",
+    medium: "document",
+    relationships: BELLABEAT_RELATIONSHIPS,
+    createdAt: BELLABEAT_CREATED_AT,
+    updatedAt: BELLABEAT_UPDATED_AT,
     published: true,
     representations: [
       {
@@ -279,6 +298,10 @@ const supportingDocumentResources: readonly Resource[] = [
     isArtifact: false,
     category: "Data / Analytics",
     categoryColor: "#28758c",
+    medium: "code",
+    relationships: BELLABEAT_RELATIONSHIPS,
+    createdAt: "2026-08-21",
+    updatedAt: BELLABEAT_UPDATED_AT,
     published: true,
     representations: [
       {

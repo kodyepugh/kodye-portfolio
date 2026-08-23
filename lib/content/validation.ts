@@ -7,6 +7,7 @@ import type {
   Resource,
   StructuredDocumentBlock,
 } from "../../types/content";
+import { OBJECT_MEDIA, OBJECT_RELATION_TYPES } from "../../types/content";
 
 export type ContentValidationResult = {
   valid: boolean;
@@ -408,6 +409,30 @@ export function validateContentRegistry(
 
     if (resource.published === true && resource.content?.status === "placeholder") {
       warnings.push(`Resource ${resource.id} still has placeholder content`);
+    }
+    if (resource.published === true) {
+      if (!resource.medium || !OBJECT_MEDIA.includes(resource.medium)) {
+        errors.push(`Published Resource ${resource.id} has no valid Medium`);
+      }
+      if (!resource.createdAt || !resource.updatedAt) {
+        errors.push(`Published Resource ${resource.id} must have Added and Modified system dates`);
+      }
+    }
+    for (const relationship of resource.relationships ?? []) {
+      if (!OBJECT_RELATION_TYPES.includes(relationship.relation) || !relationship.label.trim()) {
+        errors.push(`Resource ${resource.id} has an invalid By / For / On relationship`);
+      }
+    }
+  }
+
+  for (const collection of registry.collections) {
+    if (collection.published === true && (!collection.createdAt || !collection.updatedAt)) {
+      errors.push(`Published Collection ${collection.id} must have Added and Modified system dates`);
+    }
+    for (const relationship of collection.relationships ?? []) {
+      if (!OBJECT_RELATION_TYPES.includes(relationship.relation) || !relationship.label.trim()) {
+        errors.push(`Collection ${collection.id} has an invalid By / For / On relationship`);
+      }
     }
   }
 

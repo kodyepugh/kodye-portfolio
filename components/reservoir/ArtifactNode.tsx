@@ -142,8 +142,8 @@ export function ArtifactNode({
     [direction, nodeRadius],
   );
   const artifactColor = useMemo(
-    () => new THREE.Color(artifact.categoryColor ?? RESERVOIR_THEME.inspection),
-    [artifact.categoryColor],
+    () => new THREE.Color(artifact.mediumColor),
+    [artifact.mediumColor],
   );
   const hoverColor = useMemo(
     () => new THREE.Color(RESERVOIR_THEME.inspection),
@@ -507,8 +507,8 @@ export function ArtifactNode({
           <sphereGeometry args={[nodeRadius, 18, 14]} />
           <meshStandardMaterial
             ref={orbMaterialRef}
-            color={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
-            emissive={artifact.categoryColor ?? RESERVOIR_THEME.inspection}
+            color={artifact.mediumColor}
+            emissive={artifact.mediumColor}
             emissiveIntensity={RESERVOIR_NODE_RESTING_EMISSIVE_INTENSITY}
             roughness={0.82}
           />

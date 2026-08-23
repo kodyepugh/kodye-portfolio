@@ -729,11 +729,6 @@ body.artifact-reading-mode .reservoir-study {
   top: 20px;
 }
 
-.atmosphere-content--home {
-  display: flex;
-  justify-content: space-between;
-}
-
 .atmosphere-content--artifact {
   display: block;
   right: auto;
@@ -743,19 +738,11 @@ body.artifact-reading-mode .reservoir-study {
   animation: atmosphere-content-enter 180ms ease-out both;
 }
 
-.atmosphere-content__type,
 .atmosphere-content__title,
 .atmosphere-content__subtitle,
-.atmosphere-content__metadata {
+.atmosphere-content__summary,
+.atmosphere-content__relationships {
   margin: 0;
-}
-
-.atmosphere-content__type {
-  color: var(--foreground-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
 }
 
 .atmosphere-content__title {
@@ -776,41 +763,15 @@ body.artifact-reading-mode .reservoir-study {
   line-height: 1.45;
 }
 
-.atmosphere-content__description {
+.atmosphere-content__summary,
+.atmosphere-content__relationships {
   max-width: 72ch;
-  margin: 12px 0 0;
+  margin-top: 12px;
   color: var(--foreground-muted);
   font-size: 10px;
   letter-spacing: 0.01em;
   line-height: 1.5;
   text-transform: none;
-}
-
-.atmosphere-content__metadata {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 26px;
-  margin-top: 14px;
-}
-
-.atmosphere-content__metadata-item {
-  display: grid;
-  gap: 3px;
-}
-
-.atmosphere-content__metadata dt {
-  color: var(--foreground-muted);
-  font-size: 8px;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
-.atmosphere-content__metadata dd {
-  margin: 0;
-  color: var(--foreground);
-  font-size: 10px;
-  letter-spacing: 0;
-  line-height: 1.35;
 }
 
 @keyframes atmosphere-content-enter {
@@ -863,19 +824,15 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .artifact-reading-stage {
-  --artifact-window-responsive-top: 18svh;
   --artifact-window-atmosphere-bottom: 0px;
   --artifact-window-atmosphere-gap: clamp(16px, 1.6vw, 28px);
   --artifact-window-inline-padding: clamp(20px, 6vw, 96px);
   --artifact-window-top-padding: clamp(18px, 2.5vw, 38px);
   --artifact-window-deploy-easing: cubic-bezier(0.2, 0.76, 0.2, 1);
   --artifact-window-retract-easing: cubic-bezier(0.58, 0, 0.86, 0.42);
-  --artifact-window-top: max(
-    var(--artifact-window-responsive-top),
-    calc(
-      var(--artifact-window-atmosphere-bottom) +
-        var(--artifact-window-atmosphere-gap)
-    )
+  --artifact-window-top: calc(
+    var(--artifact-window-atmosphere-bottom) +
+      var(--artifact-window-atmosphere-gap)
   );
   display: contents;
 }

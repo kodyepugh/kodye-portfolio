@@ -65,6 +65,10 @@ const {
   getReservoirNodeSizingFamily,
   getReservoirCollectionNodeById,
 } = require(path.join(projectRoot, "lib/content/reservoir-adapter.ts"));
+const {
+  getMediumColor,
+  getMediumLabel,
+} = require(path.join(projectRoot, "lib/content/object-metadata.ts"));
 const { getReservoirAdaptiveZoom } = require(path.join(
   projectRoot,
   "lib/reservoir/zoom.ts",
@@ -338,6 +342,28 @@ const resumeStructuredBlocks =
     ? resumeStructuredContent.blocks
     : [];
 const checks = [
+  [
+    "published Objects carry canonical Medium and system dates",
+    [...contentRegistry.resources, ...contentRegistry.collections]
+      .filter((object) => object.published === true)
+      .every((object) => object.medium && object.createdAt && object.updatedAt),
+  ],
+  [
+    "Medium color authority is deterministic for launch node classes",
+    getMediumColor("collection") === "#000000" &&
+      getMediumColor("document") === "#28758c" &&
+      getMediumColor("form") === "#6f8065" &&
+      getMediumLabel("link") === "Link",
+  ],
+  [
+    "Reservoir nodes expose Medium presentation without replacing Resource type",
+    (() => {
+      const bellabeat = getArtifactById(ARTIFACT_IDS.bellabeat);
+      const node = bellabeat && adaptResourceToReservoirContentNode(bellabeat);
+      return bellabeat?.type === "case-study" && node?.medium === "document" &&
+        node.mediumLabel === "Document" && node.mediumColor === "#28758c";
+    })(),
+  ],
   ["root collection resolves", Boolean(getCollectionById(ROOT_COLLECTION_ID))],
   [
     "launch root has exactly Bellabeat, Resume, and Contact",
