@@ -25,11 +25,11 @@ export default function Icon() {
           containerStyle={{
             color: "#111816",
             display: "flex",
-            height: 31,
+            height: 32,
             width: 44,
           }}
           variant="metadata-icon"
-          style={{ height: 31, width: 44 }}
+          style={{ height: 32, width: 44 }}
         />
       </div>
     ),

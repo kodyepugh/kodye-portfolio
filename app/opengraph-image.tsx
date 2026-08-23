@@ -51,11 +51,11 @@ export default function OpenGraphImage() {
             containerStyle={{
               color: "#f4f5ef",
               display: "flex",
-              height: 153,
+              height: 159,
               width: 220,
             }}
             variant="metadata-icon"
-            style={{ height: 153, width: 220 }}
+            style={{ height: 159, width: 220 }}
           />
         </div>
       </div>
