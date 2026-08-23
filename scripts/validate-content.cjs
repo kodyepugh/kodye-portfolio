@@ -99,10 +99,10 @@ const { assertValidContentRegistry } = require(path.join(
   "lib/content/validation.ts",
 ));
 const {
-  resolveGenericFileInspection,
+  getStructuredDocumentBody,
 } = require(path.join(
   projectRoot,
-  "lib/content/generic-file-inspection.ts",
+  "lib/content/structured-document.ts",
 ));
 const {
   validateContactSubmission,
@@ -332,6 +332,11 @@ const notebookContext = getPublishedResourceContextFromRegistry(
   contentRegistry,
   "resource-fitbit-identifier-revision-audit-notebook",
 );
+const resumeStructuredContent = getResourceById(ARTIFACT_IDS.resume)?.content;
+const resumeStructuredBlocks =
+  resumeStructuredContent?.kind === "structured-document"
+    ? resumeStructuredContent.blocks
+    : [];
 const checks = [
   ["root collection resolves", Boolean(getCollectionById(ROOT_COLLECTION_ID))],
   [
@@ -375,10 +380,16 @@ const checks = [
     ),
   ],
   [
-    "Resume is a ready generic-file with a resolvable PDF asset",
-    getResourceById(ARTIFACT_IDS.resume)?.inspectionKind === "generic-file" &&
-      getResourceById(ARTIFACT_IDS.resume)?.content?.kind === "document" &&
+    "Resume is a compact native structured document with a registered PDF download",
+    getResourceById(ARTIFACT_IDS.resume)?.inspectionKind === "structured-document" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.kind === "structured-document" &&
       getResourceById(ARTIFACT_IDS.resume)?.content?.status === "ready" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.presentationProfile === "compact" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.blocks.at(-1)?.type === "download" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.blocks.at(-1)?.label ===
+        "Download PDF" &&
+      getResourceById(ARTIFACT_IDS.resume)?.content?.blocks.at(-1)?.assetId ===
+        ASSET_IDS.resumePdf &&
       getResourceRepresentations(ARTIFACT_IDS.resume).some(
         (representation) =>
           representation.kind === "asset" &&
@@ -393,8 +404,8 @@ const checks = [
           asset.src === "/resume/Kodye_Pugh_Resume_2026.pdf" &&
           fs.existsSync(path.join(projectRoot, "public", asset.src)),
       ) &&
-      resolveGenericFileInspection(getResourceById(ARTIFACT_IDS.resume)).status ===
-        "ready",
+      getStructuredDocumentBody(getResourceById(ARTIFACT_IDS.resume)).presentationProfile ===
+        "compact",
   ],
   [
     "Contact is a canonical contact-form with public professional profiles only",
@@ -404,6 +415,20 @@ const checks = [
         (link) => `${link.provider}:${link.url}`,
       ).join(",") ===
         "linkedin:https://www.linkedin.com/in/kodyepugh/,github:https://github.com/kodyepugh",
+  ],
+  [
+    "Resume semantic content preserves the approved section and entry hierarchy",
+    resumeStructuredBlocks.filter((block) => block.type === "heading" && block.level === 2)
+      .map((block) => block.text)
+      .join(",") ===
+        "Skills,Selected Data Analytics Project,Professional Experience,Additional Experience,Education,Certifications" &&
+      resumeStructuredBlocks[0]?.type === "paragraph" &&
+      resumeStructuredBlocks[0]?.text ===
+        "Analyst and digital product professional who redesigned a federal task-tracking workflow, built CMS structures and information architectures for three client organizations, and developed a validated BigQuery analysis across more than 15 million wellness data rows. Combines SQL, Excel, Tableau, Python-supported workflows, requirements analysis, and stakeholder communication to turn ambiguous operational needs into reliable systems, defensible insights, and actionable recommendations." &&
+      resumeStructuredBlocks.filter((block) => block.type === "entry")
+        .map((block) => block.title)
+        .join(",") ===
+          "Bellabeat Wellness-Behavior Analysis,Independent Web & Digital Product Consultant,U.S. Department of Education - Federal Student Aid,Netflix Productions,Various Production Companies,Stanford University & Loyola Marymount University,Loyola Marymount University,Stanford University,Google Data Analytics Professional Certificate,Finance & Quantitative Modeling for Analysts Specialization",
   ],
   [
     "Contact submissions reject malformed input and accept bounded safe input",

@@ -117,6 +117,9 @@ function reportStructuredDocumentBlocks(
   const resourcesById = new Map(
     registry.resources.map((candidate) => [candidate.id, candidate]),
   );
+  const assetsById = new Map(
+    registry.assets.map((candidate) => [candidate.id, candidate]),
+  );
   const requireText = (
     block: StructuredDocumentBlock,
     label: string,
@@ -171,6 +174,14 @@ function reportStructuredDocumentBlocks(
           );
         }
         break;
+      case "entry":
+        requireText(block, "title", block.title);
+        if (block.items?.some((item) => !item.trim())) {
+          errors.push(
+            `Resource ${resource.id} entry block ${block.id} must not contain blank items`,
+          );
+        }
+        break;
       case "callout":
         requireText(block, "text", block.text);
         break;
@@ -196,6 +207,14 @@ function reportStructuredDocumentBlocks(
               `Resource ${resource.id} link block ${block.id} has invalid href ${block.href}`,
             );
           }
+        }
+        break;
+      case "download":
+        requireText(block, "label", block.label);
+        if (!assetsById.has(block.assetId)) {
+          errors.push(
+            `Resource ${resource.id} download block ${block.id} references unknown Asset ${block.assetId}`,
+          );
         }
         break;
       case "table":

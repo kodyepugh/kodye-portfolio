@@ -166,6 +166,17 @@ const about = getResourceById("artifact-about");
 const bellabeat = getResourceById("artifact-bellabeat-wellness-analysis");
 const resume = getResourceById("artifact-resume");
 const contact = getResourceById("artifact-contact");
+const opaquePdfResource = {
+  ...resume,
+  id: "qa-opaque-pdf-resource",
+  slug: "qa-opaque-pdf-resource",
+  inspectionKind: "generic-file",
+  content: {
+    kind: "document",
+    status: "ready",
+    assetId: "asset-resume-2026-pdf",
+  },
+};
 const comprehensiveCaseStudy = getResourceById(
   "resource-bellabeat-comprehensive-case-study",
 );
@@ -213,6 +224,10 @@ const reservoirHistoryNavigationSource = fs.readFileSync(
 );
 const inspectionCssSource = fs.readFileSync(
   path.join(projectRoot, "app/globals.css"),
+  "utf8",
+);
+const structuredDocumentBodySource = fs.readFileSync(
+  path.join(projectRoot, "components/reservoir/StructuredDocumentBody.tsx"),
   "utf8",
 );
 const contactInspectionBodySource = fs.readFileSync(
@@ -443,6 +458,14 @@ const structuredBlocks = [
     alt: "Brand symbol",
   },
   { id: "list", type: "list", style: "unordered", items: ["One"] },
+  {
+    id: "entry",
+    type: "entry",
+    title: "Entry",
+    meta: "2026",
+    subtitle: "Role",
+    items: ["Detail"],
+  },
   { id: "callout", type: "callout", text: "Callout" },
   { id: "link", type: "link", href: "https://example.com", label: "Example" },
   {
@@ -450,6 +473,12 @@ const structuredBlocks = [
     type: "link",
     resourceId: resume.id,
     label: "Resume",
+  },
+  {
+    id: "download",
+    type: "download",
+    assetId: "asset-resume-2026-pdf",
+    label: "Download PDF",
   },
   { id: "divider", type: "divider" },
   { id: "table", type: "table", columns: ["A"], rows: [["B"]] },
@@ -1058,10 +1087,13 @@ const checks = [
   [
     "D1 Contact and Resume resolve through their dedicated content-driven surfaces",
     contact?.content?.kind === "contact" &&
-      resume?.content?.kind === "document" &&
+      resume?.inspectionKind === "structured-document" &&
+      resume?.content?.kind === "structured-document" &&
+      resume.content.presentationProfile === "compact" &&
       canInspectResource(contact) &&
       canInspectResource(resume) &&
-      resolveGenericFileInspection(resume).status === "ready",
+      getStructuredDocumentBody(resume).presentationProfile === "compact" &&
+      resolveGenericFileInspection(opaquePdfResource).status === "ready",
   ],
   [
     "E supported surfaces are inspectable and unsupported surfaces are not",
@@ -1805,10 +1837,16 @@ const checks = [
       contactInspectionBodySource.includes("faLinkedin.icon[1]"),
   ],
   [
-    "BG Resume PDF relies on the embedded viewer controls",
-    genericFileInspectionBodySource.includes('type="application/pdf"') &&
+    "BG Resume uses compact native structured content while opaque PDFs retain generic-file inspection",
+    resume.content.blocks.at(-1)?.type === "download" &&
+    resume.content.blocks.at(-1)?.label === "Download PDF" &&
+      structuredDocumentBodySource.includes("structured-document__download") &&
+      structuredDocumentBodySource.includes("download={asset.filename}") &&
+      !structuredDocumentBodySource.includes("artifact-resume") &&
+      inspectionCssSource.includes(".structured-document--compact") &&
+      genericFileInspectionBodySource.includes('type="application/pdf"') &&
       !genericFileInspectionBodySource.includes("Download PDF") &&
-      !genericFileInspectionBodySource.includes("inspection-generic-file__download"),
+    !genericFileInspectionBodySource.includes("inspection-generic-file__download"),
   ],
 ];
 

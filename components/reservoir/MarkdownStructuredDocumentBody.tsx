@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { parseMarkdownStructuredDocument } from "@/lib/content/markdown-structured-document";
-import type { Resource, StructuredMarkdownSource } from "@/types/content";
+import type {
+  Resource,
+  StructuredDocumentPresentationProfile,
+  StructuredMarkdownSource,
+} from "@/types/content";
 import { StructuredDocumentBody } from "./StructuredDocumentBody";
 
 type MarkdownStructuredDocumentBodyProps = {
   resource: Resource;
   source: StructuredMarkdownSource;
+  presentationProfile?: StructuredDocumentPresentationProfile;
   onNavigateToResource?: (resourceId: string) => void;
 };
 
@@ -17,6 +22,7 @@ type MarkdownLoadState =
 export function MarkdownStructuredDocumentBody({
   resource,
   source,
+  presentationProfile,
   onNavigateToResource,
 }: MarkdownStructuredDocumentBodyProps) {
   const [loadState, setLoadState] = useState<MarkdownLoadState>({
@@ -85,6 +91,7 @@ export function MarkdownStructuredDocumentBody({
     <StructuredDocumentBody
       blocks={blocks}
       resource={resource}
+      presentationProfile={presentationProfile}
       onNavigateToResource={onNavigateToResource}
     />
   );

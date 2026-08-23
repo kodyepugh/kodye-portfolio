@@ -622,10 +622,11 @@ A Resource exposes an `inspectionKind` or equivalent renderer contract independe
 
 The current repository line implements the inspection surfaces required by the approved launch material:
 
-- **structured-document** — reusable ordered document blocks;
+- **structured-document** — reusable ordered document blocks, including authored semantic treatment for known document-like Resources;
 - **image** — dedicated image inspection;
 - **external-link / repository** — external-link inspection with repository-aware presentation;
 - **notebook/code treatment required by Bellabeat** — sufficient for the current approved notebook Resource.
+- **generic-file** — a file-oriented PDF inspection/fallback for opaque document Resources whose semantic structure is not materially available.
 
 Unsupported kinds must remain explicit. Do not silently route an unsupported Resource through a semantically unrelated renderer merely to avoid an unavailable state.
 
@@ -645,6 +646,16 @@ Those contracts are conceptual until a current task or approved launch Resource 
 ## 15.1 Structured document
 
 Examples include case studies, reports, essays, profiles, methodology documents, and resumes where structured rendering is preferred.
+
+File format and content structure are separate concerns. A PDF, Word document, Markdown file, HTML page, or another source format may represent a structured document when its semantic hierarchy is known and materialized in the registry. In that case the preferred path is:
+
+```text
+Resource → structured semantic content → native Inspection rendering
+```
+
+The original file remains a Representation/Asset and may be exposed as a download or source representation. This is not automatic file ingestion or arbitrary PDF conversion: opaque or insufficiently understood documents may continue to use a file-oriented Inspection/fallback.
+
+Structured rendering preserves the source's meaningful hierarchy, ordering, grouping, density, and relative emphasis rather than reproducing paper boundaries, print headers, browser controls, or pagination artifacts.
 
 Preferred composition:
 
@@ -682,7 +693,7 @@ Future richer treatment may add readable technical previews, language/runtime/so
 
 ## 15.5 Future media / data / generic-file kinds
 
-Video, audio, dataset/table, generic-file, and other renderer families remain valid future extensions.
+Video, audio, dataset/table, and other renderer families remain valid future extensions. The implemented generic-file PDF treatment remains available when a document is opaque; it is not the preferred primary surface for a Resource with known authored semantic structure.
 
 Do not build them merely because they are defined conceptually. Implement them only when approved current content requires them.
 
@@ -706,13 +717,17 @@ paragraph
 figure
 table
 list
+entry
 quote
 callout
 code
 link
+download
 resource-reference
 divider
 ```
+
+Structured documents may declare one small presentation profile without changing their semantic identity or navigation behavior. The current profiles are `editorial` for narrative/case-study reading and `compact` for dense professional documents such as resumes. Profiles tune layout rhythm and hierarchy while the shared semantic block renderer remains canonical.
 
 A structured document determines its own article hierarchy through the ordered block structure.
 

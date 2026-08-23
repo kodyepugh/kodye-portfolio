@@ -37,6 +37,7 @@ export function InspectionWindowBody({
           <MarkdownStructuredDocumentBody
             resource={resource}
             source={resource.content.markdownSource}
+            presentationProfile={resource.content.presentationProfile}
             onNavigateToResource={onNavigateToResource}
           />
         </div>
@@ -52,6 +53,7 @@ export function InspectionWindowBody({
           <StructuredDocumentBody
             blocks={document.blocks}
             resource={resource}
+            presentationProfile={document.presentationProfile}
             onNavigateToResource={onNavigateToResource}
           />
         </div>

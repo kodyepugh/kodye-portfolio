@@ -2,12 +2,14 @@ import type {
   Resource,
   ResourceContentStatus,
   StructuredDocumentBlock,
+  StructuredDocumentPresentationProfile,
 } from "../../types/content";
 
 export type StructuredDocumentBody = {
   status: ResourceContentStatus;
   blocks: readonly StructuredDocumentBlock[];
   source: "canonical" | "legacy-adapter";
+  presentationProfile: StructuredDocumentPresentationProfile;
 };
 
 function placeholderParagraph(
@@ -40,6 +42,7 @@ export function getStructuredDocumentBody(
     return {
       status: "placeholder",
       source: "legacy-adapter",
+      presentationProfile: "editorial",
       blocks: [
         {
           id: `${resource.id}-unavailable-heading`,
@@ -63,6 +66,7 @@ export function getStructuredDocumentBody(
       status: content.status,
       source: "canonical",
       blocks: content.blocks,
+      presentationProfile: content.presentationProfile ?? "editorial",
     };
   }
 
@@ -129,5 +133,6 @@ export function getStructuredDocumentBody(
     status: content.status,
     source: "legacy-adapter",
     blocks: withPlaceholderNote(resource, blocks),
+    presentationProfile: "editorial",
   };
 }

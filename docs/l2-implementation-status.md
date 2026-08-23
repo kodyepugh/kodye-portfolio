@@ -62,7 +62,8 @@ Implemented in the current repository line:
 - `inspectionKind` selects the inspection surface;
 - `structured-document` is the first canonical inspection surface;
 - legacy `rich-text`, `case-study`, and `document` content adapts into the structured-document model instead of forming a second canonical document system;
-- reusable ordered structured-document blocks include headings, paragraphs, figures, lists, callouts, links, dividers, tables, quotes, code, and Resource references;
+- reusable ordered structured-document blocks include headings, paragraphs, figures, lists, entries, callouts, links, Asset-backed downloads, dividers, tables, quotes, code, and Resource references;
+- structured documents may use an explicit `editorial` or `compact` presentation profile without changing Resource identity, inspection semantics, or navigation state; Bellabeat remains editorial while the approved Resume uses compact authored semantic content with its canonical PDF retained as a downloadable Asset representation;
 - figure blocks reference stable Resource/representation identity rather than creating duplicate file identity;
 - structured-document validation covers block identity/order constraints, Resource references, representation references, figure alt text, links, lists, tables, and content/inspection compatibility;
 - unsupported inspection kinds remain explicit and do not silently render through the structured-document surface;
