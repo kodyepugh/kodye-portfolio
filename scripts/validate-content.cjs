@@ -467,7 +467,10 @@ const checks = [
     reservoirSceneSource.includes("function focusActiveReservoirResource(") &&
       reservoirSceneSource.includes("preferActiveReservoir = true") &&
       reservoirSceneSource.includes('initialRoute.kind !== "query-resource"') &&
-      reservoirSceneSource.includes('route.kind !== "query-resource"') &&
+      reservoirSceneSource.includes('if (route.kind === "query-resource")') &&
+      reservoirSceneSource.includes(
+        "inspectedResourceId: route.resourceId",
+      ) &&
       reservoirSceneSource.includes('"active-reservoir"') &&
       reservoirSceneSource.includes('"query-reservoir"'),
   ],

@@ -50,10 +50,16 @@ const { resolvePublicRoute } = require(path.join(
   "lib/public-routing.ts",
 ));
 const {
+  createBrowserRestorationIntent,
   createPublicRouteHistoryEntry,
   getInspectionCloseHistoryAction,
   getPublicRouteHistoryEntry,
+  isCurrentBrowserRestorationIntent,
 } = require(path.join(projectRoot, "lib/public-route-history.ts"));
+const { truncateReservoirHistoryAtVisit } = require(path.join(
+  projectRoot,
+  "lib/reservoir/history.ts",
+));
 const {
   canReuseActiveReservoirResource,
   resolveContextualResourceHistory,
@@ -189,16 +195,33 @@ assert.equal(
   false,
 );
 
+const browserRootFrame = {
+  id: "browser-root-visit",
+  context: { kind: "collection", collectionId: ROOT_COLLECTION_ID },
+  label: "Digital Reservoir",
+};
+const browserBellabeatRestoration = {
+  reservoirHistory: [browserRootFrame],
+  inspectedResourceId: ARTIFACT_IDS.bellabeat,
+};
+const browserResumeRestoration = {
+  reservoirHistory: [browserRootFrame],
+  inspectedResourceId: ARTIFACT_IDS.resume,
+};
 const inAppResourceEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-bellabeat",
   path: "/bellabeat-wellness-analysis",
   initial: false,
+  restoration: browserBellabeatRestoration,
   returnPath: "/",
 });
 assert.equal(
   getPublicRouteHistoryEntry(
     createPublicRouteHistoryEntry({
+      entryId: "browser-entry-resume-replace",
       path: "/resume",
       initial: false,
+      restoration: browserResumeRestoration,
       closeAction: "replace",
     }),
   ).closeAction,
@@ -207,8 +230,10 @@ assert.equal(
 assert.equal(
   getPublicRouteHistoryEntry(
     createPublicRouteHistoryEntry({
+      entryId: "browser-entry-resume-back",
       path: "/resume",
       initial: false,
+      restoration: browserResumeRestoration,
       closeAction: "back",
     }),
   ).closeAction,
@@ -217,8 +242,10 @@ assert.equal(
 assert.equal(
   getPublicRouteHistoryEntry(
     createPublicRouteHistoryEntry({
+      entryId: "browser-entry-resume-default",
       path: "/resume",
       initial: false,
+      restoration: browserResumeRestoration,
     }),
   ).closeAction,
   undefined,
@@ -234,8 +261,10 @@ assert.equal(
   getInspectionCloseHistoryAction(
     getPublicRouteHistoryEntry(
       createPublicRouteHistoryEntry({
+        entryId: "browser-entry-resume-initial",
         path: "/resume",
         initial: true,
+        restoration: browserResumeRestoration,
       }),
     ),
     "/",
@@ -243,5 +272,76 @@ assert.equal(
   "replace",
 );
 assert.equal(getPublicRouteHistoryEntry({ path: "/" }), null);
+assert.equal(
+  getPublicRouteHistoryEntry({
+    digitalReservoirPublicRoute: true,
+    entryId: "browser-entry-invalid",
+    path: "/",
+    initial: true,
+    restoration: { reservoirHistory: [], inspectedResourceId: null },
+  }),
+  null,
+);
+
+const samePathEarlierEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-bellabeat-earlier",
+  path: "/bellabeat-wellness-analysis",
+  initial: false,
+  restoration: browserBellabeatRestoration,
+});
+const samePathLaterEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-bellabeat-later",
+  path: "/bellabeat-wellness-analysis",
+  initial: false,
+  restoration: {
+    reservoirHistory: [
+      browserRootFrame,
+      {
+        id: "browser-query-visit",
+        context: {
+          kind: "query",
+          resultIds: [ARTIFACT_IDS.bellabeat],
+          returnContext: browserRootFrame.context,
+        },
+        label: "Bellabeat Wellness Analysis",
+      },
+    ],
+    inspectedResourceId: ARTIFACT_IDS.bellabeat,
+  },
+});
+assert.equal(samePathEarlierEntry.path, samePathLaterEntry.path);
+assert.notEqual(samePathEarlierEntry.entryId, samePathLaterEntry.entryId);
+assert.notDeepEqual(
+  samePathEarlierEntry.restoration.reservoirHistory,
+  samePathLaterEntry.restoration.reservoirHistory,
+);
+assert.deepEqual(
+  getPublicRouteHistoryEntry(
+    JSON.parse(JSON.stringify(samePathLaterEntry)),
+  ),
+  samePathLaterEntry,
+);
+
+const staleIntent = createBrowserRestorationIntent(samePathEarlierEntry, 7);
+const latestIntent = createBrowserRestorationIntent(samePathLaterEntry, 8);
+assert.equal(isCurrentBrowserRestorationIntent(staleIntent, 8), false);
+assert.equal(isCurrentBrowserRestorationIntent(latestIntent, 8), true);
+
+const forwardEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-forward-query",
+  path: "/q/bellabeat-wellness-analysis",
+  initial: false,
+  restoration: samePathLaterEntry.restoration,
+});
+const branchTruncatedHistory = truncateReservoirHistoryAtVisit(
+  forwardEntry.restoration.reservoirHistory,
+  browserRootFrame.id,
+);
+assert.equal(branchTruncatedHistory.length, 1);
+assert.equal(forwardEntry.restoration.reservoirHistory.length, 2);
+assert.equal(
+  forwardEntry.restoration.reservoirHistory.at(-1).context.kind,
+  "query",
+);
 
 console.log("Public routing validation passed.");

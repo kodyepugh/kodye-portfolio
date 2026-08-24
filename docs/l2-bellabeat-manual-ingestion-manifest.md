@@ -439,13 +439,16 @@ Verified in the production run for this pass:
 - verify repository links resolve to the approved external destination;
 - verify meaningful reading position is captured at the support detour boundary.
 
-The production run also found that browser Back from the closed repository
-detour could leave the Bellabeat URL visible while the repository Query
-Reservoir remained active. The branch correction is limited to retrying the
-existing direct-route coordinator while that URL remains current. This QA
-stage remains open until the branch is deployed and production Back/Forward
-verification confirms Bellabeat Inspection and context restoration without a
-duplicate settled visit. Responsive/accessibility coverage and unavailable-
-target handling remain later launch work.
+The production run also found that browser Back/Forward restoration could
+diverge from the selected URL at multiple engagement points because pathname
+lookup was coupled to mutable, branch-truncating Reservoir history. Browser
+entries now carry stable identity and their own serializable semantic
+Reservoir/Inspection snapshot. A persistent latest-wins restoration intent
+waits through Inspection, Query, and Collection transitions before converging
+through the existing semantic coordinators; Reservoir Back keeps its separate
+application-owned branch semantics. This QA stage remains open until the
+branch is deployed and production Back/Forward verification confirms the
+entry-owned model without duplicate settled visits. Responsive/accessibility
+coverage and unavailable-target handling remain later launch work.
 
 The release-preparation roadmap controls when this QA occurs relative to the Portfolio Content Cut and Public Web Layer.
