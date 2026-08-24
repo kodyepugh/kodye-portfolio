@@ -441,14 +441,20 @@ Verified in the production run for this pass:
 
 The production run also found that browser Back/Forward restoration could
 diverge from the selected URL at multiple engagement points because pathname
-lookup was coupled to mutable, branch-truncating Reservoir history. Browser
-entries now carry stable identity and their own serializable semantic
-Reservoir/Inspection snapshot. A persistent latest-wins restoration intent
-waits through Inspection, Query, and Collection transitions before converging
-through the existing semantic coordinators; Reservoir Back keeps its separate
-application-owned branch semantics. This QA stage remains open until the
-branch is deployed and production Back/Forward verification confirms the
-entry-owned model without duplicate settled visits. Responsive/accessibility
-coverage and unavailable-target handling remain later launch work.
+lookup was coupled to mutable, branch-truncating Reservoir history. The
+branch-local correction now gives each settled Reservoir or Inspection state a
+typed, path-validated browser entry with stable identity and its own semantic
+snapshot. Query and Inspection commits remain separate; selected browser
+entries restore without writes; latest-wins revisions cancel stale transition
+continuations; and close/interface Back reuse an exact predecessor or commit
+only the final visible destination. The branch-local running-app matrix passes
+support detours, existing-Query Forward restoration, practical reading return,
+close, Home, Collection detours, same-URL visits, Index/footer closure, rapid
+supersession, refresh, and bounded recovery. The complete policy and evidence
+are recorded in `docs/bellabeat-browser-navigation-transaction-record.md`.
+
+This QA stage remains open until the branch is deployed and production
+Back/Forward verification confirms the entry-owned model without duplicate
+settled visits. Responsive/accessibility coverage remains later launch work.
 
 The release-preparation roadmap controls when this QA occurs relative to the Portfolio Content Cut and Public Web Layer.

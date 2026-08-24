@@ -244,11 +244,19 @@ This stage is complete. Production `/bellabeat-wellness-analysis` uses Home plus
 Prioritize the actual recruiter journey from direct Bellabeat entry through the case study, figures and supporting Resources, repository, return navigation, and other essential launch actions rather than relying only on synthetic validation.
 
 The production pass exercised the Bellabeat graph and found a systemic browser
-history ownership defect after support detours. Browser entries now own stable
-identity and a serializable semantic restoration snapshot, while a persistent
-latest-wins intent defers restoration until existing semantic coordinators can
-legally consume it. Deploy this branch and repeat the focused Back/Forward
-smoke test before closing this stage.
+history ownership defect after support detours. The branch correction now uses
+one explicit stable-state transaction model: Query and Inspection commits own
+separate entries, entry identity and full semantic snapshots distinguish
+same-path visits, browser restoration is no-write/latest-wins, and interface
+Back reuses an exact adjacent entry or commits only its final destination. The
+branch-local browser matrix passes, including support-detour Back/Forward with
+the existing Query visit, practical reading restoration, close, Home,
+Collection detours, repeated Resource URLs, Index/footer closure, rapid
+supersession, and bounded recovery. The focused policy and evidence are
+recorded in `docs/bellabeat-browser-navigation-transaction-record.md`.
+
+Deploy this branch and repeat the production navigation smoke test before
+closing this stage.
 
 Bellabeat should be the primary integrated QA path because it currently exercises the richest combination of document, figure, repository, supporting-resource, and return-context behavior.
 
