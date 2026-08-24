@@ -51,8 +51,10 @@ const { resolvePublicRoute } = require(path.join(
 ));
 const {
   PUBLIC_ROUTE_HISTORY_SCHEMA_VERSION,
+  advanceBrowserRecoveryGuard,
   applyPublicRouteHistoryTransaction,
   arePublicRouteRestorationsEqual,
+  createBrowserRecoveryGuardKey,
   createBrowserRestorationIntent,
   createPublicRouteHistoryEntry,
   createRouteRestorationDescriptor,
@@ -61,9 +63,12 @@ const {
   getPublicRouteRestorationFingerprint,
   getPublicRouteRestorationPath,
   isCurrentBrowserRestorationIntent,
+  isPublicRouteHistoryBackSelectionMatch,
+  planPublicRouteHistoryBackFallback,
   planPublicRouteHistoryTransaction,
 } = require(path.join(projectRoot, "lib/public-route-history.ts"));
 const {
+  getNextReservoirHistoryVisitSequence,
   resolveReservoirHistoryVisit,
   truncateReservoirHistoryAtVisit,
 } = require(path.join(
@@ -110,8 +115,7 @@ assert.equal(resolvePublicRoute(["unknown-slug"]).kind, "not-found");
 assert.deepEqual(
   resolvePublicRoute(["digital-reservoir", "bellabeat-wellness-analysis"]),
   {
-    kind: "contextual-resource",
-    collectionId: ROOT_COLLECTION_ID,
+    kind: "redirect-resource",
     resourceId: ARTIFACT_IDS.bellabeat,
   },
 );
@@ -388,12 +392,21 @@ const closeInspectionPlan = planPublicRouteHistoryTransaction({
   mode: "back-or-replace",
   entryId: "unused-close-id",
 });
-assert.deepEqual(closeInspectionPlan, {
-  kind: "back",
-  expectedEntryId: repositoryQueryEntryId,
-});
+assert.equal(closeInspectionPlan.kind, "back");
+assert.equal(closeInspectionPlan.expectedEntryId, repositoryQueryEntryId);
+assert.equal(
+  closeInspectionPlan.expectedPath,
+  "/q/bellabeat-wellness-analysis-repository",
+);
 applyPublicRouteHistoryTransaction(fakeHistory, closeInspectionPlan);
 assert.equal(fakeHistory.state.entryId, repositoryQueryEntryId);
+assert.equal(
+  isPublicRouteHistoryBackSelectionMatch(
+    closeInspectionPlan,
+    getPublicRouteHistoryEntry(fakeHistory.state),
+  ),
+  true,
+);
 
 const interfaceBackPlan = planPublicRouteHistoryTransaction({
   currentEntry: getPublicRouteHistoryEntry(fakeHistory.state),
@@ -401,12 +414,17 @@ const interfaceBackPlan = planPublicRouteHistoryTransaction({
   mode: "back-or-push",
   entryId: "unused-interface-back-id",
 });
-assert.deepEqual(interfaceBackPlan, {
-  kind: "back",
-  expectedEntryId: originatingBellabeatEntryId,
-});
+assert.equal(interfaceBackPlan.kind, "back");
+assert.equal(interfaceBackPlan.expectedEntryId, originatingBellabeatEntryId);
 applyPublicRouteHistoryTransaction(fakeHistory, interfaceBackPlan);
 assert.equal(fakeHistory.state.entryId, originatingBellabeatEntryId);
+assert.equal(
+  isPublicRouteHistoryBackSelectionMatch(
+    interfaceBackPlan,
+    getPublicRouteHistoryEntry(fakeHistory.state),
+  ),
+  true,
+);
 
 const directInitialEntry = createPublicRouteHistoryEntry({
   entryId: "browser-entry-initial-resume",
@@ -424,6 +442,80 @@ const directInitialClosePlan = planPublicRouteHistoryTransaction({
 });
 assert.equal(directInitialClosePlan.kind, "replace");
 assert.equal(directInitialClosePlan.entry.entryId, directInitialEntry.entryId);
+
+const stalePredecessorHistory = createFakeBrowserHistory(
+  createPublicRouteHistoryEntry({
+    entryId: "browser-entry-stale-origin",
+    initial: true,
+    restoration: browserBellabeatReturnRestoration,
+  }),
+);
+applyPlannedTransaction(
+  stalePredecessorHistory,
+  "push",
+  browserRepositoryQueryRestoration,
+  "browser-entry-stale-query",
+);
+applyPlannedTransaction(
+  stalePredecessorHistory,
+  "push",
+  browserRepositoryInspectionRestoration,
+  "browser-entry-stale-inspection",
+);
+stalePredecessorHistory.back();
+stalePredecessorHistory.back();
+applyPlannedTransaction(
+  stalePredecessorHistory,
+  "replace",
+  browserRootRestoration,
+  "unused-root-replacement-id",
+);
+assert.equal(stalePredecessorHistory.state.path, "/");
+stalePredecessorHistory.forward();
+assert.equal(
+  stalePredecessorHistory.state.entryId,
+  "browser-entry-stale-query",
+);
+const stalePredecessorPlan = planPublicRouteHistoryTransaction({
+  currentEntry: getPublicRouteHistoryEntry(stalePredecessorHistory.state),
+  restoration: browserBellabeatReturnRestoration,
+  mode: "back-or-push",
+  entryId: "browser-entry-stale-fallback",
+});
+assert.equal(stalePredecessorPlan.kind, "back");
+applyPublicRouteHistoryTransaction(
+  stalePredecessorHistory,
+  stalePredecessorPlan,
+);
+const staleSelectedEntry = getPublicRouteHistoryEntry(
+  stalePredecessorHistory.state,
+);
+assert.equal(staleSelectedEntry.path, "/");
+assert.equal(
+  isPublicRouteHistoryBackSelectionMatch(
+    stalePredecessorPlan,
+    staleSelectedEntry,
+  ),
+  false,
+);
+const staleFallbackPlan = planPublicRouteHistoryBackFallback(
+  stalePredecessorPlan,
+  staleSelectedEntry,
+);
+assert.equal(staleFallbackPlan.kind, "push");
+applyPublicRouteHistoryTransaction(
+  stalePredecessorHistory,
+  staleFallbackPlan,
+);
+assert.equal(
+  stalePredecessorHistory.state.entryId,
+  "browser-entry-stale-fallback",
+);
+assert.equal(
+  stalePredecessorHistory.state.path,
+  "/bellabeat-wellness-analysis",
+);
+assert.equal(stalePredecessorHistory.entries.length, 2);
 
 const repeatedQueryFrame = {
   ...repositoryQueryFrame,
@@ -477,6 +569,78 @@ assert.deepEqual(
   getPublicRouteHistoryEntry(serializedEntry, serializedEntry.path),
   samePathPlan.entry,
 );
+const ownedQueryReload = getBrowserEntryRecoveryDecision({
+  state: JSON.parse(
+    JSON.stringify(
+      createPublicRouteHistoryEntry({
+        entryId: "browser-entry-owned-query-reload",
+        initial: false,
+        restoration: browserRepositoryQueryRestoration,
+      }),
+    ),
+  ),
+  selectedPath: "/q/bellabeat-wellness-analysis-repository",
+  route: resolvePublicRoute([
+    "q",
+    "bellabeat-wellness-analysis-repository",
+  ]),
+  replacementEntryId: "unused-owned-query-reload-id",
+});
+assert.equal(ownedQueryReload.kind, "restore");
+assert.equal(ownedQueryReload.entry.entryId, "browser-entry-owned-query-reload");
+assert.equal(
+  ownedQueryReload.entry.restoration.reservoirHistory.at(-1).id,
+  repositoryQueryVisitId,
+);
+assert.deepEqual(
+  ownedQueryReload.entry.restoration.reservoirHistory[0].inspectionReturn,
+  bellabeatReturnFrame,
+);
+const ownedInspectionReload = getBrowserEntryRecoveryDecision({
+  state: JSON.parse(
+    JSON.stringify(
+      createPublicRouteHistoryEntry({
+        entryId: "browser-entry-owned-inspection-reload",
+        initial: false,
+        restoration: browserRepositoryInspectionRestoration,
+      }),
+    ),
+  ),
+  selectedPath: "/bellabeat-wellness-analysis-repository",
+  route: resolvePublicRoute(["bellabeat-wellness-analysis-repository"]),
+  replacementEntryId: "unused-owned-inspection-reload-id",
+});
+assert.equal(ownedInspectionReload.kind, "restore");
+assert.equal(
+  ownedInspectionReload.entry.restoration.reservoirHistory.at(-1).id,
+  repositoryQueryVisitId,
+);
+const firstSamePathReload = getBrowserEntryRecoveryDecision({
+  state: createPublicRouteHistoryEntry({
+    entryId: "browser-entry-first-same-path-reload",
+    initial: false,
+    restoration: browserRepositoryInspectionRestoration,
+  }),
+  selectedPath: "/bellabeat-wellness-analysis-repository",
+  route: resolvePublicRoute(["bellabeat-wellness-analysis-repository"]),
+  replacementEntryId: "unused-first-same-path-id",
+});
+const secondSamePathReload = getBrowserEntryRecoveryDecision({
+  state: createPublicRouteHistoryEntry({
+    entryId: "browser-entry-second-same-path-reload",
+    initial: false,
+    restoration: repeatedRepositoryInspectionRestoration,
+  }),
+  selectedPath: "/bellabeat-wellness-analysis-repository",
+  route: resolvePublicRoute(["bellabeat-wellness-analysis-repository"]),
+  replacementEntryId: "unused-second-same-path-id",
+});
+assert.equal(firstSamePathReload.kind, "restore");
+assert.equal(secondSamePathReload.kind, "restore");
+assert.notEqual(
+  firstSamePathReload.entry.restoration.reservoirHistory.at(-1).id,
+  secondSamePathReload.entry.restoration.reservoirHistory.at(-1).id,
+);
 assert.equal(
   getPublicRouteHistoryEntry(
     { ...serializedEntry, path: "/resume" },
@@ -507,6 +671,7 @@ const staleIntent = createBrowserRestorationIntent(
 const latestIntent = createBrowserRestorationIntent(samePathPlan.entry, 8);
 assert.equal(isCurrentBrowserRestorationIntent(staleIntent, 8), false);
 assert.equal(isCurrentBrowserRestorationIntent(latestIntent, 8), true);
+assert.equal(latestIntent.entry, samePathPlan.entry);
 assert.equal(latestIntent.path, samePathPlan.entry.path);
 
 const legacyRecovery = getBrowserEntryRecoveryDecision({
@@ -528,6 +693,20 @@ const invalidOwnedRecovery = getBrowserEntryRecoveryDecision({
 assert.equal(invalidOwnedRecovery.kind, "reinitialize");
 assert.equal(invalidOwnedRecovery.reason, "invalid-owned-entry");
 assert.equal(invalidOwnedRecovery.entry.path, "/resume");
+const invalidOwnedRecoveryHistory = createFakeBrowserHistory({
+  ...serializedEntry,
+  path: "/resume",
+});
+applyPublicRouteHistoryTransaction(invalidOwnedRecoveryHistory, {
+  kind: "replace",
+  entry: invalidOwnedRecovery.entry,
+});
+assert.equal(invalidOwnedRecoveryHistory.entries.length, 1);
+assert.equal(
+  invalidOwnedRecoveryHistory.state.entryId,
+  invalidOwnedRecovery.entry.entryId,
+);
+assert.equal(invalidOwnedRecoveryHistory.state.path, "/resume");
 assert.deepEqual(
   getBrowserEntryRecoveryDecision({
     state: null,
@@ -546,6 +725,51 @@ assert.deepEqual(
   }),
   { kind: "redirect-root" },
 );
+assert.deepEqual(
+  getBrowserEntryRecoveryDecision({
+    state: null,
+    selectedPath: "/digital-reservoir/bellabeat-wellness-analysis",
+    route: resolvePublicRoute([
+      "digital-reservoir",
+      "bellabeat-wellness-analysis",
+    ]),
+    replacementEntryId: "unused-resource-redirect-id",
+  }),
+  {
+    kind: "redirect-resource",
+    path: "/bellabeat-wellness-analysis",
+  },
+);
+
+const recoveryGuardKey = createBrowserRecoveryGuardKey({
+  entryId: "browser-entry-broken",
+  path: "/bellabeat-wellness-analysis-repository",
+  reason: "convergence-mismatch",
+});
+const firstRecoveryAttempt = advanceBrowserRecoveryGuard(
+  null,
+  recoveryGuardKey,
+);
+const repeatedRecoveryAttempt = advanceBrowserRecoveryGuard(
+  firstRecoveryAttempt.guard,
+  recoveryGuardKey,
+);
+const distinctRecoveryAttempt = advanceBrowserRecoveryGuard(
+  repeatedRecoveryAttempt.guard,
+  createBrowserRecoveryGuardKey({
+    entryId: "browser-entry-other",
+    path: "/resume",
+    reason: "unavailable-inspection-target",
+  }),
+);
+assert.deepEqual(firstRecoveryAttempt, {
+  guard: { key: recoveryGuardKey, attempts: 1 },
+  exhausted: false,
+});
+assert.equal(repeatedRecoveryAttempt.guard.attempts, 2);
+assert.equal(repeatedRecoveryAttempt.exhausted, true);
+assert.equal(distinctRecoveryAttempt.guard.attempts, 1);
+assert.equal(distinctRecoveryAttempt.exhausted, false);
 
 const routeDerivedQuery = createRouteRestorationDescriptor(
   resolvePublicRoute(["q", "bellabeat-wellness-analysis-repository"]),
@@ -606,6 +830,14 @@ assert.equal(
 assert.equal(
   browserRepositoryInspectionRestoration.reservoirHistory.at(-1).id,
   repositoryQueryVisitId,
+);
+assert.equal(
+  getNextReservoirHistoryVisitSequence([
+    browserRootFrame,
+    { ...repositoryQueryFrame, id: "reservoir-visit-2" },
+    { ...repositoryQueryFrame, id: "reservoir-visit-9" },
+  ]),
+  10,
 );
 
 console.log("Public routing validation passed.");

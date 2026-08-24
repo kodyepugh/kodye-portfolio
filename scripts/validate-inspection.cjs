@@ -143,8 +143,10 @@ const {
 const {
   areInspectionReturnFramesPracticallyEquivalent,
   createInspectionReturnFrame,
+  getBoundedInspectionReturnFrame,
   getInspectionReturnPostContentOffset,
   getInspectionReturnScrollY,
+  isInspectionCloseControlVisibleInViewport,
 } = require(path.join(
   projectRoot,
   "lib/reservoir/inspection-return.ts",
@@ -902,6 +904,28 @@ const boundedInspectionReturnFrame = createInspectionReturnFrame(
   -40,
   1.8,
 );
+const geometryClampedInspectionReturnFrame = getBoundedInspectionReturnFrame(
+  createInspectionReturnFrame(supportSourceResource.id, 1200, 0.75),
+  320,
+  240,
+);
+const geometryClampedAppliedFrame = createInspectionReturnFrame(
+  supportSourceResource.id,
+  319.5,
+  0.7505,
+);
+const visibleInspectionCloseRect = {
+  top: 18,
+  right: 1180,
+  bottom: 62,
+  left: 1136,
+};
+const hiddenInspectionCloseRect = {
+  top: -62,
+  right: 1180,
+  bottom: -18,
+  left: 1136,
+};
 const inspectionReturnOwnershipSnapshot = JSON.stringify({
   source: supportSourceResource,
   target: supportTargetResource,
@@ -1497,24 +1521,32 @@ const checks = [
       ),
   ],
   [
-    "shared Inspection chassis gates Back to Top on close-button visibility",
-    inspectionSource.includes('className="inspection-window__back-to-top"') &&
+    "shared Inspection chassis derives Back to Top visibility from current close-control geometry",
+    isInspectionCloseControlVisibleInViewport(
+      visibleInspectionCloseRect,
+      1200,
+      800,
+    ) &&
+      !isInspectionCloseControlVisibleInViewport(
+        hiddenInspectionCloseRect,
+        1200,
+        800,
+      ) &&
+      !isInspectionCloseControlVisibleInViewport(
+        visibleInspectionCloseRect,
+        1200,
+        0,
+      ) &&
+      inspectionSource.includes('className="inspection-window__back-to-top"') &&
       inspectionSource.includes('aria-label="Back to top"') &&
       inspectionSource.includes("updatePostContentOffset(0)") &&
-      inspectionSource.includes("IntersectionObserver") &&
-      inspectionSource.includes("closeButtonVisibleInViewport") &&
-      inspectionSource.includes("useState<boolean | null>(null)") &&
-      inspectionSource.includes(
-        "const showBackToTop = closeButtonVisibleInViewport === false;",
-      ) &&
-      inspectionSource.includes("{phase === \"reading\" ? (") &&
+      inspectionSource.includes("isInspectionCloseControlVisibleInViewport") &&
+      inspectionSource.includes('window.addEventListener("scroll"') &&
+      inspectionSource.includes('window.addEventListener("resize"') &&
+      inspectionSource.includes("ResizeObserver") &&
       inspectionSource.includes("disabled={!showBackToTop}") &&
-      inspectionSource.includes(
-        "data-back-to-top-visible={showBackToTop}",
-      ) &&
-      inspectionStyles.includes("grid-column: 3") &&
-      inspectionStyles.includes("grid-row: 2") &&
-      inspectionStyles.includes("grid-column: 2") &&
+      inspectionSource.includes("aria-hidden={!showBackToTop}") &&
+      inspectionSource.includes("closeButtonRef.current?.focus") &&
       inspectionStyles.includes("visibility: hidden;") &&
       inspectionStyles.includes("pointer-events: none;") &&
       inspectionStyles.includes(
@@ -1667,11 +1699,21 @@ const checks = [
       ) === null,
   ],
   [
-    "AQ Inspection return reading state is bounded and restores proportionally",
+    "AQ Inspection return reading state converges against bounded current geometry",
     boundedInspectionReturnFrame.scrollY === 0 &&
       boundedInspectionReturnFrame.postContentProgress === 1 &&
       getInspectionReturnScrollY(inspectionReturnFrame, 400) === 400 &&
       getInspectionReturnPostContentOffset(inspectionReturnFrame, 600) === 300 &&
+      geometryClampedInspectionReturnFrame.scrollY === 320 &&
+      geometryClampedInspectionReturnFrame.postContentProgress === 0.75 &&
+      areInspectionReturnFramesPracticallyEquivalent(
+        geometryClampedInspectionReturnFrame,
+        geometryClampedAppliedFrame,
+      ) &&
+      !areInspectionReturnFramesPracticallyEquivalent(
+        createInspectionReturnFrame(supportSourceResource.id, 1200, 0.75),
+        geometryClampedAppliedFrame,
+      ) &&
       areInspectionReturnFramesPracticallyEquivalent(
         inspectionReturnFrame,
         { ...inspectionReturnFrame, scrollY: 739.5 },

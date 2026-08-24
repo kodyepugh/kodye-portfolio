@@ -43,6 +43,7 @@ export type PublicRouteHistoryEntry = {
 
 export type BrowserRestorationIntent = {
   revision: number;
+  entry: PublicRouteHistoryEntry;
   entryId: string;
   path: string;
   restoration: PublicRouteRestorationDescriptor;
@@ -57,9 +58,22 @@ export type PublicRouteHistoryTransactionMode =
 
 export type PublicRouteHistoryTransactionPlan =
   | { kind: "push" | "replace"; entry: PublicRouteHistoryEntry }
-  | { kind: "back"; expectedEntryId: string }
+  | PublicRouteHistoryBackTransaction
   | { kind: "no-write"; entry: PublicRouteHistoryEntry | null }
   | { kind: "invalid" };
+
+export type PublicRouteHistoryBackTransaction = {
+  kind: "back";
+  expectedEntryId: string;
+  expectedPath: string;
+  expectedRestorationFingerprint: string;
+  fallback: {
+    mode: "push" | "replace";
+    restoration: PublicRouteRestorationDescriptor;
+    entryId: string;
+    initial: boolean;
+  };
+};
 
 type PublicRouteHistoryPort = Pick<
   History,
@@ -76,7 +90,13 @@ export type BrowserEntryRecoveryDecision =
       reason: "invalid-owned-entry" | "legacy-entry";
     }
   | { kind: "redirect-root" }
+  | { kind: "redirect-resource"; path: string }
   | { kind: "hard-reload"; path: string };
+
+export type BrowserRecoveryGuard = {
+  key: string;
+  attempts: number;
+};
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -324,7 +344,11 @@ export function createRouteRestorationDescriptor(
   route: PublicRoute,
   entryId: string,
 ): PublicRouteRestorationDescriptor | null {
-  if (route.kind === "not-found" || route.kind === "redirect-root") {
+  if (
+    route.kind === "not-found" ||
+    route.kind === "redirect-root" ||
+    route.kind === "redirect-resource"
+  ) {
     return null;
   }
   const rootContext: ReservoirContext = {
@@ -475,6 +499,7 @@ export function createBrowserRestorationIntent(
 ): BrowserRestorationIntent {
   return {
     revision,
+    entry,
     entryId: entry.entryId,
     path: entry.path,
     restoration: entry.restoration,
@@ -497,16 +522,19 @@ export function planPublicRouteHistoryTransaction({
   mode,
   entryId,
   initial = false,
+  allowNoWrite = true,
 }: {
   currentEntry: PublicRouteHistoryEntry | null;
   restoration: PublicRouteRestorationDescriptor;
   mode: PublicRouteHistoryTransactionMode;
   entryId: string;
   initial?: boolean;
+  allowNoWrite?: boolean;
 }): PublicRouteHistoryTransactionPlan {
   const path = getPublicRouteRestorationPath(restoration);
   if (!path) return { kind: "invalid" };
   if (
+    allowNoWrite &&
     currentEntry?.path === path &&
     arePublicRouteRestorationsEqual(currentEntry.restoration, restoration)
   ) {
@@ -515,6 +543,12 @@ export function planPublicRouteHistoryTransaction({
 
   const restorationFingerprint =
     getPublicRouteRestorationFingerprint(restoration);
+  const fallbackMode =
+    mode === "back-or-replace"
+      ? "replace"
+      : mode === "back-or-push"
+        ? "push"
+        : mode;
   if (
     (mode === "back-or-push" || mode === "back-or-replace") &&
     currentEntry?.predecessor?.restorationFingerprint ===
@@ -523,15 +557,17 @@ export function planPublicRouteHistoryTransaction({
     return {
       kind: "back",
       expectedEntryId: currentEntry.predecessor.entryId,
+      expectedPath: path,
+      expectedRestorationFingerprint: restorationFingerprint,
+      fallback: {
+        mode: fallbackMode,
+        restoration,
+        entryId,
+        initial,
+      },
     };
   }
 
-  const fallbackMode =
-    mode === "back-or-replace"
-      ? "replace"
-      : mode === "back-or-push"
-        ? "push"
-        : mode;
   const predecessor =
     fallbackMode === "push" && currentEntry
       ? {
@@ -554,6 +590,69 @@ export function planPublicRouteHistoryTransaction({
     predecessor,
   });
   return { kind: fallbackMode, entry };
+}
+
+export function isPublicRouteHistoryBackSelectionMatch(
+  transaction: PublicRouteHistoryBackTransaction,
+  selectedEntry: PublicRouteHistoryEntry | null,
+) {
+  return Boolean(
+    selectedEntry &&
+      selectedEntry.entryId === transaction.expectedEntryId &&
+      selectedEntry.path === transaction.expectedPath &&
+      getPublicRouteRestorationFingerprint(selectedEntry.restoration) ===
+        transaction.expectedRestorationFingerprint,
+  );
+}
+
+export function planPublicRouteHistoryBackFallback(
+  transaction: PublicRouteHistoryBackTransaction,
+  selectedEntry: PublicRouteHistoryEntry | null,
+) {
+  return planPublicRouteHistoryTransaction({
+    currentEntry: selectedEntry,
+    restoration: transaction.fallback.restoration,
+    mode: transaction.fallback.mode,
+    entryId: transaction.fallback.entryId,
+    initial: transaction.fallback.initial,
+    allowNoWrite: false,
+  });
+}
+
+export function createBrowserRecoveryGuardKey({
+  entryId,
+  path,
+  reason,
+}: {
+  entryId: string;
+  path: string;
+  reason: string;
+}) {
+  return JSON.stringify([entryId, path, reason]);
+}
+
+export function advanceBrowserRecoveryGuard(
+  currentGuard: BrowserRecoveryGuard | null,
+  key: string,
+) {
+  const attempts = currentGuard?.key === key ? currentGuard.attempts + 1 : 1;
+  return {
+    guard: { key, attempts },
+    exhausted: attempts > 1,
+  };
+}
+
+export function isBrowserRecoveryGuard(
+  value: unknown,
+): value is BrowserRecoveryGuard {
+  if (!value || typeof value !== "object") return false;
+  const guard = value as Partial<BrowserRecoveryGuard>;
+  return (
+    typeof guard.key === "string" &&
+    typeof guard.attempts === "number" &&
+    Number.isInteger(guard.attempts) &&
+    guard.attempts > 0
+  );
 }
 
 export function applyPublicRouteHistoryTransaction(
@@ -593,6 +692,12 @@ export function getBrowserEntryRecoveryDecision({
   replacementEntryId: string;
 }): BrowserEntryRecoveryDecision {
   if (route.kind === "redirect-root") return { kind: "redirect-root" };
+  if (route.kind === "redirect-resource") {
+    const resource = getResourceById(route.resourceId);
+    return resource?.published === true
+      ? { kind: "redirect-resource", path: `/${resource.slug}` }
+      : { kind: "hard-reload", path: selectedPath };
+  }
   if (route.kind === "not-found") {
     return { kind: "hard-reload", path: selectedPath };
   }

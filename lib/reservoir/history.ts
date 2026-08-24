@@ -21,6 +21,18 @@ export type ReservoirHistoryVisitResolution = {
   activeContextMatches: boolean;
 };
 
+export function getNextReservoirHistoryVisitSequence(
+  history: readonly ReservoirHistoryFrame[],
+) {
+  return Math.max(
+    1,
+    ...history.map((frame) => {
+      const match = /^reservoir-visit-(\d+)$/.exec(frame.id);
+      return match ? Number(match[1]) + 1 : 1;
+    }),
+  );
+}
+
 function areReservoirContextsEqual(
   left: ReservoirContext,
   right: ReservoirContext,
