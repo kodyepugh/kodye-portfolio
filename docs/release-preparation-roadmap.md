@@ -115,7 +115,11 @@ Direct Resource initialization follows the same active-Reservoir rule as Index a
 footer selection: when the requested Resource is already represented by the
 initialized active Reservoir, the shared coordinator selects that existing node,
 rotates it to the canonical forehead point, and opens Inspection without creating
-a Query Reservoir. An absent Resource uses the established direct Resource → Query
+a Query Reservoir. For a valid contextual Resource route, that reuse is eligible
+only when the active Collection matches the Collection encoded by the URL; a
+different active Collection is reconstituted first and the same existing node is
+then focused and opened. Existing matching Collection history is reused rather
+than duplicated. An absent Resource uses the established direct Resource → Query
 Reservoir path. Explicit `/q/<resource-slug>` routes always retain their derived
 single-result Query Reservoir meaning.
 

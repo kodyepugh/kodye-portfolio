@@ -110,6 +110,10 @@ import {
   type ReservoirHistoryFrame,
 } from "@/lib/reservoir/history";
 import { getReservoirResourceSelectionAction } from "@/lib/reservoir/resource-selection";
+import {
+  canReuseActiveReservoirResource,
+  resolveContextualResourceHistory,
+} from "@/lib/reservoir/direct-resource-routing";
 import { canInspectResource } from "@/lib/reservoir/inspection";
 import {
   canConsumeDirectResourceInspectionIntent,
@@ -206,6 +210,11 @@ type FocalInspectionIntent = IndexInspectionIntent & {
 
 type FocalInspectionRotation = FocalInspectionIntent & {
   targetQuaternion: QuaternionTuple;
+};
+
+type ContextualResourceFocusIntent = {
+  resourceId: string;
+  collectionId: string;
 };
 
 type ReservoirLayoutPlacementPolicy =
@@ -1266,6 +1275,11 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     useRef<InspectionReturnFrame | null>(null);
   const pendingInspectionReturnFrameRef =
     useRef<InspectionReturnFrame | null>(null);
+  const pendingContextualResourceFocusRef =
+    useRef<ContextualResourceFocusIntent | null>(null);
+  const focusActiveReservoirResourceRef = useRef<
+    (resourceId: string, origin: FocalInspectionOrigin) => boolean
+  >(() => false);
   const beginResourceInspectionRef = useRef<
     (resourceId: string, allowLocatedTransition?: boolean) => boolean
   >(() => false);
@@ -1276,6 +1290,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       returnContextOverride?: ReservoirContext,
       openInspection?: boolean,
       preferActiveReservoir?: boolean,
+      requestedCollectionId?: string,
     ) => boolean
   >(() => false);
   const requestCollectionRef = useRef<
@@ -3509,6 +3524,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     setSelectedPressActive(false);
     return rotateResourceToCanonicalForehead(resourceId, origin);
   }
+  focusActiveReservoirResourceRef.current = focusActiveReservoirResource;
 
   useEffect(() => {
     if (!focalInspectionRotation) return;
@@ -3593,6 +3609,42 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
   }, [
     layoutOwnership.activeLayout,
     pendingFocalInspection,
+    transitionState,
+  ]);
+
+  useEffect(() => {
+    const pendingContextualResourceFocus =
+      pendingContextualResourceFocusRef.current;
+    if (
+      !pendingContextualResourceFocus ||
+      transitionState !== "idle" ||
+      collectionNavigation.transitionPhase !== "idle" ||
+      layoutOwnership.transitionPlan !== null
+    ) {
+      return;
+    }
+
+    const { resourceId, collectionId } = pendingContextualResourceFocus;
+    const activeContext = queryReservoirContext ?? collectionReservoirContext;
+    if (
+      activeContext.kind !== "collection" ||
+      activeContext.collectionId !== collectionId
+    ) {
+      return;
+    }
+
+    pendingContextualResourceFocusRef.current = null;
+    if (!focusActiveReservoirResourceRef.current(resourceId, "route")) {
+      if (interaction.current) {
+        interaction.current.dataset.directResourceRequestResult =
+          "rejected-contextual-active-reservoir";
+      }
+    }
+  }, [
+    collectionNavigation.transitionPhase,
+    collectionReservoirContext,
+    layoutOwnership.transitionPlan,
+    queryReservoirContext,
     transitionState,
   ]);
 
@@ -4069,6 +4121,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     returnContextOverride?: ReservoirContext,
     openInspection = true,
     preferActiveReservoir = true,
+    requestedCollectionId?: string,
   ) {
     setPendingDirectInspectionIntent(null);
     const resource = getResourceByAddress(resourceAddress);
@@ -4093,7 +4146,16 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       return false;
     }
 
-    if (preferActiveReservoir && openInspection) {
+    const returnContext =
+      returnContextOverride ?? queryReservoirContext ?? collectionReservoirContext;
+    const activeResourceReuseEligible = canReuseActiveReservoirResource({
+      resourceId: resource.id,
+      activeContext: renderedReservoirContext,
+      activeResourceIds: activeReservoirResources.map((node) => node.id),
+      requestedCollectionId: requestedCollectionId,
+    });
+
+    if (preferActiveReservoir && openInspection && activeResourceReuseEligible) {
       const currentVisit = reservoirHistoryRef.current.at(-1);
       if (!currentVisit) return false;
 
@@ -4126,9 +4188,64 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       }
     }
 
+    if (
+      preferActiveReservoir &&
+      openInspection &&
+      requestedCollectionId &&
+      returnContext.kind === "collection" &&
+      !(
+        renderedReservoirContext.kind === "collection" &&
+        renderedReservoirContext.collectionId === requestedCollectionId
+      )
+    ) {
+      const currentHistory = reservoirHistoryRef.current;
+      const currentVisit = currentHistory.at(-1);
+      if (!currentVisit) return false;
+
+      const historyWithTargetContext = resolveContextualResourceHistory(
+        currentHistory,
+        requestedCollectionId,
+        createReservoirHistoryFrame,
+      );
+      if (!historyWithTargetContext) return false;
+      const historyWithInspectionReturn = inspectionReturnFrame
+        ? setInspectionReturnForReservoirVisit(
+            historyWithTargetContext,
+            currentVisit.id,
+            inspectionReturnFrame,
+          )
+        : historyWithTargetContext;
+
+      pendingReservoirHistoryResolutionRef.current = {
+        history: historyWithInspectionReturn,
+        spatialSelectionId: null,
+      };
+      pendingContextualResourceFocusRef.current = {
+        resourceId: resource.id,
+        collectionId: requestedCollectionId,
+      };
+      setInspectionReturnRuntime(null);
+      if (!requestCollection(requestedCollectionId)) {
+        pendingReservoirHistoryResolutionRef.current = null;
+        pendingContextualResourceFocusRef.current = null;
+        return false;
+      }
+
+      if (interaction.current) {
+        interaction.current.dataset.directResourceRequest = resourceAddress;
+        interaction.current.dataset.directResourceRequestResult =
+          "active-reservoir-after-contextual-reconstitution";
+        interaction.current.dataset.directResourceRequestMode =
+          "contextual-collection-reconstitution";
+        interaction.current.dataset.directResourceResolvedId = resource.id;
+        interaction.current.dataset.directResourceArtifactStatus = String(
+          resource.isArtifact,
+        );
+      }
+      return true;
+    }
+
     pendingInspectionNavigationTargetRef.current = null;
-    const returnContext =
-      returnContextOverride ?? queryReservoirContext ?? collectionReservoirContext;
     const targetContext: ReservoirContext = {
       kind: "query",
       resultIds: [resource.id],
@@ -4251,6 +4368,9 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         undefined,
         initialRouteOpensInspection,
         initialRoute.kind !== "query-resource",
+        initialRoute.kind === "contextual-resource"
+          ? initialRoute.collectionId
+          : undefined,
       )) {
         initialRouteStartedRef.current = true;
         return;
@@ -4342,6 +4462,9 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         returnContext,
         route.kind !== "query-resource",
         route.kind !== "query-resource",
+        route.kind === "contextual-resource"
+          ? route.collectionId
+          : undefined,
       )) {
         suppressNextBrowserHistoryWriteRef.current = false;
       }
