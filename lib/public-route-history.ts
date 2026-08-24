@@ -21,6 +21,16 @@ import type { ReservoirContext } from "@/types/reservoir";
 export const PUBLIC_ROUTE_HISTORY_STATE_KEY = "digitalReservoirPublicRoute";
 export const PUBLIC_ROUTE_HISTORY_SCHEMA_VERSION = 2;
 
+const PUBLIC_ROUTE_HISTORY_OWNED_STATE_KEYS = [
+  PUBLIC_ROUTE_HISTORY_STATE_KEY,
+  "schemaVersion",
+  "entryId",
+  "path",
+  "initial",
+  "restoration",
+  "predecessor",
+] as const;
+
 export type PublicRouteRestorationDescriptor = {
   reservoirHistory: ReservoirHistoryFrame[];
   inspectedResourceId: string | null;
@@ -74,6 +84,11 @@ export type PublicRouteHistoryBackTransaction = {
     initial: boolean;
   };
 };
+
+export type PublicRouteHistoryBackHandoffDecision =
+  | "stale"
+  | "process-selection"
+  | "apply-fallback";
 
 type PublicRouteHistoryPort = Pick<
   History,
@@ -619,6 +634,23 @@ export function planPublicRouteHistoryBackFallback(
   });
 }
 
+export function getPublicRouteHistoryBackHandoffDecision({
+  transactionToken,
+  activeTransactionToken,
+  startingSelectionKey,
+  currentSelectionKey,
+}: {
+  transactionToken: number;
+  activeTransactionToken: number | null;
+  startingSelectionKey: string;
+  currentSelectionKey: string;
+}): PublicRouteHistoryBackHandoffDecision {
+  if (transactionToken !== activeTransactionToken) return "stale";
+  return startingSelectionKey === currentSelectionKey
+    ? "apply-fallback"
+    : "process-selection";
+}
+
 export function createBrowserRecoveryGuardKey({
   entryId,
   path,
@@ -655,6 +687,27 @@ export function isBrowserRecoveryGuard(
   );
 }
 
+export function stripPublicRouteHistoryState(state: unknown) {
+  const preservedState =
+    state && typeof state === "object"
+      ? { ...(state as Record<string, unknown>) }
+      : {};
+  for (const key of PUBLIC_ROUTE_HISTORY_OWNED_STATE_KEYS) {
+    delete preservedState[key];
+  }
+  return preservedState;
+}
+
+export function mergePublicRouteHistoryReplacementState(
+  state: unknown,
+  entry: PublicRouteHistoryEntry,
+) {
+  return {
+    ...stripPublicRouteHistoryState(state),
+    ...entry,
+  };
+}
+
 export function applyPublicRouteHistoryTransaction(
   history: PublicRouteHistoryPort,
   transaction: PublicRouteHistoryTransactionPlan,
@@ -664,10 +717,8 @@ export function applyPublicRouteHistoryTransaction(
     return transaction.entry;
   }
   if (transaction.kind === "replace") {
-    const existingState =
-      history.state && typeof history.state === "object" ? history.state : {};
     history.replaceState(
-      { ...existingState, ...transaction.entry },
+      mergePublicRouteHistoryReplacementState(history.state, transaction.entry),
       "",
       transaction.entry.path,
     );

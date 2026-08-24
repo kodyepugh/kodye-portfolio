@@ -135,6 +135,7 @@ import {
   createBrowserRecoveryGuardKey,
   createBrowserRestorationIntent,
   getBrowserEntryRecoveryDecision,
+  getPublicRouteHistoryBackHandoffDecision,
   getPublicRouteHistoryEntry,
   getPublicRouteRestorationFingerprint,
   isBrowserRecoveryGuard,
@@ -142,6 +143,7 @@ import {
   isPublicRouteHistoryBackSelectionMatch,
   planPublicRouteHistoryBackFallback,
   planPublicRouteHistoryTransaction,
+  stripPublicRouteHistoryState,
   type BrowserRecoveryGuard,
   type BrowserRestorationIntent,
   type PublicRouteHistoryBackTransaction,
@@ -176,6 +178,9 @@ const NODE_CLICK_MAX_TRAVEL = 6;
 const FOOTER_TRIGGER_OVERSCAN = 28;
 const LAYOUT_MODE_SWITCH_DURATION = 0.62;
 const INDEX_FOCAL_ROTATION_DURATION = 0.48;
+// Native history selection normally signals immediately; this only bounds a
+// suppressed or unavailable Back handoff without polling or retrying Back.
+const BROWSER_BACK_HANDOFF_TIMEOUT_MS = 800;
 const BROWSER_RECOVERY_GUARD_STORAGE_KEY =
   "digital-reservoir-browser-recovery";
 
@@ -452,6 +457,13 @@ type DirectResourceBrowserPolicy = "push-stable-states" | "reuse-selected-entry"
 
 type BrowserNavigationEntrySource = EventTarget & {
   currentEntry?: { key?: string };
+};
+
+type PendingBrowserBackHandoff = {
+  transaction: PublicRouteHistoryBackTransaction;
+  token: number;
+  startingSelectionKey: string;
+  timeoutId: number | null;
 };
 
 function getBrowserNavigationEntrySource(browserWindow: Window) {
@@ -1256,9 +1268,17 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     useState<BrowserRestorationDiagnostics | null>(null);
   const [browserRestorationSupersededCount, setBrowserRestorationSupersededCount] =
     useState(0);
-  const [browserBackTransactionPending, setBrowserBackTransactionPending] =
-    useState(false);
+  const [pendingBrowserBackToken, setPendingBrowserBackToken] = useState<
+    number | null
+  >(null);
   const [browserBackFallbackCount, setBrowserBackFallbackCount] = useState(0);
+  const [
+    browserBackNoSelectionFallbackCount,
+    setBrowserBackNoSelectionFallbackCount,
+  ] = useState(0);
+  const [browserBackMissedSelectionCount, setBrowserBackMissedSelectionCount] =
+    useState(0);
+  const [browserBackRequestCount, setBrowserBackRequestCount] = useState(0);
   const [activeBrowserEntryId, setActiveBrowserEntryId] = useState("");
   const [inspectionFooterReached, setInspectionFooterReached] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -1327,11 +1347,15 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     initialCollectionId === ROOT_COLLECTION_ID ? 1 : 2,
   );
   const browserEntrySequenceRef = useRef(0);
+  const browserBackTransactionSequenceRef = useRef(0);
   const browserRestorationRevisionRef = useRef(0);
   const browserSelectionKeyRef = useRef("");
   const browserWriteInProgressRef = useRef(false);
   const pendingBrowserBackTransactionRef =
-    useRef<PublicRouteHistoryBackTransaction | null>(null);
+    useRef<PendingBrowserBackHandoff | null>(null);
+  const processBrowserSelectionRef = useRef<
+    (state: unknown, expectedBackToken?: number) => void
+  >(() => {});
   const pendingBrowserRestorationIntentRef =
     useRef<BrowserRestorationIntent | null>(null);
   const browserRestorationHistoryAppliedRevisionRef = useRef<number | null>(
@@ -1401,11 +1425,41 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       ? `browser-entry-${randomId}`
       : `browser-entry-${Date.now().toString(36)}-${browserEntrySequenceRef.current}`;
   }, []);
+  const clearPendingBrowserBackHandoff = useCallback(
+    (expectedToken?: number) => {
+      const pendingHandoff = pendingBrowserBackTransactionRef.current;
+      if (
+        !pendingHandoff ||
+        (expectedToken !== undefined && pendingHandoff.token !== expectedToken)
+      ) {
+        return null;
+      }
+      if (pendingHandoff.timeoutId !== null) {
+        window.clearTimeout(pendingHandoff.timeoutId);
+      }
+      pendingBrowserBackTransactionRef.current = null;
+      setPendingBrowserBackToken(null);
+      return pendingHandoff;
+    },
+    [],
+  );
   const applyBrowserTransaction = useCallback(
     (transaction: PublicRouteHistoryTransactionPlan) => {
-      pendingBrowserBackTransactionRef.current =
-        transaction.kind === "back" ? transaction : null;
-      setBrowserBackTransactionPending(transaction.kind === "back");
+      clearPendingBrowserBackHandoff();
+      const startingSelectionKey = getBrowserSelectionKey(window);
+      if (transaction.kind === "back") {
+        browserBackTransactionSequenceRef.current += 1;
+        const token = browserBackTransactionSequenceRef.current;
+        pendingBrowserBackTransactionRef.current = {
+          transaction,
+          token,
+          startingSelectionKey,
+          timeoutId: null,
+        };
+        browserSelectionKeyRef.current = startingSelectionKey;
+        setPendingBrowserBackToken(token);
+        setBrowserBackRequestCount((currentCount) => currentCount + 1);
+      }
       browserWriteInProgressRef.current = true;
       let selectedEntry: PublicRouteHistoryEntry | null = null;
       try {
@@ -1414,13 +1468,15 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
           transaction,
         );
       } finally {
-        browserSelectionKeyRef.current = getBrowserSelectionKey(window);
+        if (transaction.kind !== "back") {
+          browserSelectionKeyRef.current = getBrowserSelectionKey(window);
+        }
         browserWriteInProgressRef.current = false;
       }
       if (selectedEntry) setActiveBrowserEntryId(selectedEntry.entryId);
       return selectedEntry;
     },
-    [],
+    [clearPendingBrowserBackHandoff],
   );
   const commitBrowserState = useCallback(
     (
@@ -1492,6 +1548,53 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       });
     },
     [],
+  );
+  const beginBrowserSelectionRevision = useCallback(() => {
+    browserRestorationRevisionRef.current += 1;
+    const revision = browserRestorationRevisionRef.current;
+    browserRestorationHistoryAppliedRevisionRef.current = null;
+    browserRestorationReadingInitializedRevisionRef.current = null;
+    browserRecoveryRevisionRef.current = null;
+    if (pendingBrowserRestorationIntentRef.current) {
+      setBrowserRestorationSupersededCount((currentCount) => currentCount + 1);
+    }
+    pendingBrowserRestorationIntentRef.current = null;
+    setPendingBrowserRestorationIntent(null);
+    return revision;
+  }, []);
+  const applyBrowserBackFallback = useCallback(
+    ({
+      transaction,
+      selectedEntry,
+      revision,
+      reason,
+    }: {
+      transaction: PublicRouteHistoryBackTransaction;
+      selectedEntry: PublicRouteHistoryEntry | null;
+      revision: number;
+      reason: string;
+    }) => {
+      const fallbackTransaction = planPublicRouteHistoryBackFallback(
+        transaction,
+        selectedEntry,
+      );
+      const fallbackEntry = applyBrowserTransaction(fallbackTransaction);
+      if (!fallbackEntry) {
+        setBrowserRestorationDiagnostics({
+          entryId: "",
+          phase: "failed",
+          targetContextKey: "",
+          targetResourceId: null,
+          deferredReason: `${reason}-invalid`,
+        });
+        window.location.replace(transaction.expectedPath);
+        return false;
+      }
+      setBrowserBackFallbackCount((currentCount) => currentCount + 1);
+      beginBrowserRestorationIntent(fallbackEntry, revision, reason);
+      return true;
+    },
+    [applyBrowserTransaction, beginBrowserRestorationIntent],
   );
   const commitReservoirHistory = useCallback(
     (history: ReservoirHistoryFrame[], browserWrite: "push" | "none") => {
@@ -2035,6 +2138,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     footerState === "opening" || footerState === "closing";
   const layoutModeTransitionActive =
     layoutModeTransitionState !== "idle";
+  const browserBackTransactionPending = pendingBrowserBackToken !== null;
   const inputLocked =
     transitionState !== "idle" ||
     layoutModeTransitionActive ||
@@ -4740,21 +4844,25 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
   ]);
 
   useEffect(() => {
-    function selectBrowserRoute(state: unknown) {
+    function selectBrowserRoute(
+      state: unknown,
+      expectedBackToken?: number,
+    ) {
       if (browserWriteInProgressRef.current) return;
+      const pendingBackHandoff = pendingBrowserBackTransactionRef.current;
+      if (
+        expectedBackToken !== undefined &&
+        pendingBackHandoff?.token !== expectedBackToken
+      ) {
+        return;
+      }
       const selectionKey = getBrowserSelectionKey(window);
       if (browserSelectionKeyRef.current === selectionKey) return;
       browserSelectionKeyRef.current = selectionKey;
-      browserRestorationRevisionRef.current += 1;
-      const revision = browserRestorationRevisionRef.current;
-      browserRestorationHistoryAppliedRevisionRef.current = null;
-      browserRestorationReadingInitializedRevisionRef.current = null;
-      browserRecoveryRevisionRef.current = null;
-      if (pendingBrowserRestorationIntentRef.current) {
-        setBrowserRestorationSupersededCount((currentCount) => currentCount + 1);
-      }
-      pendingBrowserRestorationIntentRef.current = null;
-      setPendingBrowserRestorationIntent(null);
+      const selectedBackHandoff = pendingBackHandoff
+        ? clearPendingBrowserBackHandoff(pendingBackHandoff.token)
+        : null;
+      const revision = beginBrowserSelectionRevision();
 
       const routePath = window.location.pathname;
       const route = resolvePublicRoute(
@@ -4774,33 +4882,20 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       setFocalInspectionRotation(null);
       setPendingFocalInspection(null);
 
-      const pendingBackTransaction =
-        pendingBrowserBackTransactionRef.current;
-      pendingBrowserBackTransactionRef.current = null;
-      setBrowserBackTransactionPending(false);
       const selectedEntry = getPublicRouteHistoryEntry(state, routePath);
       if (
-        pendingBackTransaction &&
+        selectedBackHandoff &&
         !isPublicRouteHistoryBackSelectionMatch(
-          pendingBackTransaction,
+          selectedBackHandoff.transaction,
           selectedEntry,
         )
       ) {
-        const fallbackTransaction = planPublicRouteHistoryBackFallback(
-          pendingBackTransaction,
+        applyBrowserBackFallback({
+          transaction: selectedBackHandoff.transaction,
           selectedEntry,
-        );
-        const fallbackEntry = applyBrowserTransaction(fallbackTransaction);
-        if (!fallbackEntry) {
-          window.location.replace(pendingBackTransaction.expectedPath);
-          return;
-        }
-        setBrowserBackFallbackCount((currentCount) => currentCount + 1);
-        beginBrowserRestorationIntent(
-          fallbackEntry,
           revision,
-          "stale-predecessor-fallback",
-        );
+          reason: "stale-predecessor-fallback",
+        });
         return;
       }
 
@@ -4847,6 +4942,8 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       );
     }
 
+    processBrowserSelectionRef.current = selectBrowserRoute;
+
     function visitBrowserRoute(event: PopStateEvent) {
       selectBrowserRoute(event.state);
     }
@@ -4865,6 +4962,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       visitBrowserNavigationEntry,
     );
     return () => {
+      processBrowserSelectionRef.current = () => {};
       window.removeEventListener("popstate", visitBrowserRoute);
       window.removeEventListener("pageshow", visitBrowserNavigationEntry);
       browserNavigation?.removeEventListener(
@@ -4873,9 +4971,74 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       );
     };
   }, [
+    applyBrowserBackFallback,
     applyBrowserTransaction,
+    beginBrowserSelectionRevision,
     beginBrowserRestorationIntent,
+    clearPendingBrowserBackHandoff,
     createBrowserEntryId,
+  ]);
+
+  useEffect(() => {
+    if (pendingBrowserBackToken === null) return;
+    const pendingHandoff = pendingBrowserBackTransactionRef.current;
+    if (!pendingHandoff || pendingHandoff.token !== pendingBrowserBackToken) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const activeHandoff = pendingBrowserBackTransactionRef.current;
+      const decision = getPublicRouteHistoryBackHandoffDecision({
+        transactionToken: pendingHandoff.token,
+        activeTransactionToken: activeHandoff?.token ?? null,
+        startingSelectionKey: pendingHandoff.startingSelectionKey,
+        currentSelectionKey: getBrowserSelectionKey(window),
+      });
+      if (decision === "stale") return;
+      if (decision === "process-selection") {
+        setBrowserBackMissedSelectionCount((currentCount) => currentCount + 1);
+        processBrowserSelectionRef.current(
+          window.history.state,
+          pendingHandoff.token,
+        );
+        return;
+      }
+
+      const unresolvedHandoff = clearPendingBrowserBackHandoff(
+        pendingHandoff.token,
+      );
+      if (!unresolvedHandoff) return;
+      setBrowserBackNoSelectionFallbackCount(
+        (currentCount) => currentCount + 1,
+      );
+      const revision = beginBrowserSelectionRevision();
+      applyBrowserBackFallback({
+        transaction: unresolvedHandoff.transaction,
+        selectedEntry: getPublicRouteHistoryEntry(
+          window.history.state,
+          window.location.pathname,
+        ),
+        revision,
+        reason: "back-selection-timeout-fallback",
+      });
+    }, BROWSER_BACK_HANDOFF_TIMEOUT_MS);
+    pendingHandoff.timeoutId = timeoutId;
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      const activeHandoff = pendingBrowserBackTransactionRef.current;
+      if (
+        activeHandoff?.token === pendingHandoff.token &&
+        activeHandoff.timeoutId === timeoutId
+      ) {
+        activeHandoff.timeoutId = null;
+      }
+    };
+  }, [
+    applyBrowserBackFallback,
+    beginBrowserSelectionRevision,
+    clearPendingBrowserBackHandoff,
+    pendingBrowserBackToken,
   ]);
 
   useEffect(() => {
@@ -4965,7 +5128,11 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         if (recoveryGuard.exhausted) {
           browserWriteInProgressRef.current = true;
           try {
-            window.history.replaceState(null, "", "/");
+            window.history.replaceState(
+              stripPublicRouteHistoryState(window.history.state),
+              "",
+              "/",
+            );
           } finally {
             browserSelectionKeyRef.current = getBrowserSelectionKey(window);
             browserWriteInProgressRef.current = false;
@@ -5852,7 +6019,15 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         browserRestorationSupersededCount
       }
       data-browser-back-transaction-pending={browserBackTransactionPending}
+      data-browser-back-transaction-token={pendingBrowserBackToken ?? ""}
+      data-browser-back-request-count={browserBackRequestCount}
       data-browser-back-fallback-count={browserBackFallbackCount}
+      data-browser-back-no-selection-fallback-count={
+        browserBackNoSelectionFallbackCount
+      }
+      data-browser-back-missed-selection-count={
+        browserBackMissedSelectionCount
+      }
       data-active-collection-id={collectionNavigation.activeCollectionId}
       data-rendered-active-collection-id={renderedActiveCollectionId}
       data-destination-collection-id={

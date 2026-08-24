@@ -33,6 +33,19 @@ Stored predecessor metadata is only an adjacency hint: after an asynchronous
 Back selection, the coordinator verifies the selected entry ID, path, and full
 restoration fingerprint before settling it. A mismatch commits the originally
 requested destination with the transaction's push-or-replace fallback policy.
+Each Back handoff also owns a unique token, its starting browser-selection key,
+and one bounded no-selection check. A matching selection signal cancels that
+check. If the key changed without a processed signal, the coordinator verifies
+and restores the currently selected entry through the same path; if the key did
+not change, it applies the retained fallback without issuing Back again. Newer
+transactions supersede older tokens, so a stale check cannot keep input locked
+or overwrite a newer selection.
+
+Every owned replacement strips the prior Digital Reservoir marker,
+`schemaVersion`, `entryId`, `path`, `initial`, `restoration`, and `predecessor`
+before applying the complete replacement entry. Unrelated browser, Next.js, and
+other state remains intact. An optional owned field omitted by the replacement
+therefore cannot survive from the prior entry.
 
 Owned-entry failure recovery replaces and reloads the selected entry in place;
 it does not append a recovery entry. A session-scoped guard permits one retry
@@ -84,6 +97,8 @@ reflow, image load, and post-content offset changes, with an
 | Older visit whose context equals the active context | Selected stored visit, including any return frame | Snapshot is applied directly; no redundant spatial transition is required |
 | Back/Forward while Index/footer or a semantic transition is active | Latest selected owned entry | Control planes close fully, stale continuations are revision-cancelled, and only the latest selection settles |
 | Stale predecessor hint selects the wrong adjacent entry | Requested final restoration committed with the retained fallback policy | Incorrect selected entry is not exposed as the interface action's settled result |
+| Back changes the selection but its event is missed | Currently selected owned entry verified and restored | No fallback entry or duplicate settled visit is created |
+| Back cannot move from the selected entry | Requested restoration committed with the retained fallback policy | One Back request, one bounded handoff check, and no permanent pending/input lock |
 | `/digital-reservoir/<root-member-resource>` | `/<resource>` | One server-owned canonical redirect; Back/Forward does not create duplicate settled visits |
 | Invalid descriptor/path pair, legacy state, unavailable target, or repeated restoration failure | Restore, reinitialize, redirect, or replace/reload according to bounded recovery policy | URL and rendered semantic state cannot remain divergent or loop indefinitely |
 
@@ -103,6 +118,22 @@ Bellabeat Inspection fallback branch. A valid adjacent predecessor still reused
 the original entry with no fallback. The root contextual Bellabeat URL performed
 one server-owned redirect to `/bellabeat-wellness-analysis`; refresh and
 Back/Forward produced no loop or duplicate settled visit.
+
+Replacement-state validation removed malformed and valid-but-stale predecessor
+metadata whenever the complete replacement omitted it, replaced every other
+owned field, retained unrelated framework and arbitrary state, and produced an
+entry accepted by the owned-entry parser. The repaired entry could not initiate
+Back from the removed predecessor. Browser recovery and direct-initial close
+confirmed the same preservation and sanitization behavior in place.
+
+The bounded Back handoff restored a valid adjacent selection normally and kept
+the existing wrong-adjacent fallback behavior. In the no-movement case it made
+exactly one Back request, applied exactly one retained fallback after the
+unchanged-key check, cleared the pending token, and unlocked input. With browser
+movement but selection listeners suppressed, it processed the changed current
+entry, left the fallback count and history length unchanged, converged the
+requested root state, and unlocked input. Deterministic token coverage rejects
+superseded callbacks.
 
 Deep, shallow, resized, and fully revealed terminal/footer reading frames
 converged against current bounded geometry without recovery. On restored deep

@@ -59,13 +59,16 @@ const {
   createPublicRouteHistoryEntry,
   createRouteRestorationDescriptor,
   getBrowserEntryRecoveryDecision,
+  getPublicRouteHistoryBackHandoffDecision,
   getPublicRouteHistoryEntry,
   getPublicRouteRestorationFingerprint,
   getPublicRouteRestorationPath,
   isCurrentBrowserRestorationIntent,
   isPublicRouteHistoryBackSelectionMatch,
+  mergePublicRouteHistoryReplacementState,
   planPublicRouteHistoryBackFallback,
   planPublicRouteHistoryTransaction,
+  stripPublicRouteHistoryState,
 } = require(path.join(projectRoot, "lib/public-route-history.ts"));
 const {
   getNextReservoirHistoryVisitSequence,
@@ -267,6 +270,7 @@ assert.equal(
 function createFakeBrowserHistory(initialEntry) {
   const entries = [initialEntry];
   let index = 0;
+  let backCallCount = 0;
   return {
     get state() {
       return entries[index];
@@ -277,6 +281,9 @@ function createFakeBrowserHistory(initialEntry) {
     get entries() {
       return entries;
     },
+    get backCallCount() {
+      return backCallCount;
+    },
     pushState(state) {
       entries.splice(index + 1, entries.length, state);
       index += 1;
@@ -285,12 +292,17 @@ function createFakeBrowserHistory(initialEntry) {
       entries[index] = state;
     },
     back() {
+      backCallCount += 1;
       index = Math.max(0, index - 1);
     },
     forward() {
       index = Math.min(entries.length - 1, index + 1);
     },
   };
+}
+
+function getFakeBrowserSelectionKey(history) {
+  return `${history.index}|${history.state?.entryId ?? "unowned"}|${history.state?.path ?? "unowned"}`;
 }
 
 function applyPlannedTransaction(history, mode, restoration, entryId) {
@@ -426,6 +438,145 @@ assert.equal(
   true,
 );
 
+const validAdjacentBackHistory = createFakeBrowserHistory(rootEntry);
+applyPlannedTransaction(
+  validAdjacentBackHistory,
+  "push",
+  browserBellabeatRestoration,
+  "browser-entry-valid-adjacent",
+);
+const validAdjacentBackPlan = planPublicRouteHistoryTransaction({
+  currentEntry: getPublicRouteHistoryEntry(validAdjacentBackHistory.state),
+  restoration: browserRootRestoration,
+  mode: "back-or-push",
+  entryId: "unused-valid-adjacent-id",
+});
+assert.equal(validAdjacentBackPlan.kind, "back");
+const validAdjacentStartingSelectionKey = getFakeBrowserSelectionKey(
+  validAdjacentBackHistory,
+);
+const validAdjacentEntryCount = validAdjacentBackHistory.entries.length;
+applyPublicRouteHistoryTransaction(
+  validAdjacentBackHistory,
+  validAdjacentBackPlan,
+);
+assert.equal(
+  getPublicRouteHistoryBackHandoffDecision({
+    transactionToken: 1,
+    activeTransactionToken: 1,
+    startingSelectionKey: validAdjacentStartingSelectionKey,
+    currentSelectionKey: getFakeBrowserSelectionKey(validAdjacentBackHistory),
+  }),
+  "process-selection",
+);
+assert.equal(
+  isPublicRouteHistoryBackSelectionMatch(
+    validAdjacentBackPlan,
+    getPublicRouteHistoryEntry(validAdjacentBackHistory.state),
+  ),
+  true,
+);
+assert.equal(validAdjacentBackHistory.entries.length, validAdjacentEntryCount);
+assert.equal(validAdjacentBackHistory.backCallCount, 1);
+
+const missedSelectionEventHistory = createFakeBrowserHistory(rootEntry);
+applyPlannedTransaction(
+  missedSelectionEventHistory,
+  "push",
+  browserBellabeatRestoration,
+  "browser-entry-missed-selection",
+);
+const missedSelectionEventPlan = planPublicRouteHistoryTransaction({
+  currentEntry: getPublicRouteHistoryEntry(missedSelectionEventHistory.state),
+  restoration: browserRootRestoration,
+  mode: "back-or-push",
+  entryId: "unused-missed-selection-id",
+});
+assert.equal(missedSelectionEventPlan.kind, "back");
+const missedSelectionStartingKey = getFakeBrowserSelectionKey(
+  missedSelectionEventHistory,
+);
+const missedSelectionEntryCount = missedSelectionEventHistory.entries.length;
+applyPublicRouteHistoryTransaction(
+  missedSelectionEventHistory,
+  missedSelectionEventPlan,
+);
+const missedSelectionDecision = getPublicRouteHistoryBackHandoffDecision({
+  transactionToken: 2,
+  activeTransactionToken: 2,
+  startingSelectionKey: missedSelectionStartingKey,
+  currentSelectionKey: getFakeBrowserSelectionKey(missedSelectionEventHistory),
+});
+assert.equal(missedSelectionDecision, "process-selection");
+assert.equal(
+  isPublicRouteHistoryBackSelectionMatch(
+    missedSelectionEventPlan,
+    getPublicRouteHistoryEntry(missedSelectionEventHistory.state),
+  ),
+  true,
+);
+assert.equal(
+  missedSelectionEventHistory.entries.length,
+  missedSelectionEntryCount,
+);
+assert.equal(missedSelectionEventHistory.backCallCount, 1);
+
+const noMovementTargetEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-no-movement-target",
+  initial: true,
+  restoration: browserBellabeatReturnRestoration,
+});
+const noMovementCurrentEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-no-movement-current",
+  initial: false,
+  restoration: browserRepositoryQueryRestoration,
+  predecessor: {
+    entryId: noMovementTargetEntry.entryId,
+    restorationFingerprint: getPublicRouteRestorationFingerprint(
+      noMovementTargetEntry.restoration,
+    ),
+  },
+});
+const noMovementHistory = createFakeBrowserHistory(noMovementCurrentEntry);
+const noMovementPlan = planPublicRouteHistoryTransaction({
+  currentEntry: getPublicRouteHistoryEntry(noMovementHistory.state),
+  restoration: noMovementTargetEntry.restoration,
+  mode: "back-or-push",
+  entryId: "browser-entry-no-movement-fallback",
+});
+assert.equal(noMovementPlan.kind, "back");
+const noMovementStartingKey = getFakeBrowserSelectionKey(noMovementHistory);
+applyPublicRouteHistoryTransaction(noMovementHistory, noMovementPlan);
+assert.equal(noMovementHistory.backCallCount, 1);
+assert.equal(
+  getPublicRouteHistoryBackHandoffDecision({
+    transactionToken: 3,
+    activeTransactionToken: 3,
+    startingSelectionKey: noMovementStartingKey,
+    currentSelectionKey: getFakeBrowserSelectionKey(noMovementHistory),
+  }),
+  "apply-fallback",
+);
+const noMovementFallback = planPublicRouteHistoryBackFallback(
+  noMovementPlan,
+  getPublicRouteHistoryEntry(noMovementHistory.state),
+);
+assert.equal(noMovementFallback.kind, "push");
+applyPublicRouteHistoryTransaction(noMovementHistory, noMovementFallback);
+assert.equal(noMovementHistory.state.path, noMovementPlan.expectedPath);
+assert.equal(noMovementHistory.entries.length, 2);
+assert.equal(noMovementHistory.backCallCount, 1);
+
+assert.equal(
+  getPublicRouteHistoryBackHandoffDecision({
+    transactionToken: 3,
+    activeTransactionToken: 4,
+    startingSelectionKey: noMovementStartingKey,
+    currentSelectionKey: getFakeBrowserSelectionKey(noMovementHistory),
+  }),
+  "stale",
+);
+
 const directInitialEntry = createPublicRouteHistoryEntry({
   entryId: "browser-entry-initial-resume",
   initial: true,
@@ -442,6 +593,113 @@ const directInitialClosePlan = planPublicRouteHistoryTransaction({
 });
 assert.equal(directInitialClosePlan.kind, "replace");
 assert.equal(directInitialClosePlan.entry.entryId, directInitialEntry.entryId);
+
+const unrelatedFrameworkState = {
+  __NA: true,
+  tree: ["router", { segment: "resume" }],
+};
+const malformedPredecessorReplacementState = {
+  ...unrelatedFrameworkState,
+  arbitraryTestField: { retained: true },
+  digitalReservoirPublicRoute: true,
+  schemaVersion: -1,
+  entryId: "browser-entry-obsolete",
+  path: "/obsolete",
+  initial: false,
+  restoration: { reservoirHistory: [], inspectedResourceId: "obsolete" },
+  predecessor: { entryId: 42, restorationFingerprint: null },
+};
+const sanitizedMalformedReplacement =
+  mergePublicRouteHistoryReplacementState(
+    malformedPredecessorReplacementState,
+    directInitialClosePlan.entry,
+  );
+assert.equal(sanitizedMalformedReplacement.__NA, true);
+assert.deepEqual(
+  sanitizedMalformedReplacement.tree,
+  unrelatedFrameworkState.tree,
+);
+assert.deepEqual(sanitizedMalformedReplacement.arbitraryTestField, {
+  retained: true,
+});
+assert.equal("predecessor" in sanitizedMalformedReplacement, false);
+for (const [key, value] of Object.entries(directInitialClosePlan.entry)) {
+  assert.deepEqual(sanitizedMalformedReplacement[key], value);
+}
+const parsedMalformedReplacement = getPublicRouteHistoryEntry(
+  sanitizedMalformedReplacement,
+  directInitialClosePlan.entry.path,
+);
+assert.ok(parsedMalformedReplacement);
+assert.equal(
+  parsedMalformedReplacement.entryId,
+  directInitialClosePlan.entry.entryId,
+);
+
+const validStalePredecessorState = {
+  ...directInitialEntry,
+  ...unrelatedFrameworkState,
+  predecessor: {
+    entryId: "browser-entry-stale-predecessor",
+    restorationFingerprint: "stale-restoration",
+  },
+};
+const validStaleReplacementHistory = createFakeBrowserHistory(
+  validStalePredecessorState,
+);
+applyPublicRouteHistoryTransaction(validStaleReplacementHistory, {
+  kind: "replace",
+  entry: directInitialClosePlan.entry,
+});
+assert.equal("predecessor" in validStaleReplacementHistory.state, false);
+assert.deepEqual(
+  validStaleReplacementHistory.state.tree,
+  unrelatedFrameworkState.tree,
+);
+const parsedSanitizedReplacement = getPublicRouteHistoryEntry(
+  validStaleReplacementHistory.state,
+  directInitialClosePlan.entry.path,
+);
+assert.ok(parsedSanitizedReplacement);
+const removedPredecessorPlan = planPublicRouteHistoryTransaction({
+  currentEntry: parsedSanitizedReplacement,
+  restoration: browserBellabeatReturnRestoration,
+  mode: "back-or-push",
+  entryId: "browser-entry-no-stale-back",
+});
+assert.equal(removedPredecessorPlan.kind, "push");
+
+const replacementWithNewPredecessor = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-new-predecessor",
+  initial: false,
+  restoration: browserRepositoryQueryRestoration,
+  predecessor: {
+    entryId: "browser-entry-new-origin",
+    restorationFingerprint: getPublicRouteRestorationFingerprint(
+      browserBellabeatReturnRestoration,
+    ),
+  },
+});
+const sanitizedNewPredecessorReplacement =
+  mergePublicRouteHistoryReplacementState(
+    validStalePredecessorState,
+    replacementWithNewPredecessor,
+  );
+assert.deepEqual(
+  sanitizedNewPredecessorReplacement.predecessor,
+  replacementWithNewPredecessor.predecessor,
+);
+const parsedNewPredecessorReplacement = getPublicRouteHistoryEntry(
+  sanitizedNewPredecessorReplacement,
+);
+assert.ok(parsedNewPredecessorReplacement);
+assert.deepEqual(
+  parsedNewPredecessorReplacement.predecessor,
+  replacementWithNewPredecessor.predecessor,
+);
+assert.deepEqual(stripPublicRouteHistoryState(validStalePredecessorState), {
+  ...unrelatedFrameworkState,
+});
 
 const stalePredecessorHistory = createFakeBrowserHistory(
   createPublicRouteHistoryEntry({
@@ -471,6 +729,7 @@ applyPlannedTransaction(
   "unused-root-replacement-id",
 );
 assert.equal(stalePredecessorHistory.state.path, "/");
+assert.equal("predecessor" in stalePredecessorHistory.state, false);
 stalePredecessorHistory.forward();
 assert.equal(
   stalePredecessorHistory.state.entryId,
@@ -483,9 +742,22 @@ const stalePredecessorPlan = planPublicRouteHistoryTransaction({
   entryId: "browser-entry-stale-fallback",
 });
 assert.equal(stalePredecessorPlan.kind, "back");
+const stalePredecessorStartingKey = getFakeBrowserSelectionKey(
+  stalePredecessorHistory,
+);
 applyPublicRouteHistoryTransaction(
   stalePredecessorHistory,
   stalePredecessorPlan,
+);
+assert.equal(stalePredecessorHistory.backCallCount, 3);
+assert.equal(
+  getPublicRouteHistoryBackHandoffDecision({
+    transactionToken: 5,
+    activeTransactionToken: 5,
+    startingSelectionKey: stalePredecessorStartingKey,
+    currentSelectionKey: getFakeBrowserSelectionKey(stalePredecessorHistory),
+  }),
+  "process-selection",
 );
 const staleSelectedEntry = getPublicRouteHistoryEntry(
   stalePredecessorHistory.state,
@@ -516,6 +788,7 @@ assert.equal(
   "/bellabeat-wellness-analysis",
 );
 assert.equal(stalePredecessorHistory.entries.length, 2);
+assert.equal(stalePredecessorHistory.backCallCount, 3);
 
 const repeatedQueryFrame = {
   ...repositoryQueryFrame,
