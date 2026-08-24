@@ -1253,6 +1253,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     initialCollectionId === ROOT_COLLECTION_ID ? 1 : 2,
   );
   const suppressNextBrowserHistoryWriteRef = useRef(false);
+  const browserRouteRetryIdRef = useRef<number | null>(null);
   const initialRouteStartedRef = useRef(false);
   const pendingInspectionCloseVisitIdRef = useRef<string | null>(null);
   const pendingInspectionClosePathRef = useRef<string | null>(null);
@@ -4385,7 +4386,24 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
   }, [cameraRevision, initialRoute]);
 
   useEffect(() => {
-    function visitBrowserRoute() {
+    function scheduleBrowserRouteRetry(routePath: string, attempt: number) {
+      if (attempt >= 20) return;
+      if (browserRouteRetryIdRef.current !== null) return;
+      browserRouteRetryIdRef.current = window.setTimeout(() => {
+        browserRouteRetryIdRef.current = null;
+        if (
+          window.location.pathname === routePath &&
+          inspectedResourceIdRef.current === null
+        ) {
+          visitBrowserRoute(undefined, attempt + 1);
+        }
+      }, 50);
+    }
+
+    function visitBrowserRoute(
+      _event?: PopStateEvent,
+      retryAttempt = 0,
+    ) {
       const route = resolvePublicRoute(
         window.location.pathname.split("/").filter(Boolean),
       );
@@ -4470,11 +4488,18 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
           : undefined,
       )) {
         suppressNextBrowserHistoryWriteRef.current = false;
+        scheduleBrowserRouteRetry(routePath, retryAttempt);
       }
     }
 
     window.addEventListener("popstate", visitBrowserRoute);
-    return () => window.removeEventListener("popstate", visitBrowserRoute);
+    return () => {
+      window.removeEventListener("popstate", visitBrowserRoute);
+      if (browserRouteRetryIdRef.current !== null) {
+        window.clearTimeout(browserRouteRetryIdRef.current);
+        browserRouteRetryIdRef.current = null;
+      }
+    };
   }, [cameraRevision]);
 
   useEffect(() => {

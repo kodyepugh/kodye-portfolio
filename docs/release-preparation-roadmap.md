@@ -239,9 +239,14 @@ This stage is complete. Production `/bellabeat-wellness-analysis` uses Home plus
 
 ---
 
-## 3. Bellabeat Recruiter-Path QA — Launch-Blocking
+## 3. Bellabeat Recruiter-Path QA — Launch-Blocking / In Progress
 
 Prioritize the actual recruiter journey from direct Bellabeat entry through the case study, figures and supporting Resources, repository, return navigation, and other essential launch actions rather than relying only on synthetic validation.
+
+The production pass exercised the Bellabeat graph and found a browser Back
+restoration race after closing the repository detour. A bounded retry is
+prepared in the shared direct-route coordinator; deploy this branch and repeat
+the focused Back/Forward smoke test before closing this stage.
 
 Bellabeat should be the primary integrated QA path because it currently exercises the richest combination of document, figure, repository, supporting-resource, and return-context behavior.
 

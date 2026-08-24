@@ -425,19 +425,27 @@ Completed materialization includes:
 - preserved interpretation boundary and source authority;
 - Bellabeat repository Resource and external-link/repository Inspection.
 
-### Integrated launch QA — pending
+### Integrated launch QA — branch correction pending production retest
 
 Bellabeat should not be considered fully launch-validated until the real production content graph is exercised in-browser.
 
-Required integrated QA includes:
+Verified in the production run for this pass:
 
 - open Bellabeat from intended launch entry points;
 - inspect the structured document and figures;
 - navigate to supporting Resources and the repository Resource;
-- verify Back restores Bellabeat Inspection and practical reading context;
 - verify Home discards the Inspection return frame and returns to root;
 - verify Collection context remains membership-derived;
-- verify responsive behavior, focus restoration, reduced motion, and unavailable-target handling;
-- run the established content, typecheck, lint, build, and relevant Inspection/geometry validations.
+- verify repository links resolve to the approved external destination;
+- verify meaningful reading position is captured at the support detour boundary.
+
+The production run also found that browser Back from the closed repository
+detour could leave the Bellabeat URL visible while the repository Query
+Reservoir remained active. The branch correction is limited to retrying the
+existing direct-route coordinator while that URL remains current. This QA
+stage remains open until the branch is deployed and production Back/Forward
+verification confirms Bellabeat Inspection and context restoration without a
+duplicate settled visit. Responsive/accessibility coverage and unavailable-
+target handling remain later launch work.
 
 The release-preparation roadmap controls when this QA occurs relative to the Portfolio Content Cut and Public Web Layer.

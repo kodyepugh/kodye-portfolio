@@ -219,7 +219,7 @@ The roadmap groups launch work into five stages, beginning with a completed Bell
 
 1. **Bellabeat Launch Cut** — complete. The published root Digital Reservoir Collection now curates exactly Bellabeat, Resume, and Contact; dormant Collections and unfinished launch Resources are unpublished.
 2. **Public Web Essentials** — complete. Production identity/metadata, outbound destinations, Contact delivery, Resume/PDF access, direct Bellabeat access, active-Reservoir direct Resource reuse, contextual-route Collection ownership, explicit `/q/` semantics, and the production four-point Bellabeat route smoke test are verified.
-3. **Bellabeat Recruiter-Path QA** — next. Exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
+3. **Bellabeat Recruiter-Path QA** — in progress. Production exercise covered the real Bellabeat Resource/support graph, structured reading, figures, repository handoff, Query detour return, Home, and meaningful reading-position restoration. The run also exposed a browser Back restoration race after closing the repository detour; the shared browser-route coordinator now retries a same-URL direct Resource restoration during the transient transition window. Production redeploy and a focused Back/Forward retest remain required.
 4. **Minimum Responsive / Accessibility / Interaction Sweep** — representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup.
 5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.
 
