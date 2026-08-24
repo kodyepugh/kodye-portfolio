@@ -275,8 +275,21 @@ Complete. The real launch registry proved the established semantic and interacti
 
 ## 4. Minimum Responsive / Accessibility / Interaction Sweep — Launch-Blocking Where Functional / In Progress
 
-**Status:** In progress. The initial diagnostic audit is recorded in
+**Status:** In progress — implementation and available runtime evidence are
+release-acceptable; one bounded physical touch-device gate remains. The
+complete audit and closeout record are in
 `docs/stage-4-minimum-responsive-accessibility-interaction-audit.md`.
+
+User visual QA is complete and approved. IR-01 and IR-03 are resolved through
+the shared structured-document containment correction; SG-01 was not reproduced;
+the lint baseline is now green; reduced-motion and Stage 3 browser regression
+checks passed. No accepted visual or navigation architecture is being reopened.
+
+The only remaining Stage 4 gate is trustworthy physical touch-device smoke
+testing for Reservoir drag/tap, pinch or image gestures, context-tray versus
+reading scroll, terminal/footer reveal, and the Index hit area. The available
+local browser could not dispatch touch events, so mouse behavior is not being
+used as a proxy.
 
 Validate the launch experience on representative desktop/laptop configurations first, plus a practical mobile sanity check. Verify keyboard/direct-access usability and functional interaction, and fix launch-blocking regressions.
 
@@ -352,11 +365,17 @@ Do not delay launch for minor choreography or other non-blocking polish items al
 
 ### Completion condition
 
-This stage is complete when the launch experience is functionally reliable across representative device/input configurations and important portfolio content has a practical non-spatial access path.
+This stage becomes complete when the bounded physical touch-device smoke test
+closes the remaining input-evidence gate. The implementation, responsive
+containment, semantic Index access, reduced-motion behavior, Stage 3 navigation,
+lint, and deterministic validation gates are already release-acceptable.
 
 ---
 
-## 5. Production Release — Launch-Blocking
+## 5. Production Release — Next / Launch-Blocking
+
+**Status:** Next after the Stage 4 physical touch gate and production
+deployment verification.
 
 Once the Bellabeat launch cut, public essentials, and bounded QA are stable, perform the final release gate.
 

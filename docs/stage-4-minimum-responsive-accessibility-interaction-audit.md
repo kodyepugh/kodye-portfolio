@@ -1,12 +1,13 @@
 # Stage 4 Audit — Minimum Responsive / Accessibility / Interaction Sweep
 
-**Status:** In progress — diagnostic audit only  
+**Status:** In Progress — closeout evidence recorded; physical touch gate remains
 **Branch:** `qa/minimum-responsive-accessibility-interaction`  
 **Audited:** August 24, 2026
 
-This record is the first Stage 4 release-hardening audit. It does not alter the
-accepted Stage 3 browser/navigation transaction architecture and it does not
-implement corrections.
+This record contains the initial Stage 4 audit, the accepted Pass A responsive
+correction, the Pass B SG-01 investigation, and the final interaction,
+accessibility, lint, and release-hardening closeout. It preserves the accepted
+Stage 3 browser/navigation transaction architecture.
 
 ## Baseline
 
@@ -19,7 +20,7 @@ implement corrections.
 | `npm run validate:label-geometry` | Pass; Node emitted its existing module-type warning |
 | `npm run build -- --webpack` | Pass |
 | `git diff --check` | Pass |
-| `npm run lint` | Baseline failure: 7 errors and 3 warnings in `InspectionImageViewer.tsx`, `NotebookInspectionBody.tsx`, and `ReservoirScene.tsx`; no audit change was made to these pre-existing findings. |
+| `npm run lint` | Pass; zero errors and zero warnings after the closeout cleanup in `InspectionImageViewer.tsx`, `NotebookInspectionBody.tsx`, and `ReservoirScene.tsx`. |
 
 ## Runtime matrix and limits
 
@@ -29,12 +30,12 @@ The root shell, Index, Bellabeat structured document, Resume, Contact, image
 Inspection, and the comprehensive Bellabeat document were exercised where the
 browser session remained available.
 
-The automated browser session reset while attempting the final Stage 3
-Back/Forward transaction run. Touch emulation and reduced-motion emulation were
-not completed before that reset. They remain required audit work, not passing
-results. The repository Inspection direct-route landing was observed to finish
-asynchronously after the short surface-measurement interval, so that renderer
-also requires a dedicated follow-up runtime check.
+The closeout reran the Stage 3 sequence in a fresh browser tab after waiting for
+semantic/browser convergence. Touch-device and pinch emulation were not
+available in the local browser; pointer controls were exercised where the
+mouse-based path was trustworthy and no touch-specific launch blocker was
+identified. Reduced-motion coverage was completed through the available CDP
+media emulation path.
 
 ## Defect matrix
 
@@ -60,8 +61,8 @@ specific observations only; it is not a full all-renderer certification.
 
 | ID | Priority | Viewport/input | Surface | Finding | Ownership / correction boundary | Stage 4 blocker |
 | --- | --- | --- | --- | --- | --- | --- |
-| AK-01 | P1, reproduce before fix | 390 x 844, keyboard | Reservoir Index | In the audit browser, `Enter` on the focused Index trigger did not open the Index after two attempts; pointer activation did. The semantic Index is therefore not yet proven as a keyboard path in this environment. | Inspect the trigger's keyboard activation, readiness/disabled sequencing, and focus state in the Reservoir control plane. Do not replace the Index or add another 2D route. | Pending reproduction |
-| AK-02 | P2, context-dependent | 390 x 844, keyboard | Direct image Inspection close | `Escape` closed the dialog, but focus landed on the document/main context rather than a visible launch control. This direct-route test has no physical invoking control, so it is not evidence of an Index-origin focus-return regression. | Re-test Index-origin opening and close after AK-01 is resolved or ruled out. | No, pending confirmation |
+| AK-01 | Closed — no application defect reproduced | 390 x 844, native browser input | Reservoir Index | Native CUA Enter and Space both activated the semantic Index trigger; the Index opened, its entry buttons were reachable, Escape closed it, and focus returned to the trigger. The earlier locator-only result was an automation-path limitation. | Preserve the native button and semantic Index control plane. | No |
+| AK-02 | Closed — expected direct-route behavior | 390 x 844, keyboard | Direct image Inspection close | Image Inspection Escape closed the dialog and returned focus to its image launcher. Direct Resource Inspection close has no physical invoker by design; no focus defect was reproduced. | Preserve launcher-owned focus restoration and direct-route close semantics. | No |
 
 Accessible names were present for the observed Index, close, and image-launch
 controls. The normal Inspection dialog was exposed as a dialog in the inspected
@@ -69,26 +70,26 @@ surfaces.
 
 ### 4. Touch / pointer
 
-No defect classification yet. The available local-browser controls exposed
-mouse-style CUA actions but not a reliable touch/pinch emulation path before the
-session reset. Required follow-up: Reservoir drag/pinch/tap, relation-shelf
-horizontal scroll versus page scroll, image viewer gestures, and terminal/footer
-reveal at 360px and 390px.
+No touch-device emulation or real touch hardware was available. Mouse/pointer
+activation, Index selection, image opening/closing, zoom, and semantic controls
+were exercised through the trustworthy local path. Relation-shelf and image
+viewer touch gestures therefore remain manual-device evidence, not inferred
+passes; no launch-blocking pointer defect was observed.
 
 ### 5. Reduced motion
 
-No defect classification yet. Reduced-motion functional-equivalence testing
-(open/close, Back-to-Top, Query/Collection transitions, and layout switch) was
-not completed before the browser reset.
+Reduced-motion functional equivalence passed through the available browser
+media emulation path: Reservoir Index open/close, Bellabeat Inspection,
+support-Repository Inspection, browser Back/Forward, Repository close,
+semantic Back with reading restoration, Home, and image viewer open/zoom/close.
+No transition remained stuck.
 
 ### 6. Stage 3 regression guard
 
-No Stage 3 regression is recorded. Bellabeat direct Inspection and related
-resource controls were reached, but the required repository Query → repository
-Inspection → browser Back/Forward sequence did not finish because the audit
-browser session reset during that run. Re-run the bounded sequence after the
-mobile correction; do not change the accepted history model absent a reproduced
-failure.
+No Stage 3 regression was reproduced. The required Bellabeat Inspection →
+Repository Inspection → browser Back → same Query → browser Forward → same
+Inspection → close → semantic Back sequence passed after convergence, including
+practical reading restoration. The accepted history model remains unchanged.
 
 ## Mobile Inspection overflow — complete causal chain
 
@@ -125,27 +126,36 @@ local horizontal scrolling. Do not use global `overflow-x: hidden`.
 
 ## Smallest correction passes
 
-1. **P0 shared structured-document mobile width correction — mid-tier.** Fix
-   only renderer grid/section min-content behavior; test the comprehensive
-   document at 360/390/430 and preserve table/pre local scrolling.
-2. **Keyboard Index/focus verification and correction — mid-tier.** Reproduce
-   AK-01 with a physical keyboard path, correct only confirmed activation or
-   readiness ownership, then verify close focus from Index and direct routes.
-3. **Touch, reduced-motion, and Stage 3 regression completion — mid-tier QA.**
-   No architecture work unless it reproduces a functional defect.
-4. **Optional mobile density refinement — low/mid-tier.** Consider only after
-   functional blockers are closed; RS-01 does not justify a mobile redesign.
+1. **P0 shared structured-document mobile width correction — complete.** The
+   shared renderer fix resolved IR-01 and IR-03 while preserving local table and
+   preformatted scrolling.
+2. **Keyboard and focus verification — complete.** Native CUA Enter/Space,
+   Escape, launcher focus return, dialog semantics, and hidden/visible control
+   behavior passed.
+3. **Touch, reduced-motion, and Stage 3 regression completion — complete at the
+   available launch level.** Touch-device emulation remains unavailable and is
+   recorded as manual-device evidence, while reduced motion and Stage 3 browser
+   paths passed.
+4. **Optional mobile density refinement — post-launch.** RS-01 remains a
+   non-blocking visual refinement and does not justify a mobile redesign.
 
-## Files changed by this audit
+## Files changed by the initial audit
 
 - `docs/stage-4-minimum-responsive-accessibility-interaction-audit.md` — added
   defect matrix and evidence.
 - `docs/release-preparation-roadmap.md` — Stage 4 status moved from not started
   to in progress.
 
+The later Pass A, Pass B, and Closeout sections record subsequent implementation
+and documentation changes; this historical list is intentionally not the final
+diff manifest.
+
 ## Completion supplement — August 24, 2026
 
-### Validation update
+### Historical validation snapshot
+
+This subsection preserves the pre-closeout Pass A evidence. Its prior lint and
+build caveats are superseded by the closeout validation recorded below.
 
 The required standard `npm run build` was run twice (including one permitted
 unsandboxed retry) and failed both times in Turbopack before compilation because
@@ -239,7 +249,9 @@ not weakened by those empty samples.
 4. **Pass D — RS-01/RS-02 refinement, low-to-mid tier.** Only after physical
    target testing; no mobile composition redesign.
 
-No application fixes or persistent diagnostic instrumentation were implemented.
+No application fixes or persistent diagnostic instrumentation were implemented
+during the initial audit or Pass A/Pass B investigations. The later Closeout
+resolved the lint baseline only; temporary diagnostics remained removed.
 
 ## Pass A — Mobile structured-document containment — August 24, 2026
 
@@ -292,18 +304,95 @@ inside 275px (360px viewport), 301px (390px), 496px (768px), and 792px
 - `npm run validate:routing` — pass.
 - `npm run validate:label-geometry` — pass with the existing Node module-type warning.
 - `git diff --check` — pass.
-- `npm run lint` — unchanged baseline: 7 errors and 3 warnings; none introduced by Pass A.
+
+## Closeout — Interaction, Accessibility, Lint, and Release Hardening — August 24, 2026
+
+**Decision:** Stage 4 remains **In Progress**. All implementation and browser
+checks available in this environment are release-acceptable, but trustworthy
+physical touch-device evidence is not available here. This is recorded as one
+explicit manual gate rather than inferred from mouse behavior. Stage 5 is not
+marked active until that gate is closed.
+
+### Lint corrections
+
+The seven-error/three-warning baseline was resolved without blanket rule
+disables or lint-configuration changes:
+
+- `InspectionImageViewer.tsx` now resets per-image state through the keyed
+  viewer ownership boundary, tracks focus transitions with a ref, derives
+  bounded pan during render, and closes stale registrations at their owning
+  unregister point.
+- `NotebookInspectionBody.tsx` derives immutable image-occurrence offsets for
+  markdown figures and code outputs instead of mutating a render-local counter.
+- `ReservoirScene.tsx` moves effect-owned state handoffs onto cancellable
+  animation-frame callbacks and uses the existing latest-function refs for
+  `beginResourceInspection` and direct-route initialization.
+
+`npm run lint` now passes with zero errors and zero warnings. No accepted
+navigation, renderer, or responsive architecture was redesigned.
+
+### Runtime regression matrix
+
+| Surface | Result |
+| --- | --- |
+| Image viewer | Opens from a figure, focuses Close, zooms, closes by Escape/click, restores launcher focus, and does not retain stale state between Resources. Reduced-motion open/zoom/close also passed. |
+| Notebook | Ready state rendered 13 cells (8 markdown, 5 code) and 6 outputs. Markdown, code, output images, and local code scrolling remained functional; page width stayed 390px while long code remained locally scrollable. |
+| Reservoir | Native Index trigger opened with CUA Enter and Space; Index entries were reachable; Escape closed and focus returned to the trigger. Mouse drag changed Reservoir rotation without leaving a dragging state stuck. |
+| Keyboard/focus | Dialog roles and accessible names remained present; image launcher focus returned after close; visible controls were reachable and hidden controls were not tabbable. |
+| Reduced motion | `prefers-reduced-motion: reduce` passed Index open/close, Bellabeat Inspection, support Repository Inspection, browser Back/Forward, Repository close, semantic Back with `scrollY = 9067`, Home, and image viewer zoom/close. No transition remained stuck. |
+| Stage 3 browser path | Bellabeat → Repository Inspection → browser Back → same Query → browser Forward → same Inspection → close → semantic Back passed after convergence. Home returned `/` with no Inspection reopened. |
+| Pass A protection | At 390 x 844, comprehensive document width was 303.1875px with page scroll width 390px; notebook width was 303.1875px with page scroll width 390px and local code scrolling preserved. Resume and ordinary Bellabeat also had no page-level overflow. |
+| Desktop sanity | At 1280 x 720, the shell remained within a 1280px page width with no document overflow; the Index trigger remained the accepted 37.78 x 18px visual rectangle. |
+
+### Touch and remaining gate
+
+The local browser exposes mouse CUA and pointer-drag input, but its CDP bridge
+does not support touch-event dispatch. No real touch device was available.
+Therefore these exact manual checks remain the only Stage 4 gate:
+
+1. one-finger Reservoir drag and tap-select;
+2. deliberate second activation/open;
+3. pinch zoom and image-viewer swipe/pan/zoom;
+4. horizontal Resource-tray scroll versus ordinary vertical reading scroll;
+5. terminal/footer reveal at a narrow mobile width.
+
+The 37.78 x 18px Index visual rectangle was not automatically enlarged. Its
+semantic button activated through native Enter/Space and pointer paths; physical
+touch hit-area confirmation remains part of the manual gate.
+
+### Release evidence and decision boundary
+
+- `npm run typecheck` — pass.
+- `npm run lint` — pass, zero errors and zero warnings.
+- `npm run validate:content` — pass, 56/56.
+- `npm run validate:inspection` — pass, 86/86.
+- `npm run validate:routing` — pass.
+- `npm run validate:label-geometry` — pass with the existing
+  `MODULE_TYPELESS_PACKAGE_JSON` warning.
+- `npm run build` — still environment-blocked by Turbopack's CSS worker port
+  restriction: `Operation not permitted (os error 1)`.
+- `npm run build -- --webpack` — pass; compilation, TypeScript, static page
+  generation, optimization, and route output completed successfully.
+- `git diff --check` — pass.
+
+Responsive visual QA is user-approved, IR-01 and IR-03 are closed, SG-01 is
+not reproduced, Stage 3 remains accepted, and no P2/P3 polish item is being
+held as a blocker. Stage 4 will become Complete after the bounded physical
+touch smoke test above; Production Release is the next roadmap stage once that
+manual gate and the production deployment verification are complete.
+- `npm run lint` — pre-closeout baseline: 7 errors and 3 warnings; resolved in
+  the later closeout without changing Pass A behavior.
 - `npm run build` — still fails before application compilation because Turbopack's CSS worker cannot bind a local port (`Operation not permitted`), including the permitted retry. Webpack build was run as supplemental evidence.
 - `npm run build -- --webpack` — compilation reached `Compiled successfully`, but its terminal completion was not returned. A later retry reported another Next build process/lock while no live build process was observable. The lock was not removed, so supplemental production-build completion remains unverified.
 
-IR-01 and IR-03 are closed for this correction pass. Remaining Stage 4 work is
-native keyboard and touch verification, reduced-motion transition coverage,
-and any non-blocking shell refinement.
+IR-01 and IR-03 are closed for this correction pass. The remaining keyboard,
+reduced-motion, lint, and Stage 3 checks are recorded in the later closeout;
+touch-device testing remains an explicitly unavailable manual-device path.
 
 ## Pass B — SG-01 support-detour return investigation — August 24, 2026
 
-**Result:** SG-01 not reproduced; no application behavior changed. Stage 4
-remains in progress.
+**Result:** SG-01 not reproduced; no navigation behavior changed. Stage 4
+status is reconciled in the closeout section below.
 
 ### Controlled matrix
 
@@ -372,9 +461,9 @@ instrumentation or navigation code remains in the diff.
 - `npm run validate:routing` — pass.
 - `npm run validate:label-geometry` — pass with the existing Node
   `MODULE_TYPELESS_PACKAGE_JSON` warning.
-- `npm run lint` — unchanged repository baseline: 7 errors and 3 warnings in
+- `npm run lint` — historical pre-closeout baseline: 7 errors and 3 warnings in
   `InspectionImageViewer.tsx`, `NotebookInspectionBody.tsx`, and
-  `ReservoirScene.tsx`; none are introduced by this documentation-only pass.
+  `ReservoirScene.tsx`; the closeout resolved these findings.
 - `npm run build` — environment-blocked. Turbopack's CSS worker could not bind a
   local port and returned `Operation not permitted (os error 1)` in both the
   sandboxed run and permitted retry. This is not recorded as a successful build
