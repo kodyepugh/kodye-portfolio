@@ -2185,7 +2185,11 @@ body.artifact-reading-mode .reservoir-study {
 
 .structured-document {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(100px, 20svh, 220px);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .structured-document__block + .structured-document__block {
@@ -2193,7 +2197,9 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 .structured-document section {
-  max-width: 700px;
+  width: 100%;
+  max-width: min(700px, 100%);
+  min-width: 0;
   scroll-margin-top: 32px;
 }
 
@@ -2450,12 +2456,15 @@ body.artifact-reading-mode .reservoir-study {
 
 .structured-document__table-scroll,
 .structured-document__code pre {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
 }
 
 .structured-document table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   color: var(--artifact-text-muted);
   font-size: 13px;
@@ -2545,6 +2554,7 @@ body.artifact-reading-mode .reservoir-study {
 .structured-document td code {
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.88em;
+  overflow-wrap: anywhere;
 }
 
 .structured-document-source-state {

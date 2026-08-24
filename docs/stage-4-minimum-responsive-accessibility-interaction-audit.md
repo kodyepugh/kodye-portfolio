@@ -242,3 +242,63 @@ not weakened by those empty samples.
    target testing; no mobile composition redesign.
 
 No application fixes or persistent diagnostic instrumentation were implemented.
+
+## Pass A — Mobile structured-document containment — August 24, 2026
+
+**Status:** Implemented and verified; Stage 4 remains in progress.
+
+### Root cause and correction
+
+IR-01's root cause was confirmed. The shared Inspection chassis and primary
+track were already bounded; the unbounded implicit grid column in
+`.structured-document` allowed intrinsic descendants to enlarge the renderer.
+Sections had only a `max-width`, so they inherited that oversized track.
+
+`app/globals.css` now gives the shared renderer a one-column
+`minmax(0, 1fr)` grid and explicit `width`, `max-width`, and `min-width`
+ownership. Semantic sections use the same bounded contract while retaining the
+700px desktop editorial maximum and alternating alignment. Table/code wrappers
+now own their local scroll allocation; tables retain intrinsic width inside that
+scroller. Inline code can break when a path or other token would enlarge the
+reading column.
+
+### Results
+
+| Surface / viewport | Before | After | Result |
+| --- | --- | --- | --- |
+| Comprehensive, 360 x 800 | page 528px; document implicit track 486px; 277px primary | page 360px; 277px chassis primary/document/section | IR-01 resolved |
+| Comprehensive, 390 x 844 | page 529px; document implicit track 486px; 303px primary | page 390px; 303px primary/document/section | IR-01 resolved |
+| Comprehensive, 430 x 932 | page 532px; document implicit track 486px; 338px primary | page 430px; 338px primary/document/section | IR-01 resolved |
+| Comprehensive, 768 x 900 | not previously measured after correction | page 768px; 584px primary/document/section | Pass |
+| Comprehensive, 1280 x 720 | not previously measured after correction | page 1280px; 880px document; editorial sections remain 700px | Pass |
+| Comprehensive, 1440 x 900 | not previously measured after correction | page 1440px; 880px document; editorial sections remain 700px | Pass |
+| Notebook, 360 x 800 | page 360px but notebook scroll width 360px; markdown section escaped a 277px primary | page 360px; notebook, embedded document, and section all 277px | IR-03 resolved by shared correction |
+| Notebook, 390 x 844 | not complete before Pass A | page 390px; notebook, embedded document, and section all 303px | Pass |
+| Notebook, 768 x 900 | not complete before Pass A | page 768px; notebook/document 584px; section 584px | Pass |
+| Notebook, 1280 x 720 | desktop sanity pending before Pass A | page 1280px; notebook/document 880px; editorial section 700px | Pass |
+| Resume, 360 / 390 / 1280 | compact regression risk | pages equal viewport; structured document equals 277px / 303px / 880px primary | Pass |
+| Ordinary Bellabeat, 360 / 1280 | figure regression risk | pages equal viewport; figures are 277px / 700px within the bounded document | Pass |
+
+The widest comprehensive table now measures 3912px intrinsically inside a
+277px/303px/338px `.structured-document__table-scroll`; the wrapper, section,
+document, and page remain bounded. This is intentional semantic local scrolling,
+not page overflow. Notebook `pre` remains locally scrollable at 998px content
+inside 275px (360px viewport), 301px (390px), 496px (768px), and 792px
+(1280px) client widths.
+
+### Validation update
+
+- `npm run typecheck` — pass.
+- `npm run validate:content` — pass (56/56).
+- `npm run validate:inspection` — pass (86/86).
+- `npm run validate:routing` — pass.
+- `npm run validate:label-geometry` — pass with the existing Node module-type warning.
+- `git diff --check` — pass.
+- `npm run lint` — unchanged baseline: 7 errors and 3 warnings; none introduced by Pass A.
+- `npm run build` — still fails before application compilation because Turbopack's CSS worker cannot bind a local port (`Operation not permitted`), including the permitted retry. Webpack build was run as supplemental evidence.
+- `npm run build -- --webpack` — compilation reached `Compiled successfully`, but its terminal completion was not returned. A later retry reported another Next build process/lock while no live build process was observable. The lock was not removed, so supplemental production-build completion remains unverified.
+
+IR-01 and IR-03 are closed for this correction pass. Remaining Stage 4 work is
+unchanged: SG-01 reproduction against the accepted path, native keyboard and
+touch verification, reduced-motion transition coverage, and any non-blocking
+shell refinement.
