@@ -1,7 +1,7 @@
 # Digital Reservoir — L2 Implementation Status
 
 **Status:** Closed L2 implementation line / public-launch preparation
-**Updated:** August 22, 2026
+**Updated:** August 23, 2026
 **Ontology authority:** `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md` revision 0.7.1
 **Bellabeat ingestion authority:** `docs/l2-bellabeat-manual-ingestion-manifest.md`
 
@@ -213,19 +213,19 @@ This document records completion state only. **`docs/release-preparation-roadmap
 
 The remaining work is public-release preparation rather than expansion of the L2 ontology.
 
-### Public-launch work still open
+### Public-launch sequencing
 
-The roadmap currently groups the remaining launch work into five stages, beginning with a completed Bellabeat-only launch cut rather than a broad first portfolio content cut:
+The roadmap groups launch work into five stages, beginning with a completed Bellabeat-only launch cut rather than a broad first portfolio content cut:
 
 1. **Bellabeat Launch Cut** — complete. The published root Digital Reservoir Collection now curates exactly Bellabeat, Resume, and Contact; dormant Collections and unfinished launch Resources are unpublished.
-2. **Public Web Essentials** — production identity/metadata, real outbound destinations, the implemented Contact form, reliable inline/downloadable Resume PDF access, and a practical Bellabeat direct public address. Contact delivery and the remaining launch-facing destinations are verified. The active-Reservoir direct Resource correction, including the contextual-route Collection-ownership guard, is verified on the branch, but the deployed production Bellabeat route still requires redeployment and smoke testing before this stage closes.
-3. **Bellabeat Recruiter-Path QA** — exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
+2. **Public Web Essentials** — complete. Production identity/metadata, outbound destinations, Contact delivery, Resume/PDF access, direct Bellabeat access, active-Reservoir direct Resource reuse, contextual-route Collection ownership, explicit `/q/` semantics, and the production four-point Bellabeat route smoke test are verified.
+3. **Bellabeat Recruiter-Path QA** — next. Exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
 4. **Minimum Responsive / Accessibility / Interaction Sweep** — representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup.
 5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.
 
 Broader About, Digital Reservoir, client, and archive content are post-launch expansion work and are not required to complete this launch sequence.
 
-The approved public-routing contract is implemented by the launch-blocking
+The approved public-routing contract is implemented by the completed
 Public Web Essentials pass: stable semantic IDs/slugs remain distinct from
 display titles; `/` is reserved for Home; direct published Objects use
 `/<object-slug>`; and a contextual Resource path
