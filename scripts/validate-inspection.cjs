@@ -141,6 +141,7 @@ const {
   "lib/reservoir/inspection-support.ts",
 ));
 const {
+  areInspectionReturnFramesPracticallyEquivalent,
   createInspectionReturnFrame,
   getInspectionReturnPostContentOffset,
   getInspectionReturnScrollY,
@@ -1670,7 +1671,15 @@ const checks = [
     boundedInspectionReturnFrame.scrollY === 0 &&
       boundedInspectionReturnFrame.postContentProgress === 1 &&
       getInspectionReturnScrollY(inspectionReturnFrame, 400) === 400 &&
-      getInspectionReturnPostContentOffset(inspectionReturnFrame, 600) === 300,
+      getInspectionReturnPostContentOffset(inspectionReturnFrame, 600) === 300 &&
+      areInspectionReturnFramesPracticallyEquivalent(
+        inspectionReturnFrame,
+        { ...inspectionReturnFrame, scrollY: 739.5 },
+      ) &&
+      !areInspectionReturnFramesPracticallyEquivalent(
+        inspectionReturnFrame,
+        { ...inspectionReturnFrame, scrollY: 738 },
+      ),
   ],
   [
     "Reservoir control plane exposes mixed visit history without an Inspection overlay control",

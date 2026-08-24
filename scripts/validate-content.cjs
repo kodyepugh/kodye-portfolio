@@ -113,6 +113,14 @@ const {
 const {
   validateContactSubmission,
 } = require(path.join(projectRoot, "lib/contact-form.ts"));
+const { resolvePublicRoute } = require(path.join(
+  projectRoot,
+  "lib/public-routing.ts",
+));
+const {
+  createRouteRestorationDescriptor,
+  getPublicRouteRestorationPath,
+} = require(path.join(projectRoot, "lib/public-route-history.ts"));
 
 const result = assertValidContentRegistry(contentRegistry);
 const syntheticPublishedResource = {
@@ -347,6 +355,14 @@ const rootReservoirIndexNodes = getReservoirContentNodes(ROOT_COLLECTION_ID);
 const queryReservoirIndexNodes = getReservoirContentNodesBySemanticIds([
   RESOURCE_IDS.bellabeatRepository,
 ]);
+const directBellabeatRouteRestoration = createRouteRestorationDescriptor(
+  resolvePublicRoute(["bellabeat-wellness-analysis"]),
+  "content-validation-direct-bellabeat",
+);
+const explicitBellabeatQueryRestoration = createRouteRestorationDescriptor(
+  resolvePublicRoute(["q", "bellabeat-wellness-analysis"]),
+  "content-validation-query-bellabeat",
+);
 const reservoirIndexSource = fs.readFileSync(
   path.join(projectRoot, "components/navigation/ReservoirIndex.tsx"),
   "utf8",
@@ -467,12 +483,19 @@ const checks = [
     reservoirSceneSource.includes("function focusActiveReservoirResource(") &&
       reservoirSceneSource.includes("preferActiveReservoir = true") &&
       reservoirSceneSource.includes('initialRoute.kind !== "query-resource"') &&
-      reservoirSceneSource.includes('if (route.kind === "query-resource")') &&
-      reservoirSceneSource.includes(
-        "inspectedResourceId: route.resourceId",
-      ) &&
       reservoirSceneSource.includes('"active-reservoir"') &&
-      reservoirSceneSource.includes('"query-reservoir"'),
+      reservoirSceneSource.includes('"query-reservoir"') &&
+      getPublicRouteRestorationPath(directBellabeatRouteRestoration) ===
+        "/bellabeat-wellness-analysis" &&
+      directBellabeatRouteRestoration?.inspectedResourceId ===
+        ARTIFACT_IDS.bellabeat &&
+      directBellabeatRouteRestoration.reservoirHistory.at(-1)?.context.kind ===
+        "collection" &&
+      getPublicRouteRestorationPath(explicitBellabeatQueryRestoration) ===
+        "/q/bellabeat-wellness-analysis" &&
+      explicitBellabeatQueryRestoration?.inspectedResourceId === null &&
+      explicitBellabeatQueryRestoration.reservoirHistory.at(-1)?.context.kind ===
+        "query",
   ],
   [
     "launch artifacts resolve",

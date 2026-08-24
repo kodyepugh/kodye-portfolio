@@ -4,6 +4,9 @@ export type InspectionReturnFrame = {
   postContentProgress: number;
 };
 
+const INSPECTION_RETURN_SCROLL_TOLERANCE_PX = 1;
+const INSPECTION_RETURN_PROGRESS_TOLERANCE = 0.001;
+
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
@@ -46,5 +49,19 @@ export function getInspectionReturnPostContentOffset(
     frame.postContentProgress * boundedRevealDistance,
     0,
     boundedRevealDistance,
+  );
+}
+
+export function areInspectionReturnFramesPracticallyEquivalent(
+  intended: InspectionReturnFrame,
+  restored: InspectionReturnFrame,
+) {
+  return (
+    intended.resourceId === restored.resourceId &&
+    Math.abs(intended.scrollY - restored.scrollY) <=
+      INSPECTION_RETURN_SCROLL_TOLERANCE_PX &&
+    Math.abs(
+      intended.postContentProgress - restored.postContentProgress,
+    ) <= INSPECTION_RETURN_PROGRESS_TOLERANCE
   );
 }
