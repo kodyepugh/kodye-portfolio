@@ -217,16 +217,14 @@ not weakened by those empty samples.
 - Stage 3 full repository Query/Inspection Back/Forward/return/reading-position
   sequence: browser Back from repository Inspection restored the same repository
   Query (`/q/bellabeat-wellness-analysis-repository`, dialog closed), and browser
-  Forward restored the repository Inspection. Those steps passed at 390 x 844.
-  The subsequent Inspection close exposed `/bellabeat-wellness-analysis-repository`
-  as a closed state; semantic Back returned a closed Bellabeat Reservoir at scroll
-  position 0 rather than the prior Bellabeat Inspection reading position. This is
-  recorded below as SG-01 and needs comparison against the accepted Stage 3
-  transaction before any correction.
+  Forward restored the repository Inspection. A controlled Pass B rerun proved
+  that the subsequent return also passes once Bellabeat reading restoration is
+  allowed to converge. The earlier scroll-zero observation sampled the expected
+  deploying/reopening phase rather than the final transaction result.
 
 | ID | Priority | Viewport/input | Surface | Reproduction / actual | Likely ownership and boundary | Stage 4 blocker |
 | --- | --- | --- | --- | --- | --- | --- |
-| SG-01 | P1, reproduce against accepted path | 390 x 844, browser Back/Forward | Bellabeat → repository support detour → return | Direct Bellabeat Inspection was scrolled to 900px; opening Repository, browser Back, and browser Forward correctly restored Query then Inspection. Closing Repository then using semantic Back yielded closed Bellabeat at `scrollY = 0`, not the prior Inspection reading position. | Inspect the existing support-detour close/return coordinator and browser-owned state before touching history architecture. It may be a test-path distinction, so reproduce with the documented accepted Stage 3 route. | Pending reproduction |
+| SG-01 | Not reproduced | 390 x 844 and 1280 x 720, browser Back/Forward | Bellabeat → repository support detour → return | Cases A–E restored the owned Bellabeat Inspection entry and practical reading position. The prior scroll-zero sample was captured while restoration diagnostics reported `deferred: inspection-reading-state`, local Inspection phase `deploying`, and return phase `reopening-inspection`; convergence then restored the stored position. | No navigation correction. Preserve the accepted Stage 3 coordinator and require convergence before classifying a return result. | No |
 
 ### Revised correction planning
 
@@ -236,7 +234,7 @@ not weakened by those empty samples.
    markdown-cell/section width constraints plus the existing notebook lint
    immutability finding only if it is causally related.
 3. **Pass C — physical input completion, mid-tier QA.** Native keyboard Index,
-   touch gestures, full reduced-motion transitions, and the Stage 3 transaction;
+   touch gestures, and full reduced-motion transitions;
    no implementation until a reproducible issue exists.
 4. **Pass D — RS-01/RS-02 refinement, low-to-mid tier.** Only after physical
    target testing; no mobile composition redesign.
@@ -299,6 +297,86 @@ inside 275px (360px viewport), 301px (390px), 496px (768px), and 792px
 - `npm run build -- --webpack` — compilation reached `Compiled successfully`, but its terminal completion was not returned. A later retry reported another Next build process/lock while no live build process was observable. The lock was not removed, so supplemental production-build completion remains unverified.
 
 IR-01 and IR-03 are closed for this correction pass. Remaining Stage 4 work is
-unchanged: SG-01 reproduction against the accepted path, native keyboard and
-touch verification, reduced-motion transition coverage, and any non-blocking
-shell refinement.
+native keyboard and touch verification, reduced-motion transition coverage,
+and any non-blocking shell refinement.
+
+## Pass B — SG-01 support-detour return investigation — August 24, 2026
+
+**Result:** SG-01 not reproduced; no application behavior changed. Stage 4
+remains in progress.
+
+### Controlled matrix
+
+All mobile cases began in a fresh browser tab at 390 x 844. Bellabeat was
+scrolled to a meaningful reading position; the captured return frame stabilized
+at `scrollY = 8954` in this browser's scroll-unit behavior.
+
+| Case | Result |
+| --- | --- |
+| A — immediate close after Forward | Pass. The close control first became available with browser restoration already `converged`, no pending restoration ID, no pending close transaction, browser-write mode `push`, and the restored Repository Inspection entry selected. Close reused the exact Repository Query predecessor; semantic Back restored Bellabeat at 8954. |
+| B — converged close after Forward | Pass. Repository Query entry `browser-entry-505592a2-343b-4beb-ad08-e45482aaa248` and Repository Inspection entry `browser-entry-9ddbaa26-5c18-487c-85d9-c164ca4102d7` remained distinct and stable. Close returned to the Query entry; semantic Back restored origin entry `browser-entry-b9965e4a-6ee5-4a77-9d0d-2758147f0989` at 8954. |
+| C — no browser Back/Forward | Pass. Ordinary Repository close exposed its Query and semantic Back restored Bellabeat at 8954. |
+| D — browser Back only | Pass. Browser Back converged on the same Repository Query visit; semantic Back restored Bellabeat at 8954. |
+| E — delayed repeatability | Pass twice: once at 390 x 844 and once at 1280 x 720. Both runs returned to Bellabeat at 8954 with return phase `restored`. |
+
+The Query frame retained the origin return boundary in every case:
+`reservoir-visit-0` carried the Bellabeat Resource ID and stored reading frame,
+while `reservoir-visit-1` remained the single Repository Query visit. Browser
+Back/Forward changed owned browser entries without duplicating either semantic
+history frame.
+
+### Root cause of the prior observation
+
+The initial Stage 4 audit sampled the return after a fixed short wait. At that
+moment the pathname and Bellabeat dialog had returned, but the application-owned
+state explicitly reported:
+
+- browser restoration phase `deferred` with reason
+  `inspection-reading-state`;
+- pending restoration entry equal to the original Bellabeat entry;
+- local Inspection phase `deploying`;
+- return runtime phase `reopening-inspection`;
+- current scroll position 0 with target `scrollY = 8954`.
+
+On the next convergence observation, the same owned Bellabeat entry reported
+browser restoration `converged`, Inspection phase `reading`, return phase
+`restored`, and actual `scrollY = 8954`. The candidate was therefore a QA
+sampling error, not a close/restoration ownership race. The hypothesized stale
+`{ mode: "none" }` close transaction was not present when close became
+available; normal close ownership had already been handed back.
+
+### Regression checks
+
+- Repository Inspection → browser Back → same Query → browser Forward → same
+  Inspection: pass.
+- Repository close → Query → semantic Back → originating Bellabeat Inspection:
+  pass with practical reading restoration.
+- Back-to-Top from restored Bellabeat: pass; scroll returned to 0, Close received
+  focus, and Back-to-Top hid.
+- Support detour → Repository close → Home: pass; `/` became the active root,
+  Inspection closed, Reservoir history reset to `reservoir-visit-0`, and no
+  Inspection return frame remained.
+- Pass A mobile protection at 390 x 844: comprehensive and notebook pages both
+  remained 390px wide with 303px primary/renderer tracks.
+
+Temporary read-only data attributes exposed pending close ownership, pending
+Inspection browser-write mode, restoration revision, and per-frame return
+summaries during diagnosis. They were removed after the matrix; no persistent
+instrumentation or navigation code remains in the diff.
+
+### Validation
+
+- `npm run typecheck` — pass.
+- `npm run validate:content` — pass, 56/56 checks.
+- `npm run validate:inspection` — pass, 86/86 checks.
+- `npm run validate:routing` — pass.
+- `npm run validate:label-geometry` — pass with the existing Node
+  `MODULE_TYPELESS_PACKAGE_JSON` warning.
+- `npm run lint` — unchanged repository baseline: 7 errors and 3 warnings in
+  `InspectionImageViewer.tsx`, `NotebookInspectionBody.tsx`, and
+  `ReservoirScene.tsx`; none are introduced by this documentation-only pass.
+- `npm run build` — environment-blocked. Turbopack's CSS worker could not bind a
+  local port and returned `Operation not permitted (os error 1)` in both the
+  sandboxed run and permitted retry. This is not recorded as a successful build
+  or as an application compile regression.
+- `git diff --check` — pass.
