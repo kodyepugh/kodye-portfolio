@@ -6,7 +6,7 @@ import {
 } from "@/lib/site-metadata";
 import { getCollectionById, getResourceById } from "@/lib/content/selectors";
 import { resolvePublicRoute } from "@/lib/public-routing";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 
 export async function generateMetadata({
   params,
@@ -22,7 +22,8 @@ export async function generateMetadata({
   if (
     route.kind === "resource" ||
     route.kind === "query-resource" ||
-    route.kind === "contextual-resource"
+    route.kind === "contextual-resource" ||
+    route.kind === "redirect-resource"
   ) {
     const resource = getResourceById(route.resourceId);
     return resource
@@ -43,6 +44,11 @@ export default async function PublicRoutePage({
 
   if (route.kind === "not-found") notFound();
   if (route.kind === "redirect-root") redirect("/");
+  if (route.kind === "redirect-resource") {
+    const resource = getResourceById(route.resourceId);
+    if (!resource) notFound();
+    permanentRedirect(`/${resource.slug}`);
+  }
 
   return <ReservoirRouteEntry route={route} />;
 }

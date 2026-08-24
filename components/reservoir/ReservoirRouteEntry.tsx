@@ -3,7 +3,10 @@ import { ReservoirScene } from "./ReservoirScene";
 import { BrandSymbol } from "../navigation/BrandSymbol";
 
 type ReservoirRouteEntryProps = {
-  route: Exclude<PublicRoute, { kind: "not-found" | "redirect-root" }>;
+  route: Exclude<
+    PublicRoute,
+    { kind: "not-found" | "redirect-root" | "redirect-resource" }
+  >;
 };
 
 export function ReservoirRouteEntry({ route }: ReservoirRouteEntryProps) {
@@ -16,7 +19,7 @@ export function ReservoirRouteEntry({ route }: ReservoirRouteEntryProps) {
           ? `resource:${route.resourceId}`
           : route.kind === "query-resource"
             ? `query-resource:${route.resourceId}`
-          : `contextual-resource:${route.collectionId}:${route.resourceId}`;
+            : `contextual-resource:${route.collectionId}:${route.resourceId}`;
 
   return (
     <main className="reservoir-study">

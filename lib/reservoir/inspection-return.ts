@@ -4,6 +4,19 @@ export type InspectionReturnFrame = {
   postContentProgress: number;
 };
 
+export type InspectionReadingRestorationResult = {
+  targetFrame: InspectionReturnFrame;
+  appliedFrame: InspectionReturnFrame;
+};
+
+export type InspectionViewportRect = Pick<
+  DOMRectReadOnly,
+  "top" | "right" | "bottom" | "left"
+>;
+
+const INSPECTION_RETURN_SCROLL_TOLERANCE_PX = 1;
+const INSPECTION_RETURN_PROGRESS_TOLERANCE = 0.001;
+
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
@@ -46,5 +59,53 @@ export function getInspectionReturnPostContentOffset(
     frame.postContentProgress * boundedRevealDistance,
     0,
     boundedRevealDistance,
+  );
+}
+
+export function getBoundedInspectionReturnFrame(
+  frame: InspectionReturnFrame,
+  maximumScrollY: number,
+  totalRevealDistance: number,
+) {
+  const boundedRevealDistance = getFiniteNonNegativeValue(totalRevealDistance);
+  const postContentOffset = getInspectionReturnPostContentOffset(
+    frame,
+    boundedRevealDistance,
+  );
+  return createInspectionReturnFrame(
+    frame.resourceId,
+    getInspectionReturnScrollY(frame, maximumScrollY),
+    boundedRevealDistance > 0
+      ? postContentOffset / boundedRevealDistance
+      : 0,
+  );
+}
+
+export function isInspectionCloseControlVisibleInViewport(
+  rect: InspectionViewportRect,
+  viewportWidth: number,
+  viewportHeight: number,
+) {
+  return (
+    viewportWidth > 0 &&
+    viewportHeight > 0 &&
+    rect.bottom > 0 &&
+    rect.top < viewportHeight &&
+    rect.right > 0 &&
+    rect.left < viewportWidth
+  );
+}
+
+export function areInspectionReturnFramesPracticallyEquivalent(
+  intended: InspectionReturnFrame,
+  restored: InspectionReturnFrame,
+) {
+  return (
+    intended.resourceId === restored.resourceId &&
+    Math.abs(intended.scrollY - restored.scrollY) <=
+      INSPECTION_RETURN_SCROLL_TOLERANCE_PX &&
+    Math.abs(
+      intended.postContentProgress - restored.postContentProgress,
+    ) <= INSPECTION_RETURN_PROGRESS_TOLERANCE
   );
 }

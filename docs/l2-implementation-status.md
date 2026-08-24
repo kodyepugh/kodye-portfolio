@@ -1,7 +1,7 @@
 # Digital Reservoir — L2 Implementation Status
 
 **Status:** Closed L2 implementation line / public-launch preparation
-**Updated:** August 23, 2026
+**Updated:** August 24, 2026
 **Ontology authority:** `docs/digital-reservoir-resource-artifact-query-ontology-v0.7.md` revision 0.7.1
 **Bellabeat ingestion authority:** `docs/l2-bellabeat-manual-ingestion-manifest.md`
 
@@ -134,6 +134,8 @@ The production Bellabeat graph has now exercised mixed Collection/Query history 
 - Home reset history to the root Collection, cleared Inspection-return state, and did not reopen Inspection;
 - the final browser console contained no warnings or errors.
 
+The later Bellabeat Recruiter-Path QA pass also verified the browser-entry transaction layer around this semantic history: Query and Inspection states own separate browser entries, same-path visits remain distinct, valid owned entries restore from their stored snapshots on reload, physical Back is restricted to exact current-document adjacency, refreshed interface navigation uses semantic push/replace fallbacks, and restored reading state retains functional Back-to-Top behavior. Production visual/runtime QA was accepted by the user on August 24, 2026. See `docs/bellabeat-browser-navigation-transaction-record.md`.
+
 ### 6. Polished Image Inspection + Shared Inspection Context Grammar
 
 Implemented, refined, reviewed, and approved for merge:
@@ -219,8 +221,8 @@ The roadmap groups launch work into five stages, beginning with a completed Bell
 
 1. **Bellabeat Launch Cut** — complete. The published root Digital Reservoir Collection now curates exactly Bellabeat, Resume, and Contact; dormant Collections and unfinished launch Resources are unpublished.
 2. **Public Web Essentials** — complete. Production identity/metadata, outbound destinations, Contact delivery, Resume/PDF access, direct Bellabeat access, active-Reservoir direct Resource reuse, contextual-route Collection ownership, explicit `/q/` semantics, and the production four-point Bellabeat route smoke test are verified.
-3. **Bellabeat Recruiter-Path QA** — next. Exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
-4. **Minimum Responsive / Accessibility / Interaction Sweep** — representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup.
+3. **Bellabeat Recruiter-Path QA** — complete. The production Bellabeat path exercised the real Resource/support graph, structured reading, figures, repository handoff, Query detour return, Home, browser Back/Forward, refreshed Query/Inspection states, and practical reading-position restoration. The accepted stable-state browser transaction model is recorded in `docs/bellabeat-browser-navigation-transaction-record.md`; branch-local runtime validation and the user's production visual/runtime smoke test passed, and closeout was approved.
+4. **Minimum Responsive / Accessibility / Interaction Sweep** — next. Representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup. This is the next launch stage and has not yet started.
 5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.
 
 Broader About, Digital Reservoir, client, and archive content are post-launch expansion work and are not required to complete this launch sequence.
@@ -303,6 +305,6 @@ For new implementation or debugging branches:
 4. read the interface specification for accepted interaction behavior;
 5. read the Bellabeat manifest when the task touches Bellabeat content, provenance, or curatorial boundaries.
 
-Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, supporting-Resource navigation, minimum Inspection return context, image Inspection, or external-link/repository Inspection without a reviewed defect that specifically requires correction.
+Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, supporting-Resource navigation, minimum Inspection return context, image Inspection, external-link/repository Inspection, or accepted browser-history transaction model without a reviewed defect that specifically requires correction.
 
-Current work is public-launch preparation. Do not expand into additional renderer families, ingestion infrastructure, or future product systems merely because they are conceptually adjacent.
+Current work is public-launch preparation. The next stage is the Minimum Responsive / Accessibility / Interaction Sweep. Do not expand into additional renderer families, ingestion infrastructure, or future product systems merely because they are conceptually adjacent.

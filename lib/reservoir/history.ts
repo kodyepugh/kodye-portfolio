@@ -15,6 +15,42 @@ export type VisibleReservoirHistory = {
   hasHiddenHistory: boolean;
 };
 
+export type ReservoirHistoryVisitResolution = {
+  history: ReservoirHistoryFrame[];
+  targetFrame: ReservoirHistoryFrame;
+  activeContextMatches: boolean;
+};
+
+export function getNextReservoirHistoryVisitSequence(
+  history: readonly ReservoirHistoryFrame[],
+) {
+  return Math.max(
+    1,
+    ...history.map((frame) => {
+      const match = /^reservoir-visit-(\d+)$/.exec(frame.id);
+      return match ? Number(match[1]) + 1 : 1;
+    }),
+  );
+}
+
+function areReservoirContextsEqual(
+  left: ReservoirContext,
+  right: ReservoirContext,
+): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "collection" && right.kind === "collection") {
+    return left.collectionId === right.collectionId;
+  }
+  if (left.kind !== "query" || right.kind !== "query") return false;
+  return (
+    left.resultIds.length === right.resultIds.length &&
+    left.resultIds.every(
+      (resultId, index) => resultId === right.resultIds[index],
+    ) &&
+    areReservoirContextsEqual(left.returnContext, right.returnContext)
+  );
+}
+
 export function getQueryReservoirHistoryLabel(
   resultTitles: readonly string[],
   explicitLabel?: string | null,
@@ -64,6 +100,25 @@ export function truncateReservoirHistoryAtVisit(
   const targetIndex = history.findIndex((frame) => frame.id === visitId);
   if (targetIndex < 0 || targetIndex >= history.length - 1) return null;
   return history.slice(0, targetIndex + 1);
+}
+
+export function resolveReservoirHistoryVisit(
+  history: readonly ReservoirHistoryFrame[],
+  visitId: string,
+  activeContext: ReservoirContext,
+): ReservoirHistoryVisitResolution | null {
+  const truncatedHistory = truncateReservoirHistoryAtVisit(history, visitId);
+  const targetFrame = truncatedHistory?.at(-1);
+  return truncatedHistory && targetFrame
+    ? {
+        history: truncatedHistory,
+        targetFrame,
+        activeContextMatches: areReservoirContextsEqual(
+          targetFrame.context,
+          activeContext,
+        ),
+      }
+    : null;
 }
 
 export function resetReservoirHistory(

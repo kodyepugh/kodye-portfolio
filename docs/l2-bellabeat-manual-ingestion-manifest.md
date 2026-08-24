@@ -1,6 +1,6 @@
 # Digital Reservoir — L2 Bellabeat Manual Ingestion Manifest
 
-**Status:** Manual ingestion review complete / initial website materialization complete; integrated QA pending
+**Status:** Manual ingestion review complete / website materialization complete / integrated launch QA complete
 **Historical implementation branch:** `feat/l2-bellabeat-ingestion`
 **Source repository:** `kodyepugh/bellabeat-wellness-analysis`
 **Source branch:** `main`
@@ -425,19 +425,25 @@ Completed materialization includes:
 - preserved interpretation boundary and source authority;
 - Bellabeat repository Resource and external-link/repository Inspection.
 
-### Integrated launch QA — pending
+### Integrated launch QA — complete
 
-Bellabeat should not be considered fully launch-validated until the real production content graph is exercised in-browser.
+The real Bellabeat launch graph has now been exercised in-browser and accepted for the current launch cut.
 
-Required integrated QA includes:
+Verified across the integrated QA and navigation-correction passes:
 
-- open Bellabeat from intended launch entry points;
-- inspect the structured document and figures;
-- navigate to supporting Resources and the repository Resource;
-- verify Back restores Bellabeat Inspection and practical reading context;
-- verify Home discards the Inspection return frame and returns to root;
-- verify Collection context remains membership-derived;
-- verify responsive behavior, focus restoration, reduced motion, and unavailable-target handling;
-- run the established content, typecheck, lint, build, and relevant Inspection/geometry validations.
+- Bellabeat opens from intended launch entry points;
+- structured document and figures render correctly;
+- supporting Resources and the repository Resource remain independently addressable through canonical Resource identity;
+- support detours create distinct Query and Inspection browser states without granting membership;
+- browser Back/Forward restores the selected semantic state and reuses the stored Query visit rather than creating duplicate Query nodes;
+- valid owned browser entries restore their exact semantic snapshots on refresh;
+- refreshed Query interface Back and refreshed Inspection close use safe semantic fallbacks rather than assuming cross-document adjacency;
+- meaningful reading position is captured and restored at the support-detour boundary;
+- restored deep reading state exposes functional Back-to-Top behavior;
+- Home discards the Inspection return frame and returns to root;
+- Collection context remains membership-derived;
+- repository links resolve to the approved external destination.
 
-The release-preparation roadmap controls when this QA occurs relative to the Portfolio Content Cut and Public Web Layer.
+The final browser-history correction uses typed, path-validated owned entries with stable identity and semantic snapshots. Query and Inspection commits are separate; browser restoration is no-write/latest-wins; physical browser Back is limited to exact adjacency known by the current live document; refreshed/unverified interface navigation falls back directly to its semantic push/replace destination; recovery is bounded and in-place; and practical reading restoration is checked against current geometry. The complete accepted policy and evidence are recorded in `docs/bellabeat-browser-navigation-transaction-record.md`.
+
+Branch-local runtime validation passed, followed by the user's production visual/runtime smoke test and explicit closeout approval on August 24, 2026. Bellabeat Recruiter-Path QA is therefore complete. Responsive/accessibility coverage remains the next launch stage under `docs/release-preparation-roadmap.md`.

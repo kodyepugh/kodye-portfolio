@@ -18,8 +18,10 @@ import { InspectionWindowBody } from "./InspectionWindowBody";
 import { InspectionImageViewerProvider } from "./InspectionImageViewer";
 import {
   createInspectionReturnFrame,
+  getBoundedInspectionReturnFrame,
   getInspectionReturnPostContentOffset,
-  getInspectionReturnScrollY,
+  isInspectionCloseControlVisibleInViewport,
+  type InspectionReadingRestorationResult,
   type InspectionReturnFrame,
 } from "@/lib/reservoir/inspection-return";
 import {
@@ -61,7 +63,7 @@ export type InspectionWindowProps = {
     collectionId: string,
     returnFrame: InspectionReturnFrame,
   ) => void;
-  onReadingStateRestored: (frame: InspectionReturnFrame) => void;
+  onReadingStateRestored: (result: InspectionReadingRestorationResult) => void;
 };
 
 const INITIAL_REVEAL_MEASUREMENTS: InspectionRevealMeasurements = {
@@ -118,36 +120,107 @@ function getFocusableElements(container: HTMLElement) {
 
 function InspectionBackToTopButton({
   closeButtonRef,
+  contentRef,
+  reconciliationKey,
+  visibilityLocked,
   onBackToTop,
+  onHiddenWhileFocused,
 }: {
   closeButtonRef: RefObject<HTMLButtonElement | null>;
+  contentRef: RefObject<HTMLElement | null>;
+  reconciliationKey: string;
+  visibilityLocked: boolean;
   onBackToTop: () => void;
+  onHiddenWhileFocused: () => void;
 }) {
   const [closeButtonVisibleInViewport, setCloseButtonVisibleInViewport] =
     useState<boolean | null>(null);
-  const showBackToTop = closeButtonVisibleInViewport === false;
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const reconciliationFrameRef = useRef(0);
+  const showBackToTop =
+    visibilityLocked || closeButtonVisibleInViewport === false;
+
+  const reconcileCloseButtonVisibility = useCallback(() => {
+    cancelAnimationFrame(reconciliationFrameRef.current);
+    reconciliationFrameRef.current = requestAnimationFrame(() => {
+      const closeButton = closeButtonRef.current;
+      const nextVisible = closeButton
+        ? isInspectionCloseControlVisibleInViewport(
+            closeButton.getBoundingClientRect(),
+            window.innerWidth,
+            window.innerHeight,
+          )
+        : true;
+      setCloseButtonVisibleInViewport((currentVisible) =>
+        currentVisible === nextVisible ? currentVisible : nextVisible,
+      );
+    });
+  }, [closeButtonRef]);
+
+  useLayoutEffect(() => {
+    reconcileCloseButtonVisibility();
+  }, [reconcileCloseButtonVisibility, reconciliationKey]);
 
   useEffect(() => {
     const closeButton = closeButtonRef.current;
-    if (!closeButton || typeof IntersectionObserver === "undefined") return;
+    if (!closeButton) return;
 
-    const observer = new IntersectionObserver(([entry]) => {
-      setCloseButtonVisibleInViewport(entry?.isIntersecting ?? false);
+    reconcileCloseButtonVisibility();
+    const intersectionObserver =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(reconcileCloseButtonVisibility);
+    intersectionObserver?.observe(closeButton);
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(reconcileCloseButtonVisibility);
+    resizeObserver?.observe(closeButton);
+    if (contentRef.current) resizeObserver?.observe(contentRef.current);
+
+    let cancelled = false;
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) reconcileCloseButtonVisibility();
     });
-
-    observer.observe(closeButton);
+    window.addEventListener("scroll", reconcileCloseButtonVisibility, {
+      passive: true,
+    });
+    window.addEventListener("resize", reconcileCloseButtonVisibility);
 
     return () => {
-      observer.disconnect();
+      cancelled = true;
+      intersectionObserver?.disconnect();
+      resizeObserver?.disconnect();
+      window.removeEventListener("scroll", reconcileCloseButtonVisibility);
+      window.removeEventListener("resize", reconcileCloseButtonVisibility);
+      cancelAnimationFrame(reconciliationFrameRef.current);
     };
-  }, [closeButtonRef]);
+  }, [closeButtonRef, contentRef, reconcileCloseButtonVisibility]);
+
+  useEffect(() => {
+    if (
+      !showBackToTop &&
+      document.activeElement === buttonRef.current
+    ) {
+      onHiddenWhileFocused();
+    }
+  }, [onHiddenWhileFocused, showBackToTop]);
 
   return (
     <button
+      ref={buttonRef}
       className="inspection-window__back-to-top"
       type="button"
       disabled={!showBackToTop}
+      aria-hidden={!showBackToTop}
+      tabIndex={showBackToTop ? 0 : -1}
       onClick={onBackToTop}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onBackToTop();
+      }}
       aria-label="Back to top"
       title="Back to top"
       data-back-to-top-visible={showBackToTop}
@@ -187,10 +260,15 @@ export function InspectionWindow({
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const closeIntentRef = useRef<InspectionWindowProps["exitIntent"]>(exitIntent);
   const readingStateRestoredRef = useRef(false);
+  const backToTopFocusCleanupRef = useRef<(() => void) | null>(null);
   const [postContentOffset, setPostContentOffset] = useState(0);
   const [revealMeasurements, setRevealMeasurements] =
     useState<InspectionRevealMeasurements>(INITIAL_REVEAL_MEASUREMENTS);
   const [closeScrollY, setCloseScrollY] = useState(0);
+  const [backToTopInProgress, setBackToTopInProgress] = useState(false);
+  const readingRestorationKey = initialReturnFrame
+    ? `${resource.id}:${initialReturnFrame.resourceId}:${initialReturnFrame.scrollY}:${initialReturnFrame.postContentProgress}`
+    : `${resource.id}:none`;
   const titleId = `inspection-window-title-${resource.id}`;
   const bodyId = `inspection-window-body-${resource.id}`;
   const resourceContext = getPublishedResourceContext(resource.id);
@@ -235,6 +313,10 @@ export function InspectionWindow({
     postContentOffsetRef.current = next;
     setPostContentOffset(next);
   }, []);
+
+  useLayoutEffect(() => {
+    readingStateRestoredRef.current = false;
+  }, [readingRestorationKey]);
 
   useLayoutEffect(() => {
     closeIntentRef.current = exitIntent;
@@ -296,24 +378,55 @@ export function InspectionWindow({
   }, []);
 
   const handleBackToTop = useCallback(() => {
+    backToTopFocusCleanupRef.current?.();
+    setBackToTopInProgress(true);
     updatePostContentOffset(0);
 
-    const returnToTop = () => {
-      window.scrollTo({
-        top: 0,
-        left: 0,
-        behavior: reducedMotion ? "instant" : "smooth",
-      });
+    let initialFrameId = 0;
+    let cleanup = () => {};
+    const finishAtTop = () => {
+      if (window.scrollY > SCROLL_ENDPOINT_TOLERANCE) return;
+      backToTopFocusCleanupRef.current?.();
+      backToTopFocusCleanupRef.current = null;
       closeButtonRef.current?.focus({ preventScroll: true });
+      setBackToTopInProgress(false);
     };
-
-    if (reducedMotion) {
-      returnToTop();
-      return;
-    }
-
-    requestAnimationFrame(returnToTop);
+    const finishInterruptedScroll = () => {
+      if (window.scrollY <= SCROLL_ENDPOINT_TOLERANCE) {
+        finishAtTop();
+        return;
+      }
+      cleanup();
+      backToTopFocusCleanupRef.current = null;
+      setBackToTopInProgress(false);
+    };
+    cleanup = () => {
+      cancelAnimationFrame(initialFrameId);
+      window.removeEventListener("scroll", finishAtTop);
+      window.removeEventListener("scrollend", finishInterruptedScroll);
+    };
+    backToTopFocusCleanupRef.current = cleanup;
+    window.addEventListener("scroll", finishAtTop, { passive: true });
+    window.addEventListener("scrollend", finishInterruptedScroll);
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: reducedMotion ? "instant" : "smooth",
+    });
+    initialFrameId = requestAnimationFrame(finishAtTop);
   }, [reducedMotion, updatePostContentOffset]);
+  const handleBackToTopHiddenWhileFocused = useCallback(() => {
+    if (backToTopFocusCleanupRef.current) return;
+    closeButtonRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(
+    () => () => {
+      backToTopFocusCleanupRef.current?.();
+      backToTopFocusCleanupRef.current = null;
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -384,43 +497,77 @@ export function InspectionWindow({
     }
 
     let alignmentFrameId = 0;
-    const measurementFrameId = requestAnimationFrame(() => {
+    let settlementFrameId = 0;
+    let confirmationFrameId = 0;
+    const getCurrentBoundedTarget = () => {
       const measurements = revealMeasurementsRef.current;
-      const measuredRevealDistance =
+      const totalRevealDistance =
         measurements.controlPlaneHeight + measurements.footerHeight;
-      const restoredPostContentOffset =
-        getInspectionReturnPostContentOffset(
-          initialReturnFrame,
-          measuredRevealDistance,
-        );
-      updatePostContentOffset(restoredPostContentOffset);
+      const targetFrame = getBoundedInspectionReturnFrame(
+        initialReturnFrame,
+        getDocumentScrollBottom(),
+        totalRevealDistance,
+      );
+      const postContentOffset = getInspectionReturnPostContentOffset(
+        targetFrame,
+        totalRevealDistance,
+      );
+      return { targetFrame, postContentOffset, totalRevealDistance };
+    };
+    const applyCurrentBoundedTarget = () => {
+      const target = getCurrentBoundedTarget();
+      updatePostContentOffset(target.postContentOffset);
+      window.scrollTo({
+        top: target.targetFrame.scrollY,
+        left: 0,
+        behavior: "instant",
+      });
+      return target;
+    };
+    const measurementFrameId = requestAnimationFrame(() => {
+      const initialTarget = getCurrentBoundedTarget();
+      updatePostContentOffset(initialTarget.postContentOffset);
 
       alignmentFrameId = requestAnimationFrame(() => {
-        const restoredScrollY = getInspectionReturnScrollY(
-          initialReturnFrame,
-          getDocumentScrollBottom(),
-        );
-        window.scrollTo({
-          top: restoredScrollY,
-          left: 0,
-          behavior: "instant",
+        applyCurrentBoundedTarget();
+        settlementFrameId = requestAnimationFrame(() => {
+          const settledTarget = applyCurrentBoundedTarget();
+          confirmationFrameId = requestAnimationFrame(() => {
+            const measurements = revealMeasurementsRef.current;
+            const appliedRevealDistance =
+              measurements.controlPlaneHeight + measurements.footerHeight;
+            const appliedFrame = createInspectionReturnFrame(
+              initialReturnFrame.resourceId,
+              window.scrollY,
+              appliedRevealDistance > 0
+                ? postContentOffsetRef.current / appliedRevealDistance
+                : 0,
+            );
+            if (stageRef.current) {
+              stageRef.current.dataset.restorationTargetScrollY =
+                settledTarget.targetFrame.scrollY.toFixed(3);
+              stageRef.current.dataset.restorationAppliedScrollY =
+                appliedFrame.scrollY.toFixed(3);
+              stageRef.current.dataset.restorationTargetPostContentProgress =
+                settledTarget.targetFrame.postContentProgress.toFixed(6);
+              stageRef.current.dataset.restorationAppliedPostContentProgress =
+                appliedFrame.postContentProgress.toFixed(6);
+            }
+            readingStateRestoredRef.current = true;
+            onReadingStateRestored({
+              targetFrame: settledTarget.targetFrame,
+              appliedFrame,
+            });
+          });
         });
-        readingStateRestoredRef.current = true;
-        onReadingStateRestored(
-          createInspectionReturnFrame(
-            initialReturnFrame.resourceId,
-            restoredScrollY,
-            measuredRevealDistance > 0
-              ? restoredPostContentOffset / measuredRevealDistance
-              : 0,
-          ),
-        );
       });
     });
 
     return () => {
       cancelAnimationFrame(measurementFrameId);
       cancelAnimationFrame(alignmentFrameId);
+      cancelAnimationFrame(settlementFrameId);
+      cancelAnimationFrame(confirmationFrameId);
     };
   }, [
     initialReturnFrame,
@@ -754,7 +901,11 @@ export function InspectionWindow({
                 {phase === "reading" ? (
                   <InspectionBackToTopButton
                     closeButtonRef={closeButtonRef}
+                    contentRef={contentRef}
+                    reconciliationKey={`${readingRestorationKey}:${postContentOffset}:${totalRevealDistance}`}
+                    visibilityLocked={backToTopInProgress}
                     onBackToTop={handleBackToTop}
+                    onHiddenWhileFocused={handleBackToTopHiddenWhileFocused}
                   />
                 ) : null}
               </div>

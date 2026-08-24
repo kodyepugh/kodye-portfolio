@@ -15,6 +15,7 @@ export type PublicRoute =
       collectionId: string;
       resourceId: string;
     }
+  | { kind: "redirect-resource"; resourceId: string }
   | { kind: "redirect-root" }
   | { kind: "not-found" };
 
@@ -60,6 +61,13 @@ export function resolvePublicRoute(
     )
   ) {
     return { kind: "not-found" };
+  }
+
+  if (collection.id === ROOT_COLLECTION_ID) {
+    return {
+      kind: "redirect-resource",
+      resourceId: contextualResource.id,
+    };
   }
 
   return {

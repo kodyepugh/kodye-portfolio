@@ -1,7 +1,7 @@
 # KP Website — Release Preparation Roadmap
 
 **Status:** Current sequencing authority for near-term work
-**Updated:** August 23, 2026
+**Updated:** August 24, 2026
 
 ## Objective
 
@@ -239,51 +239,47 @@ This stage is complete. Production `/bellabeat-wellness-analysis` uses Home plus
 
 ---
 
-## 3. Bellabeat Recruiter-Path QA — Launch-Blocking
+## 3. Bellabeat Recruiter-Path QA — Launch-Blocking / Complete
 
-Prioritize the actual recruiter journey from direct Bellabeat entry through the case study, figures and supporting Resources, repository, return navigation, and other essential launch actions rather than relying only on synthetic validation.
+**Status:** Complete.
 
-Bellabeat should be the primary integrated QA path because it currently exercises the richest combination of document, figure, repository, supporting-resource, and return-context behavior.
+Bellabeat was used as the integrated recruiter-path test because it exercises the richest combination of structured reading, figures, supporting Resources, repository handoff, Query detours, browser navigation, Inspection return ownership, and Home behavior in the launch registry.
 
-### Required Bellabeat path
+The production exercise exposed a systemic browser-history ownership defect after support detours. The completed correction now uses one explicit stable-state transaction model: Query and Inspection commits own separate entries; entry identity and full semantic snapshots distinguish same-path visits; browser restoration is no-write/latest-wins; valid owned entries own reload initialization; physical browser Back is restricted to exact adjacency known by the current live document; refreshed or otherwise unverified interface Back/close paths use semantic push/replace fallbacks; recovery replaces/reloads in place under a bounded loop guard; root-context Resource URLs redirect server-side to their direct canonical URL; and practical reading restoration is bounded to current geometry. The exact policy and evidence are recorded in `docs/bellabeat-browser-navigation-transaction-record.md`.
 
-Verify:
+Branch-local runtime QA covered support Back/Forward with the same Query visit, owned Query/Inspection refresh, same-path snapshots, stale-predecessor fallback, current-document Back eligibility, root-context canonical redirect, bounded recovery, geometry changes, and restored-state Back-to-Top behavior. The user then completed the production visual/runtime smoke test and approved closeout.
 
-- Bellabeat can be surfaced from its intended public entry points;
-- its structured document opens correctly;
-- figures and document content render correctly;
-- supporting Resources are discoverable;
-- the repository Resource opens through the external-link/repository Inspection surface;
-- supporting-Resource navigation uses canonical Resource identity;
-- Back restores the Bellabeat Inspection;
-- practical reading position is restored appropriately;
-- Home discards Inspection return context and returns to root;
-- Collection context remains membership-derived rather than inferred from support relationships;
-- external navigation behaves safely and predictably;
-- unavailable or invalid external targets resolve gracefully.
+Treat this navigation model as accepted launch behavior. Do not reopen it during later launch work without a reproducible regression.
 
-### Required invariants and bounded regression coverage
+### Verified Bellabeat path
 
-Also exercise the relevant launch paths and preserve:
+The accepted QA covered:
 
-- canonical Resource identity and semantic/navigation invariants;
-- root, Home, Back, ancestry, direct Resource query, and Query Reservoir behavior;
-- Inspection open/close, footer/terminal reveal, and Resource/Collection context navigation;
-- the established layout, zoom, label, Reservoir Index, and control behavior where exercised by the launch path.
-
-Do not reopen closed L2 architecture absent a reproducible defect.
+- Bellabeat surfaced from its intended public entry points;
+- structured-document and figure rendering;
+- supporting Resource and repository navigation;
+- canonical Resource identity through support detours;
+- browser Back/Forward restoration across Query and Inspection states;
+- refreshed Query interface Back and refreshed Inspection close behavior;
+- practical reading-position restoration;
+- restored-state Back-to-Top behavior;
+- Home discarding Inspection return context and returning to root;
+- Collection context remaining membership-derived rather than inferred from support relationships;
+- safe external repository navigation.
 
 ### Completion condition
 
-This stage is complete when the real launch registry proves the established semantic and interaction architecture under actual user-facing content.
+Complete. The real launch registry proved the established semantic and interaction architecture under actual user-facing Bellabeat content and the corrected navigation model passed the accepted production visual/runtime check.
 
 ---
 
-## 4. Minimum Responsive / Accessibility / Interaction Sweep — Launch-Blocking Where Functional
+## 4. Minimum Responsive / Accessibility / Interaction Sweep — Launch-Blocking Where Functional / Next
+
+**Status:** Next launch stage; not yet started.
 
 Validate the launch experience on representative desktop/laptop configurations first, plus a practical mobile sanity check. Verify keyboard/direct-access usability and functional interaction, and fix launch-blocking regressions.
 
-This is a release pass, not a redesign milestone.
+This is a release pass, not a redesign milestone. Preserve the accepted Stage 3 browser/navigation architecture unless this sweep exposes a reproducible functional regression.
 
 ### Responsive coverage
 
