@@ -374,6 +374,12 @@ touch hit-area confirmation remains part of the manual gate.
 - `npm run build -- --webpack` — pass; compilation, TypeScript, static page
   generation, optimization, and route output completed successfully.
 - `git diff --check` — pass.
+- Branch push — `ee24b93080f1de680f97e86ec3101146079e4763` is present on
+  `origin/qa/minimum-responsive-accessibility-interaction`.
+- Vercel deployment/check — not independently verifiable in this environment:
+  no Vercel CLI/project binding is present, GitHub CLI authentication is
+  invalid, and direct GitHub API DNS access is unavailable. This remains a
+  Production Release verification item, not a claimed pass.
 
 Responsive visual QA is user-approved, IR-01 and IR-03 are closed, SG-01 is
 not reproduced, Stage 3 remains accepted, and no P2/P3 polish item is being
