@@ -110,6 +110,10 @@ import {
   type ReservoirHistoryFrame,
 } from "@/lib/reservoir/history";
 import { getReservoirResourceSelectionAction } from "@/lib/reservoir/resource-selection";
+import {
+  canReuseActiveReservoirResource,
+  resolveContextualResourceHistory,
+} from "@/lib/reservoir/direct-resource-routing";
 import { canInspectResource } from "@/lib/reservoir/inspection";
 import {
   canConsumeDirectResourceInspectionIntent,
@@ -198,7 +202,7 @@ type IndexInspectionIntent = {
   contextKey: string;
 };
 
-type FocalInspectionOrigin = "index" | "footer";
+type FocalInspectionOrigin = "index" | "footer" | "route";
 
 type FocalInspectionIntent = IndexInspectionIntent & {
   origin: FocalInspectionOrigin;
@@ -206,6 +210,11 @@ type FocalInspectionIntent = IndexInspectionIntent & {
 
 type FocalInspectionRotation = FocalInspectionIntent & {
   targetQuaternion: QuaternionTuple;
+};
+
+type ContextualResourceFocusIntent = {
+  resourceId: string;
+  collectionId: string;
 };
 
 type ReservoirLayoutPlacementPolicy =
@@ -1266,6 +1275,11 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     useRef<InspectionReturnFrame | null>(null);
   const pendingInspectionReturnFrameRef =
     useRef<InspectionReturnFrame | null>(null);
+  const pendingContextualResourceFocusRef =
+    useRef<ContextualResourceFocusIntent | null>(null);
+  const focusActiveReservoirResourceRef = useRef<
+    (resourceId: string, origin: FocalInspectionOrigin) => boolean
+  >(() => false);
   const beginResourceInspectionRef = useRef<
     (resourceId: string, allowLocatedTransition?: boolean) => boolean
   >(() => false);
@@ -1275,6 +1289,8 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       inspectionReturnFrame?: InspectionReturnFrame | null,
       returnContextOverride?: ReservoirContext,
       openInspection?: boolean,
+      preferActiveReservoir?: boolean,
+      requestedCollectionId?: string,
     ) => boolean
   >(() => false);
   const requestCollectionRef = useRef<
@@ -2841,6 +2857,9 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         const started = requestDirectResourceRef.current(
           supportNavigationTarget,
           supportReturnFrame,
+          undefined,
+          true,
+          false,
         );
         if (started) {
           pendingInspectionReturnFrameRef.current = null;
@@ -3487,6 +3506,29 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     return true;
   }
 
+  function focusActiveReservoirResource(
+    resourceId: string,
+    origin: FocalInspectionOrigin,
+  ) {
+    const activeResourceNode = activeReservoirResources.find(
+      (node) => node.id === resourceId,
+    );
+    if (!activeResourceNode) return false;
+
+    const selectionAction = getReservoirResourceSelectionAction(
+      activeResourceNode,
+      resourceId,
+    );
+    if (selectionAction === "unsupported-resource-inspection") return false;
+
+    setTransitionState("idle");
+    setSelectedCollectionId(null);
+    setSelectedResourceId(resourceId);
+    setSelectedPressActive(false);
+    return rotateResourceToCanonicalForehead(resourceId, origin);
+  }
+  focusActiveReservoirResourceRef.current = focusActiveReservoirResource;
+
   useEffect(() => {
     if (!focalInspectionRotation) return;
 
@@ -3570,6 +3612,42 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
   }, [
     layoutOwnership.activeLayout,
     pendingFocalInspection,
+    transitionState,
+  ]);
+
+  useEffect(() => {
+    const pendingContextualResourceFocus =
+      pendingContextualResourceFocusRef.current;
+    if (
+      !pendingContextualResourceFocus ||
+      transitionState !== "idle" ||
+      collectionNavigation.transitionPhase !== "idle" ||
+      layoutOwnership.transitionPlan !== null
+    ) {
+      return;
+    }
+
+    const { resourceId, collectionId } = pendingContextualResourceFocus;
+    const activeContext = queryReservoirContext ?? collectionReservoirContext;
+    if (
+      activeContext.kind !== "collection" ||
+      activeContext.collectionId !== collectionId
+    ) {
+      return;
+    }
+
+    pendingContextualResourceFocusRef.current = null;
+    if (!focusActiveReservoirResourceRef.current(resourceId, "route")) {
+      if (interaction.current) {
+        interaction.current.dataset.directResourceRequestResult =
+          "rejected-contextual-active-reservoir";
+      }
+    }
+  }, [
+    collectionNavigation.transitionPhase,
+    collectionReservoirContext,
+    layoutOwnership.transitionPlan,
+    queryReservoirContext,
     transitionState,
   ]);
 
@@ -4045,6 +4123,8 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     inspectionReturnFrame: InspectionReturnFrame | null = null,
     returnContextOverride?: ReservoirContext,
     openInspection = true,
+    preferActiveReservoir = true,
+    requestedCollectionId?: string,
   ) {
     setPendingDirectInspectionIntent(null);
     const resource = getResourceByAddress(resourceAddress);
@@ -4069,9 +4149,106 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       return false;
     }
 
-    pendingInspectionNavigationTargetRef.current = null;
     const returnContext =
       returnContextOverride ?? queryReservoirContext ?? collectionReservoirContext;
+    const activeResourceReuseEligible = canReuseActiveReservoirResource({
+      resourceId: resource.id,
+      activeContext: renderedReservoirContext,
+      activeResourceIds: activeReservoirResources.map((node) => node.id),
+      requestedCollectionId: requestedCollectionId,
+    });
+
+    if (preferActiveReservoir && openInspection && activeResourceReuseEligible) {
+      const currentVisit = reservoirHistoryRef.current.at(-1);
+      if (!currentVisit) return false;
+
+      const focused = focusActiveReservoirResource(resource.id, "route");
+      if (focused) {
+        pendingInspectionNavigationTargetRef.current = null;
+        pendingInspectionReturnFrameRef.current = null;
+        setLocatingResourceId(null);
+        if (inspectionReturnFrame) {
+          commitReservoirHistory(
+            setInspectionReturnForReservoirVisit(
+              reservoirHistoryRef.current,
+              currentVisit.id,
+              inspectionReturnFrame,
+            ),
+          );
+        } else {
+          setInspectionReturnRuntime(null);
+        }
+        if (interaction.current) {
+          interaction.current.dataset.directResourceRequest = resourceAddress;
+          interaction.current.dataset.directResourceRequestResult =
+            "active-reservoir";
+          interaction.current.dataset.directResourceResolvedId = resource.id;
+          interaction.current.dataset.directResourceArtifactStatus = String(
+            resource.isArtifact,
+          );
+        }
+        return true;
+      }
+    }
+
+    if (
+      preferActiveReservoir &&
+      openInspection &&
+      requestedCollectionId &&
+      returnContext.kind === "collection" &&
+      !(
+        renderedReservoirContext.kind === "collection" &&
+        renderedReservoirContext.collectionId === requestedCollectionId
+      )
+    ) {
+      const currentHistory = reservoirHistoryRef.current;
+      const currentVisit = currentHistory.at(-1);
+      if (!currentVisit) return false;
+
+      const historyWithTargetContext = resolveContextualResourceHistory(
+        currentHistory,
+        requestedCollectionId,
+        createReservoirHistoryFrame,
+      );
+      if (!historyWithTargetContext) return false;
+      const historyWithInspectionReturn = inspectionReturnFrame
+        ? setInspectionReturnForReservoirVisit(
+            historyWithTargetContext,
+            currentVisit.id,
+            inspectionReturnFrame,
+          )
+        : historyWithTargetContext;
+
+      pendingReservoirHistoryResolutionRef.current = {
+        history: historyWithInspectionReturn,
+        spatialSelectionId: null,
+      };
+      pendingContextualResourceFocusRef.current = {
+        resourceId: resource.id,
+        collectionId: requestedCollectionId,
+      };
+      setInspectionReturnRuntime(null);
+      if (!requestCollection(requestedCollectionId)) {
+        pendingReservoirHistoryResolutionRef.current = null;
+        pendingContextualResourceFocusRef.current = null;
+        return false;
+      }
+
+      if (interaction.current) {
+        interaction.current.dataset.directResourceRequest = resourceAddress;
+        interaction.current.dataset.directResourceRequestResult =
+          "active-reservoir-after-contextual-reconstitution";
+        interaction.current.dataset.directResourceRequestMode =
+          "contextual-collection-reconstitution";
+        interaction.current.dataset.directResourceResolvedId = resource.id;
+        interaction.current.dataset.directResourceArtifactStatus = String(
+          resource.isArtifact,
+        );
+      }
+      return true;
+    }
+
+    pendingInspectionNavigationTargetRef.current = null;
     const targetContext: ReservoirContext = {
       kind: "query",
       resultIds: [resource.id],
@@ -4142,6 +4319,8 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       interaction.current.dataset.inspectionExitTarget = "";
       interaction.current.dataset.directResourceRequest = resourceAddress;
       interaction.current.dataset.directResourceRequestResult = "accepted";
+      interaction.current.dataset.directResourceRequestMode =
+        "query-reservoir";
       interaction.current.dataset.directResourceResolvedId = resource.id;
       interaction.current.dataset.directResourceArtifactStatus = String(
         resource.isArtifact,
@@ -4191,6 +4370,10 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         null,
         undefined,
         initialRouteOpensInspection,
+        initialRoute.kind !== "query-resource",
+        initialRoute.kind === "contextual-resource"
+          ? initialRoute.collectionId
+          : undefined,
       )) {
         initialRouteStartedRef.current = true;
         return;
@@ -4281,6 +4464,10 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         null,
         returnContext,
         route.kind !== "query-resource",
+        route.kind !== "query-resource",
+        route.kind === "contextual-resource"
+          ? route.collectionId
+          : undefined,
       )) {
         suppressNextBrowserHistoryWriteRef.current = false;
       }
@@ -4493,8 +4680,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       return;
     }
 
-    const selectionAction = getReservoirResourceSelectionAction(node, node.id);
-    if (selectionAction === "unsupported-resource-inspection") {
+    if (!focusActiveReservoirResource(node.id, "index")) {
       if (interaction.current) {
         interaction.current.dataset.resourceInspectionUnsupported = node.id;
         interaction.current.dataset.resourceInspectionUnsupportedKind =
@@ -4502,32 +4688,13 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       }
       return;
     }
-
-    setTransitionState("idle");
-    setSelectedCollectionId(null);
-    setSelectedResourceId(node.id);
-    setSelectedPressActive(false);
-    rotateResourceToCanonicalForehead(node.id, "index");
   }
 
   function selectFooterResource(resourceId: string) {
     if (inputLocked) return;
 
-    const activeResourceNode = activeReservoirResources.find(
-      (node) => node.id === resourceId,
-    );
-    if (activeResourceNode) {
-      const selectionAction = getReservoirResourceSelectionAction(
-        activeResourceNode,
-        resourceId,
-      );
-      if (selectionAction === "unsupported-resource-inspection") return;
-
-      setTransitionState("idle");
-      setSelectedCollectionId(null);
-      setSelectedResourceId(resourceId);
-      setSelectedPressActive(false);
-      if (!rotateResourceToCanonicalForehead(resourceId, "footer")) return;
+    if (activeReservoirResources.some((node) => node.id === resourceId)) {
+      if (!focusActiveReservoirResource(resourceId, "footer")) return;
       setFooterState("closing");
       return;
     }

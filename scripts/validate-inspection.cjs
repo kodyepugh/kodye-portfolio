@@ -1310,9 +1310,9 @@ const checks = [
       ),
   ],
   [
-    "footer falls back to the canonical direct Resource coordinator while Inspection support navigation always uses it",
+    "footer uses active-node reuse while Inspection support navigation forces a Query detour",
     reservoirSceneSource.includes(
-      "requestDirectResourceRef.current(\n          supportNavigationTarget",
+      "requestDirectResourceRef.current(\n          supportNavigationTarget,\n          supportReturnFrame,\n          undefined,\n          true,\n          false",
     ) &&
       reservoirSceneSource.includes(
         "function requestDirectResource(\n    resourceAddress: string",
@@ -1321,7 +1321,10 @@ const checks = [
         "requestDirectResource(resourceId)",
       ) &&
       reservoirSceneSource.includes(
-        "rotateResourceToCanonicalForehead(resourceId, \"footer\")",
+        'focusActiveReservoirResource(resourceId, "footer")',
+      ) &&
+      reservoirSceneSource.includes(
+        "setInspectionReturnRuntime((currentRuntime) =>",
       ) &&
       reservoirSceneSource.includes(
         "createDirectResourceInspectionIntent(",

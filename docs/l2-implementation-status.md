@@ -81,7 +81,7 @@ Implemented in the current repository line:
 - unpublished relationships and unpublished targets are excluded;
 - support ordering is deterministic;
 - selecting a supporting Resource does not swap the current renderer in place;
-- support selection retracts the current Inspection Window and delegates to the canonical direct Resource / Query Reservoir seam;
+- support selection retracts the current Inspection Window and delegates to the canonical direct Resource coordinator with active-node reuse disabled, preserving the ephemeral Query Reservoir detour;
 - support navigation does not promote Resources to Artifact status and does not mutate Collection membership;
 - duplicate support-navigation requests are blocked once a handoff is pending;
 - ordinary Inspection close preserves the current semantic Reservoir context and restores pre-inspection presentation.
@@ -218,7 +218,7 @@ The remaining work is public-release preparation rather than expansion of the L2
 The roadmap currently groups the remaining launch work into five stages, beginning with a completed Bellabeat-only launch cut rather than a broad first portfolio content cut:
 
 1. **Bellabeat Launch Cut** — complete. The published root Digital Reservoir Collection now curates exactly Bellabeat, Resume, and Contact; dormant Collections and unfinished launch Resources are unpublished.
-2. **Public Web Essentials** — production identity/metadata, real outbound destinations, the implemented Contact form, reliable inline/downloadable Resume PDF access, and a practical Bellabeat direct public address. Production Contact delivery is now configured and live-tested; the stage remains open for verification of the other launch-facing outbound destinations and direct-access paths.
+2. **Public Web Essentials** — production identity/metadata, real outbound destinations, the implemented Contact form, reliable inline/downloadable Resume PDF access, and a practical Bellabeat direct public address. Contact delivery and the remaining launch-facing destinations are verified. The active-Reservoir direct Resource correction, including the contextual-route Collection-ownership guard, is verified on the branch, but the deployed production Bellabeat route still requires redeployment and smoke testing before this stage closes.
 3. **Bellabeat Recruiter-Path QA** — exercise the real Bellabeat Resource/support graph and established return-context behavior in-browser.
 4. **Minimum Responsive / Accessibility / Interaction Sweep** — representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup.
 5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.

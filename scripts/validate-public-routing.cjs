@@ -54,6 +54,13 @@ const {
   getInspectionCloseHistoryAction,
   getPublicRouteHistoryEntry,
 } = require(path.join(projectRoot, "lib/public-route-history.ts"));
+const {
+  canReuseActiveReservoirResource,
+  resolveContextualResourceHistory,
+} = require(path.join(
+  projectRoot,
+  "lib/reservoir/direct-resource-routing.ts",
+));
 
 assert.deepEqual(resolvePublicRoute(), { kind: "root" });
 assert.deepEqual(resolvePublicRoute(["bellabeat-wellness-analysis"]), {
@@ -97,6 +104,90 @@ assert.equal(
   "not-found",
 );
 assert.equal(resolvePublicRoute(["work"]).kind, "not-found");
+
+const syntheticPublishedResource = "synthetic-dual-member-resource";
+const collectionAContext = {
+  kind: "collection",
+  collectionId: "synthetic-collection-a",
+};
+const collectionBContext = {
+  kind: "collection",
+  collectionId: "synthetic-collection-b",
+};
+assert.equal(
+  canReuseActiveReservoirResource({
+    resourceId: syntheticPublishedResource,
+    activeContext: collectionAContext,
+    activeResourceIds: [syntheticPublishedResource],
+    requestedCollectionId: collectionBContext.collectionId,
+  }),
+  false,
+);
+const syntheticHistory = [
+  {
+    id: "synthetic-root-visit",
+    context: { kind: "collection", collectionId: "synthetic-root" },
+    label: "Home",
+  },
+  {
+    id: "synthetic-collection-a-visit",
+    context: collectionAContext,
+    label: "Collection A",
+  },
+];
+const createSyntheticFrame = (context) => ({
+  id: `synthetic-${context.collectionId}-visit`,
+  context,
+  label: context.collectionId,
+});
+const firstContextualHistory = resolveContextualResourceHistory(
+  syntheticHistory,
+  collectionBContext.collectionId,
+  createSyntheticFrame,
+);
+assert.deepEqual(
+  firstContextualHistory.map((frame) => frame.context.collectionId),
+  ["synthetic-root", "synthetic-collection-a", "synthetic-collection-b"],
+);
+const restoredContextualHistory = resolveContextualResourceHistory(
+  firstContextualHistory,
+  collectionBContext.collectionId,
+  createSyntheticFrame,
+);
+assert.deepEqual(
+  restoredContextualHistory.map((frame) => frame.context.collectionId),
+  ["synthetic-root", "synthetic-collection-a", "synthetic-collection-b"],
+);
+assert.equal(
+  canReuseActiveReservoirResource({
+    resourceId: syntheticPublishedResource,
+    activeContext: collectionBContext,
+    activeResourceIds: [syntheticPublishedResource],
+    requestedCollectionId: collectionBContext.collectionId,
+  }),
+  true,
+);
+assert.equal(
+  canReuseActiveReservoirResource({
+    resourceId: syntheticPublishedResource,
+    activeContext: collectionAContext,
+    activeResourceIds: [syntheticPublishedResource],
+  }),
+  true,
+);
+assert.equal(
+  canReuseActiveReservoirResource({
+    resourceId: syntheticPublishedResource,
+    activeContext: {
+      kind: "query",
+      resultIds: [syntheticPublishedResource],
+      returnContext: collectionAContext,
+    },
+    activeResourceIds: [syntheticPublishedResource],
+    requestedCollectionId: collectionBContext.collectionId,
+  }),
+  false,
+);
 
 const inAppResourceEntry = createPublicRouteHistoryEntry({
   path: "/bellabeat-wellness-analysis",
