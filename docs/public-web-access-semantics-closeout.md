@@ -1,6 +1,6 @@
 # Public Web Access Semantics — Closeout
 
-**Status:** Implementation accepted; production rollout pending
+**Status:** Accepted and complete
 **Date:** August 23, 2026
 
 ## Accepted implementation
@@ -23,9 +23,10 @@ originating `InspectionReturnFrame` history boundary for Back/restoration.
 
 ## Verification
 
-- Branch-local `/bellabeat-wellness-analysis`: Home remains the active context, the existing Bellabeat node is selected, the runtime reports `active-reservoir`, Inspection opens at the direct Resource URL, and close returns to `/` with the single Home history visit.
-- Branch-local refresh of `/bellabeat-wellness-analysis`: the same Home/active-node behavior is restored.
-- Branch-local `/q/bellabeat-wellness-analysis`: runtime reports `query-reservoir`, with one Query result and Home as its return context.
+- Production `/bellabeat-wellness-analysis` keeps Home as the underlying active context, focuses the existing Bellabeat node, opens Inspection at the direct Resource URL, and does not create a one-result Query Reservoir.
+- Refreshing production `/bellabeat-wellness-analysis` preserves that same Home/active-node behavior.
+- Closing Bellabeat Inspection exposes the Home Reservoir at `/`.
+- Production `/q/bellabeat-wellness-analysis` retains its explicit one-result Query Reservoir meaning.
 - Branch-local Query Back/Forward and direct Inspection close preserve the expected URLs and contexts without duplicate settled visits.
 - The synthetic dual-membership regression rejects active-node reuse from
   Collection A for `/collection-b/resource`, accepts it after Collection B is
@@ -35,8 +36,8 @@ originating `InspectionReturnFrame` history boundary for Back/restoration.
 - Live `/resume` opens Resume Inspection and exposes the approved PDF download.
 - The live Bellabeat GitHub repository destination resolves to `kodyepugh/bellabeat-wellness-analysis`.
 
-## Remaining blocker
+## Closeout
 
-The currently deployed production `/bellabeat-wellness-analysis` still reports the pre-correction one-result Query Reservoir path. Redeploy this branch, then smoke-test the production Bellabeat direct route, refresh, Inspection close, and `/q/bellabeat-wellness-analysis` distinction. Public Web Essentials remains open until that production verification passes.
+The production rollout and four-point Bellabeat route smoke test are complete. This closes the remaining Public Web Essentials access-semantics gate.
 
-This closeout does not begin Bellabeat Recruiter-Path QA, the responsive/accessibility/interaction sweep, or Production Release.
+The next launch-blocking stage is Bellabeat Recruiter-Path QA. This closeout does not begin or complete that QA stage, the responsive/accessibility/interaction sweep, or Production Release.
