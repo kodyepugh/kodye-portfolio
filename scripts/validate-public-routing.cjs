@@ -54,9 +54,11 @@ const {
   advanceBrowserRecoveryGuard,
   applyPublicRouteHistoryTransaction,
   arePublicRouteRestorationsEqual,
+  canUseCurrentDocumentBrowserBack,
   createBrowserRecoveryGuardKey,
   createBrowserRestorationIntent,
   createPublicRouteHistoryEntry,
+  createPublicRouteHistoryDocumentRegistry,
   createRouteRestorationDescriptor,
   getBrowserEntryRecoveryDecision,
   getPublicRouteHistoryBackHandoffDecision,
@@ -68,6 +70,7 @@ const {
   mergePublicRouteHistoryReplacementState,
   planPublicRouteHistoryBackFallback,
   planPublicRouteHistoryTransaction,
+  registerPublicRouteHistoryDocumentEntry,
   stripPublicRouteHistoryState,
 } = require(path.join(projectRoot, "lib/public-route-history.ts"));
 const {
@@ -321,6 +324,211 @@ const rootEntry = createPublicRouteHistoryEntry({
   initial: true,
   restoration: browserRootRestoration,
 });
+
+const persistedPredecessorSelectedEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-reloaded-query",
+  initial: false,
+  restoration: browserRepositoryQueryRestoration,
+  predecessor: {
+    entryId: rootEntry.entryId,
+    restorationFingerprint: getPublicRouteRestorationFingerprint(
+      rootEntry.restoration,
+    ),
+  },
+});
+const reloadedDocumentRegistry = createPublicRouteHistoryDocumentRegistry(
+  persistedPredecessorSelectedEntry,
+);
+assert.deepEqual([...reloadedDocumentRegistry.keys()], [
+  persistedPredecessorSelectedEntry.entryId,
+]);
+assert.equal(
+  canUseCurrentDocumentBrowserBack({
+    registry: reloadedDocumentRegistry,
+    currentEntry: persistedPredecessorSelectedEntry,
+    restoration: rootEntry.restoration,
+  }),
+  false,
+);
+const reloadedInterfaceBackPlan = planPublicRouteHistoryTransaction({
+  currentEntry: persistedPredecessorSelectedEntry,
+  restoration: rootEntry.restoration,
+  mode: "back-or-push",
+  entryId: "browser-entry-reloaded-interface-fallback",
+  allowBrowserBack: canUseCurrentDocumentBrowserBack({
+    registry: reloadedDocumentRegistry,
+    currentEntry: persistedPredecessorSelectedEntry,
+    restoration: rootEntry.restoration,
+  }),
+});
+assert.equal(reloadedInterfaceBackPlan.kind, "push");
+assert.equal("expectedEntryId" in reloadedInterfaceBackPlan, false);
+const reloadedInterfaceBackHistory = createFakeBrowserHistory(
+  persistedPredecessorSelectedEntry,
+);
+applyPublicRouteHistoryTransaction(
+  reloadedInterfaceBackHistory,
+  reloadedInterfaceBackPlan,
+);
+assert.equal(reloadedInterfaceBackHistory.backCallCount, 0);
+
+const refreshedInspectionEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-reloaded-inspection",
+  initial: false,
+  restoration: browserRepositoryInspectionRestoration,
+  predecessor: {
+    entryId: persistedPredecessorSelectedEntry.entryId,
+    restorationFingerprint: getPublicRouteRestorationFingerprint(
+      persistedPredecessorSelectedEntry.restoration,
+    ),
+  },
+});
+const refreshedInspectionRegistry = createPublicRouteHistoryDocumentRegistry(
+  refreshedInspectionEntry,
+);
+const refreshedInspectionClosePlan = planPublicRouteHistoryTransaction({
+  currentEntry: refreshedInspectionEntry,
+  restoration: browserRepositoryQueryRestoration,
+  mode: "back-or-replace",
+  entryId: "unused-refreshed-inspection-close-id",
+  allowBrowserBack: canUseCurrentDocumentBrowserBack({
+    registry: refreshedInspectionRegistry,
+    currentEntry: refreshedInspectionEntry,
+    restoration: browserRepositoryQueryRestoration,
+  }),
+});
+assert.equal(refreshedInspectionClosePlan.kind, "replace");
+assert.equal(
+  refreshedInspectionClosePlan.entry.entryId,
+  refreshedInspectionEntry.entryId,
+);
+assert.equal("expectedEntryId" in refreshedInspectionClosePlan, false);
+
+const sameDocumentRegistry = createPublicRouteHistoryDocumentRegistry(rootEntry);
+const sameDocumentPushPlan = planPublicRouteHistoryTransaction({
+  currentEntry: rootEntry,
+  restoration: browserBellabeatRestoration,
+  mode: "push",
+  entryId: "browser-entry-known-bellabeat",
+});
+assert.equal(sameDocumentPushPlan.kind, "push");
+registerPublicRouteHistoryDocumentEntry(
+  sameDocumentRegistry,
+  sameDocumentPushPlan.entry,
+);
+assert.equal(sameDocumentRegistry.has(rootEntry.entryId), true);
+assert.equal(sameDocumentRegistry.has(sameDocumentPushPlan.entry.entryId), true);
+assert.equal(
+  canUseCurrentDocumentBrowserBack({
+    registry: sameDocumentRegistry,
+    currentEntry: sameDocumentPushPlan.entry,
+    restoration: rootEntry.restoration,
+  }),
+  true,
+);
+const sameDocumentBackPlan = planPublicRouteHistoryTransaction({
+  currentEntry: sameDocumentPushPlan.entry,
+  restoration: rootEntry.restoration,
+  mode: "back-or-push",
+  entryId: "unused-known-back-id",
+  allowBrowserBack: canUseCurrentDocumentBrowserBack({
+    registry: sameDocumentRegistry,
+    currentEntry: sameDocumentPushPlan.entry,
+    restoration: rootEntry.restoration,
+  }),
+});
+assert.equal(sameDocumentBackPlan.kind, "back");
+
+const bfcacheRestoredRegistry = sameDocumentRegistry;
+registerPublicRouteHistoryDocumentEntry(
+  bfcacheRestoredRegistry,
+  sameDocumentPushPlan.entry,
+);
+assert.equal(bfcacheRestoredRegistry.has(rootEntry.entryId), true);
+assert.equal(
+  canUseCurrentDocumentBrowserBack({
+    registry: bfcacheRestoredRegistry,
+    currentEntry: sameDocumentPushPlan.entry,
+    restoration: rootEntry.restoration,
+  }),
+  true,
+);
+const newlyConstructedDocumentRegistry =
+  createPublicRouteHistoryDocumentRegistry(sameDocumentPushPlan.entry);
+assert.deepEqual([...newlyConstructedDocumentRegistry.keys()], [
+  sameDocumentPushPlan.entry.entryId,
+]);
+assert.notEqual(newlyConstructedDocumentRegistry, sameDocumentRegistry);
+assert.equal(
+  canUseCurrentDocumentBrowserBack({
+    registry: newlyConstructedDocumentRegistry,
+    currentEntry: sameDocumentPushPlan.entry,
+    restoration: rootEntry.restoration,
+  }),
+  false,
+);
+
+const originalKnownBellabeatFingerprint =
+  sameDocumentRegistry.get(sameDocumentPushPlan.entry.entryId);
+assert.equal(typeof originalKnownBellabeatFingerprint, "string");
+const retainedIdReplacementPlan = planPublicRouteHistoryTransaction({
+  currentEntry: sameDocumentPushPlan.entry,
+  restoration: browserBellabeatReturnRestoration,
+  mode: "replace",
+  entryId: "unused-retained-replacement-id",
+});
+assert.equal(retainedIdReplacementPlan.kind, "replace");
+registerPublicRouteHistoryDocumentEntry(
+  sameDocumentRegistry,
+  retainedIdReplacementPlan.entry,
+);
+assert.equal(
+  sameDocumentRegistry.get(retainedIdReplacementPlan.entry.entryId),
+  getPublicRouteRestorationFingerprint(
+    retainedIdReplacementPlan.entry.restoration,
+  ),
+);
+assert.notEqual(
+  sameDocumentRegistry.get(retainedIdReplacementPlan.entry.entryId),
+  originalKnownBellabeatFingerprint,
+);
+const staleFingerprintCurrentEntry = createPublicRouteHistoryEntry({
+  entryId: "browser-entry-stale-known-query",
+  initial: false,
+  restoration: browserRepositoryQueryRestoration,
+  predecessor: {
+    entryId: retainedIdReplacementPlan.entry.entryId,
+    restorationFingerprint: originalKnownBellabeatFingerprint,
+  },
+});
+registerPublicRouteHistoryDocumentEntry(
+  sameDocumentRegistry,
+  staleFingerprintCurrentEntry,
+);
+assert.equal(
+  canUseCurrentDocumentBrowserBack({
+    registry: sameDocumentRegistry,
+    currentEntry: staleFingerprintCurrentEntry,
+    restoration: sameDocumentPushPlan.entry.restoration,
+  }),
+  false,
+);
+
+const boundedDocumentRegistry = createPublicRouteHistoryDocumentRegistry();
+for (let index = 0; index < 70; index += 1) {
+  registerPublicRouteHistoryDocumentEntry(
+    boundedDocumentRegistry,
+    createPublicRouteHistoryEntry({
+      entryId: `browser-entry-bounded-${index}`,
+      initial: false,
+      restoration: browserRootRestoration,
+    }),
+  );
+}
+assert.equal(boundedDocumentRegistry.size, 64);
+assert.equal(boundedDocumentRegistry.has("browser-entry-bounded-0"), false);
+assert.equal(boundedDocumentRegistry.has("browser-entry-bounded-69"), true);
+
 const fakeHistory = createFakeBrowserHistory(rootEntry);
 assert.equal(
   applyPlannedTransaction(
@@ -403,6 +611,7 @@ const closeInspectionPlan = planPublicRouteHistoryTransaction({
   restoration: browserRepositoryQueryRestoration,
   mode: "back-or-replace",
   entryId: "unused-close-id",
+  allowBrowserBack: true,
 });
 assert.equal(closeInspectionPlan.kind, "back");
 assert.equal(closeInspectionPlan.expectedEntryId, repositoryQueryEntryId);
@@ -425,6 +634,7 @@ const interfaceBackPlan = planPublicRouteHistoryTransaction({
   restoration: browserBellabeatReturnRestoration,
   mode: "back-or-push",
   entryId: "unused-interface-back-id",
+  allowBrowserBack: true,
 });
 assert.equal(interfaceBackPlan.kind, "back");
 assert.equal(interfaceBackPlan.expectedEntryId, originatingBellabeatEntryId);
@@ -450,6 +660,7 @@ const validAdjacentBackPlan = planPublicRouteHistoryTransaction({
   restoration: browserRootRestoration,
   mode: "back-or-push",
   entryId: "unused-valid-adjacent-id",
+  allowBrowserBack: true,
 });
 assert.equal(validAdjacentBackPlan.kind, "back");
 const validAdjacentStartingSelectionKey = getFakeBrowserSelectionKey(
@@ -491,6 +702,7 @@ const missedSelectionEventPlan = planPublicRouteHistoryTransaction({
   restoration: browserRootRestoration,
   mode: "back-or-push",
   entryId: "unused-missed-selection-id",
+  allowBrowserBack: true,
 });
 assert.equal(missedSelectionEventPlan.kind, "back");
 const missedSelectionStartingKey = getFakeBrowserSelectionKey(
@@ -543,6 +755,7 @@ const noMovementPlan = planPublicRouteHistoryTransaction({
   restoration: noMovementTargetEntry.restoration,
   mode: "back-or-push",
   entryId: "browser-entry-no-movement-fallback",
+  allowBrowserBack: true,
 });
 assert.equal(noMovementPlan.kind, "back");
 const noMovementStartingKey = getFakeBrowserSelectionKey(noMovementHistory);
@@ -740,6 +953,7 @@ const stalePredecessorPlan = planPublicRouteHistoryTransaction({
   restoration: browserBellabeatReturnRestoration,
   mode: "back-or-push",
   entryId: "browser-entry-stale-fallback",
+  allowBrowserBack: true,
 });
 assert.equal(stalePredecessorPlan.kind, "back");
 const stalePredecessorStartingKey = getFakeBrowserSelectionKey(

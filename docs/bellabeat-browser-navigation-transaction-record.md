@@ -24,22 +24,38 @@ Inspection identity, Inspection return frame, and practical reading state are
 restored without appending route-derived visits. Route-derived initialization
 is reserved for unowned, legacy, or invalid owned entries.
 
+Physical browser Back is an optimization restricted to exact adjacency known
+by the current live document. Each document owns a bounded in-memory registry
+of entry ID to restoration fingerprint. Startup registers only the selected
+valid owned entry; persisted predecessor metadata does not seed the registry.
+Pushes, replacements, and owned entries selected by events handled in that
+document update the registry. A retained entry ID receives the replacement
+fingerprint, so its prior fingerprint stops being known. A full reload creates
+fresh knowledge, while BFCache restoration of the same document may retain it.
+
 The shared browser-history coordinator is the only application layer that
 calls `pushState`, `replaceState`, or `back`. Browser selection creates a
 latest-wins restoration intent and performs no browser write while restoring.
 Interface controls remain locked until the selected entry, URL, active
 Reservoir visit, Inspection state, and owned practical reading frame converge.
-Stored predecessor metadata is only an adjacency hint: after an asynchronous
-Back selection, the coordinator verifies the selected entry ID, path, and full
-restoration fingerprint before settling it. A mismatch commits the originally
-requested destination with the transaction's push-or-replace fallback policy.
-Each Back handoff also owns a unique token, its starting browser-selection key,
-and one bounded no-selection check. A matching selection signal cancels that
-check. If the key changed without a processed signal, the coordinator verifies
-and restores the currently selected entry through the same path; if the key did
-not change, it applies the retained fallback without issuing Back again. Newer
-transactions supersede older tokens, so a stale check cannot keep input locked
-or overwrite a newer selection.
+Stored predecessor metadata is only an adjacency hint. Back is eligible when
+the current entry's exact fingerprint is known, the predecessor ID and stored
+fingerprint are known as the same current-document entry, and the requested
+restoration has that predecessor fingerprint. Otherwise `back-or-push` and
+`back-or-replace` immediately use push and replace respectively, without a
+pending token, timeout, or physical Back-request increment.
+
+After an eligible asynchronous Back selection, the coordinator still verifies
+the selected entry ID, path, and full restoration fingerprint before settling
+it. A mismatch commits the originally requested destination with the retained
+push-or-replace fallback. Each eligible Back handoff owns a unique token, its
+starting browser-selection key, and one bounded no-selection check. A matching
+selection signal cancels that check. If the key changed without a processed
+signal, the coordinator verifies and restores the currently selected entry
+through the same path; if the key did not change, it applies the retained
+fallback without issuing Back again. Newer transactions supersede older
+tokens, so a stale check cannot keep input locked or overwrite a newer
+selection.
 
 Every owned replacement strips the prior Digital Reservoir marker,
 `schemaVersion`, `entryId`, `path`, `initial`, `restoration`, and `predecessor`
@@ -71,9 +87,9 @@ reflow, image load, and post-content offset changes, with an
 | Resource open from a node, Index, footer, or settled Query | Push the settled Inspection descriptor | Direct or contextual Resource URL over the existing Reservoir visit |
 | Supporting-Resource detour | Push Query, then push Inspection | Origin Inspection → support Query → support Inspection |
 | Collection detour from Inspection | Suppress transient reconstitution and push one final Collection entry | Requested Collection visible with Inspection closed |
-| Ordinary X/Escape close | Select the verified predecessor with Back; otherwise replace with the underlying Reservoir | Existing underlying entry is reused and direct initial entry cannot leave the application |
+| Ordinary X/Escape close | Select an exact current-document predecessor with Back; otherwise replace with the underlying Reservoir | Existing verified entry is reused; refreshed/unverified close cannot unload before fallback, and direct initial entry cannot leave the application |
 | Browser Back/Forward restoration | No write | Exact selected entry and stored Reservoir-history visit are restored |
-| Interface Back/history selection | Select an exact adjacent owned entry with Back; otherwise push one final restored destination | No transient underlying Reservoir entry is exposed |
+| Interface Back/history selection | Select an exact current-document adjacent entry with Back; otherwise push one final restored destination | Refreshed/unverified navigation branches directly to the semantic target; no transient underlying Reservoir entry is exposed |
 | Home | Push one root snapshot and reset application-owned history/return state | `/`, root active, Inspection closed |
 | Valid legacy or invalid-owned entry | Replace with canonical route-derived state, then reinitialize in place | Recovery does not append another entry |
 | Root-context contextual Resource URL | Server redirect | One canonical direct Resource URL; client restoration never enters a mismatch loop |
@@ -86,6 +102,8 @@ reflow, image load, and post-content offset changes, with an
 | A Inspection → select supporting B | B Query, then B Inspection in separate entries | B Inspection Back exposes the same B Query visit; Forward reopens B without a new visit or node |
 | B Inspection → X/Escape | Existing B Query predecessor | Back restores A Inspection; Forward traverses the same B Query and B Inspection entries |
 | B Query → interface Back/history title | A Inspection at its owned practical reading frame | Adjacent exact entry is reused; otherwise only the final A Inspection is pushed |
+| Refreshed B Query → interface Back/history title | A Inspection at its owned practical reading frame | The fresh document knows only B, so no physical Back is attempted and one final A Inspection fallback is pushed |
+| Refreshed B Inspection → X/Escape | Its stored B Query visit | No physical Back is attempted; the selected Inspection entry is replaced with the same Query visit and entry identity |
 | Support detour → Home | Root Reservoir | Return frame is discarded; browser Back/Forward still restores selected owned entries |
 | A Inspection → Collection pill | Requested Collection Reservoir | Reconstitution is transient; Back/history restores A Inspection without an intermediate browser destination |
 | Direct Resource already in active Reservoir | Resource Inspection over that Reservoir | Existing node and visit are reused; no Query is created |
@@ -112,12 +130,26 @@ entry and Reservoir-history identities. Two owned snapshots of the same
 Resource URL retained distinct entry IDs and reading positions across reload,
 Back, and Forward.
 
-The combined stale-predecessor sequence selected the changed root ancestor,
-rejected it by entry ID/path/fingerprint, and established one requested
-Bellabeat Inspection fallback branch. A valid adjacent predecessor still reused
-the original entry with no fallback. The root contextual Bellabeat URL performed
-one server-owned redirect to `/bellabeat-wellness-analysis`; refresh and
-Back/Forward produced no loop or duplicate settled visit.
+After a real B Query hard refresh, interface Back made zero physical Back
+requests, created no pending token, never selected root, and reopened Bellabeat
+at the exact owned practical reading frame. After a real B Inspection hard
+refresh, both X and Escape made zero physical Back requests and directly
+replaced the selected entry with the same B Query visit and entry ID; no
+duplicate Query visit was created. Without refresh, B Inspection close made one
+physical Back request and B Query interface Back made one more, each reusing
+its exact adjacent entry with no fallback.
+
+In the stale retained-ID replacement sequence, replacing direct-initial
+Bellabeat with root updated that known entry's fingerprint. The old Bellabeat
+predecessor therefore skipped Back and used its direct fallback both before and
+after B Query refresh, with zero physical Back requests and no pending token.
+A controlled same-document wrong-adjacent case with genuinely established
+eligibility still made exactly one Back request, rejected the changed root
+entry, consumed exactly one retained fallback, and settled Bellabeat with the
+token cleared. A valid adjacent predecessor still reused the original entry
+with no fallback. The root contextual Bellabeat URL performed one server-owned
+redirect to `/bellabeat-wellness-analysis`; refresh and Back/Forward produced
+no loop or duplicate settled visit.
 
 Replacement-state validation removed malformed and valid-but-stale predecessor
 metadata whenever the complete replacement omitted it, replaced every other

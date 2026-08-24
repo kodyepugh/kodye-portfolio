@@ -21,6 +21,8 @@ import type { ReservoirContext } from "@/types/reservoir";
 export const PUBLIC_ROUTE_HISTORY_STATE_KEY = "digitalReservoirPublicRoute";
 export const PUBLIC_ROUTE_HISTORY_SCHEMA_VERSION = 2;
 
+const PUBLIC_ROUTE_HISTORY_DOCUMENT_ENTRY_LIMIT = 64;
+
 const PUBLIC_ROUTE_HISTORY_OWNED_STATE_KEYS = [
   PUBLIC_ROUTE_HISTORY_STATE_KEY,
   "schemaVersion",
@@ -50,6 +52,8 @@ export type PublicRouteHistoryEntry = {
   restoration: PublicRouteRestorationDescriptor;
   predecessor?: PublicRouteHistoryPredecessor;
 };
+
+export type PublicRouteHistoryDocumentRegistry = Map<string, string>;
 
 export type BrowserRestorationIntent = {
   revision: number;
@@ -320,6 +324,57 @@ export function getPublicRouteRestorationFingerprint(
   return JSON.stringify(restoration);
 }
 
+export function createPublicRouteHistoryDocumentRegistry(
+  selectedEntry: PublicRouteHistoryEntry | null = null,
+) {
+  const registry: PublicRouteHistoryDocumentRegistry = new Map();
+  if (selectedEntry) {
+    registerPublicRouteHistoryDocumentEntry(registry, selectedEntry);
+  }
+  return registry;
+}
+
+export function registerPublicRouteHistoryDocumentEntry(
+  registry: PublicRouteHistoryDocumentRegistry,
+  entry: PublicRouteHistoryEntry,
+) {
+  registry.delete(entry.entryId);
+  registry.set(
+    entry.entryId,
+    getPublicRouteRestorationFingerprint(entry.restoration),
+  );
+  while (registry.size > PUBLIC_ROUTE_HISTORY_DOCUMENT_ENTRY_LIMIT) {
+    const oldestEntryId = registry.keys().next().value;
+    if (oldestEntryId === undefined) break;
+    registry.delete(oldestEntryId);
+  }
+  return registry;
+}
+
+export function canUseCurrentDocumentBrowserBack({
+  registry,
+  currentEntry,
+  restoration,
+}: {
+  registry: ReadonlyMap<string, string>;
+  currentEntry: PublicRouteHistoryEntry | null;
+  restoration: PublicRouteRestorationDescriptor;
+}) {
+  if (!currentEntry?.predecessor) return false;
+
+  const currentFingerprint = getPublicRouteRestorationFingerprint(
+    currentEntry.restoration,
+  );
+  const requestedFingerprint =
+    getPublicRouteRestorationFingerprint(restoration);
+  return (
+    registry.get(currentEntry.entryId) === currentFingerprint &&
+    registry.get(currentEntry.predecessor.entryId) ===
+      currentEntry.predecessor.restorationFingerprint &&
+    requestedFingerprint === currentEntry.predecessor.restorationFingerprint
+  );
+}
+
 export function arePublicRouteRestorationsEqual(
   left: PublicRouteRestorationDescriptor,
   right: PublicRouteRestorationDescriptor,
@@ -538,6 +593,7 @@ export function planPublicRouteHistoryTransaction({
   entryId,
   initial = false,
   allowNoWrite = true,
+  allowBrowserBack = false,
 }: {
   currentEntry: PublicRouteHistoryEntry | null;
   restoration: PublicRouteRestorationDescriptor;
@@ -545,6 +601,7 @@ export function planPublicRouteHistoryTransaction({
   entryId: string;
   initial?: boolean;
   allowNoWrite?: boolean;
+  allowBrowserBack?: boolean;
 }): PublicRouteHistoryTransactionPlan {
   const path = getPublicRouteRestorationPath(restoration);
   if (!path) return { kind: "invalid" };
@@ -565,6 +622,7 @@ export function planPublicRouteHistoryTransaction({
         ? "push"
         : mode;
   if (
+    allowBrowserBack &&
     (mode === "back-or-push" || mode === "back-or-replace") &&
     currentEntry?.predecessor?.restorationFingerprint ===
       restorationFingerprint

@@ -132,8 +132,10 @@ import {
   advanceBrowserRecoveryGuard,
   applyPublicRouteHistoryTransaction,
   areInspectionReturnFramesEqual,
+  canUseCurrentDocumentBrowserBack,
   createBrowserRecoveryGuardKey,
   createBrowserRestorationIntent,
+  createPublicRouteHistoryDocumentRegistry,
   getBrowserEntryRecoveryDecision,
   getPublicRouteHistoryBackHandoffDecision,
   getPublicRouteHistoryEntry,
@@ -143,10 +145,12 @@ import {
   isPublicRouteHistoryBackSelectionMatch,
   planPublicRouteHistoryBackFallback,
   planPublicRouteHistoryTransaction,
+  registerPublicRouteHistoryDocumentEntry,
   stripPublicRouteHistoryState,
   type BrowserRecoveryGuard,
   type BrowserRestorationIntent,
   type PublicRouteHistoryBackTransaction,
+  type PublicRouteHistoryDocumentRegistry,
   type PublicRouteHistoryEntry,
   type PublicRouteHistoryTransactionPlan,
   type PublicRouteHistoryTransactionMode,
@@ -1347,6 +1351,10 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     initialCollectionId === ROOT_COLLECTION_ID ? 1 : 2,
   );
   const browserEntrySequenceRef = useRef(0);
+  const currentDocumentBrowserEntriesRef =
+    useRef<PublicRouteHistoryDocumentRegistry>(
+      createPublicRouteHistoryDocumentRegistry(),
+    );
   const browserBackTransactionSequenceRef = useRef(0);
   const browserRestorationRevisionRef = useRef(0);
   const browserSelectionKeyRef = useRef("");
@@ -1425,6 +1433,27 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       ? `browser-entry-${randomId}`
       : `browser-entry-${Date.now().toString(36)}-${browserEntrySequenceRef.current}`;
   }, []);
+  const registerCurrentDocumentBrowserEntry = useCallback(
+    (entry: PublicRouteHistoryEntry) => {
+      registerPublicRouteHistoryDocumentEntry(
+        currentDocumentBrowserEntriesRef.current,
+        entry,
+      );
+    },
+    [],
+  );
+  const canUseBrowserBack = useCallback(
+    (
+      currentEntry: PublicRouteHistoryEntry | null,
+      restoration: PublicRouteRestorationDescriptor,
+    ) =>
+      canUseCurrentDocumentBrowserBack({
+        registry: currentDocumentBrowserEntriesRef.current,
+        currentEntry,
+        restoration,
+      }),
+    [],
+  );
   const clearPendingBrowserBackHandoff = useCallback(
     (expectedToken?: number) => {
       const pendingHandoff = pendingBrowserBackTransactionRef.current;
@@ -1473,10 +1502,13 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         }
         browserWriteInProgressRef.current = false;
       }
-      if (selectedEntry) setActiveBrowserEntryId(selectedEntry.entryId);
+      if (selectedEntry) {
+        registerCurrentDocumentBrowserEntry(selectedEntry);
+        setActiveBrowserEntryId(selectedEntry.entryId);
+      }
       return selectedEntry;
     },
-    [clearPendingBrowserBackHandoff],
+    [clearPendingBrowserBackHandoff, registerCurrentDocumentBrowserEntry],
   );
   const commitBrowserState = useCallback(
     (
@@ -1494,11 +1526,12 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         mode,
         entryId: createBrowserEntryId(),
         initial,
+        allowBrowserBack: canUseBrowserBack(currentEntry, restoration),
       });
       applyBrowserTransaction(transaction);
       return transaction;
     },
-    [applyBrowserTransaction, createBrowserEntryId],
+    [applyBrowserTransaction, canUseBrowserBack, createBrowserEntryId],
   );
   const replaceCurrentBrowserRestoration = useCallback(
     (
@@ -4079,18 +4112,23 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     const targetInspectionResourceId =
       targetFrame.inspectionReturn?.resourceId ?? null;
     if (targetInspectionResourceId) {
+      const targetInspectionRestoration = {
+        reservoirHistory: truncatedHistory,
+        inspectedResourceId: targetInspectionResourceId,
+      };
       const currentEntry = getPublicRouteHistoryEntry(
         window.history.state,
         window.location.pathname,
       );
       const adjacentTransaction = planPublicRouteHistoryTransaction({
         currentEntry,
-        restoration: {
-          reservoirHistory: truncatedHistory,
-          inspectedResourceId: targetInspectionResourceId,
-        },
+        restoration: targetInspectionRestoration,
         mode: "back-or-push",
         entryId: createBrowserEntryId(),
+        allowBrowserBack: canUseBrowserBack(
+          currentEntry,
+          targetInspectionRestoration,
+        ),
       });
       if (adjacentTransaction.kind === "back") {
         applyBrowserTransaction(adjacentTransaction);
@@ -4725,6 +4763,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     });
     if (decision.kind === "restore") {
       initialRouteStartedRef.current = true;
+      registerCurrentDocumentBrowserEntry(decision.entry);
       browserSelectionKeyRef.current = getBrowserSelectionKey(window);
       browserRestorationRevisionRef.current += 1;
       const revision = browserRestorationRevisionRef.current;
@@ -4753,6 +4792,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     beginBrowserRestorationIntent,
     createBrowserEntryId,
     initialRoute,
+    registerCurrentDocumentBrowserEntry,
   ]);
 
   useEffect(() => {
@@ -4883,6 +4923,9 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       setPendingFocalInspection(null);
 
       const selectedEntry = getPublicRouteHistoryEntry(state, routePath);
+      if (selectedEntry) {
+        registerCurrentDocumentBrowserEntry(selectedEntry);
+      }
       if (
         selectedBackHandoff &&
         !isPublicRouteHistoryBackSelectionMatch(
@@ -4977,6 +5020,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     beginBrowserRestorationIntent,
     clearPendingBrowserBackHandoff,
     createBrowserEntryId,
+    registerCurrentDocumentBrowserEntry,
   ]);
 
   useEffect(() => {
