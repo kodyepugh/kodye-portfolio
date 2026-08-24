@@ -16,6 +16,11 @@ reused so the correction does not add a duplicate settled visit.
 
 The explicit `/q/<resource-slug>` route passes through the established Query Reservoir path and remains semantically distinct. Resources absent from the active Reservoir retain the direct Resource → Query Reservoir fallback. Browser route restoration uses the same distinction.
 
+Supporting-Resource navigation from an open Inspection is the explicit
+exception to active-node reuse: it always disables that optimization, creates
+the supporting Resource's ephemeral Query Reservoir, and preserves the
+originating `InspectionReturnFrame` history boundary for Back/restoration.
+
 ## Verification
 
 - Branch-local `/bellabeat-wellness-analysis`: Home remains the active context, the existing Bellabeat node is selected, the runtime reports `active-reservoir`, Inspection opens at the direct Resource URL, and close returns to `/` with the single Home history visit.

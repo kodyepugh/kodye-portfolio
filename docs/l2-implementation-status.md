@@ -81,7 +81,7 @@ Implemented in the current repository line:
 - unpublished relationships and unpublished targets are excluded;
 - support ordering is deterministic;
 - selecting a supporting Resource does not swap the current renderer in place;
-- support selection retracts the current Inspection Window and delegates to the canonical direct Resource / Query Reservoir seam;
+- support selection retracts the current Inspection Window and delegates to the canonical direct Resource coordinator with active-node reuse disabled, preserving the ephemeral Query Reservoir detour;
 - support navigation does not promote Resources to Artifact status and does not mutate Collection membership;
 - duplicate support-navigation requests are blocked once a handoff is pending;
 - ordinary Inspection close preserves the current semantic Reservoir context and restores pre-inspection presentation.

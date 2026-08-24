@@ -123,6 +123,10 @@ than duplicated. An absent Resource uses the established direct Resource → Que
 Reservoir path. Explicit `/q/<resource-slug>` routes always retain their derived
 single-result Query Reservoir meaning.
 
+Supporting-Resource navigation from an open Inspection explicitly disables
+active-node reuse and retains the established ephemeral Query Reservoir detour
+and Inspection-return history boundary.
+
 ### Reservoir Index and semantic footer — completed
 
 The public interface now provides a conventional semantic-DOM Reservoir Index

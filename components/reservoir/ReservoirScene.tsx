@@ -2857,6 +2857,9 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         const started = requestDirectResourceRef.current(
           supportNavigationTarget,
           supportReturnFrame,
+          undefined,
+          true,
+          false,
         );
         if (started) {
           pendingInspectionReturnFrameRef.current = null;
