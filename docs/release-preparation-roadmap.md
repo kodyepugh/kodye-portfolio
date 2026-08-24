@@ -244,16 +244,20 @@ This stage is complete. Production `/bellabeat-wellness-analysis` uses Home plus
 Prioritize the actual recruiter journey from direct Bellabeat entry through the case study, figures and supporting Resources, repository, return navigation, and other essential launch actions rather than relying only on synthetic validation.
 
 The production pass exercised the Bellabeat graph and found a systemic browser
-history ownership defect after support detours. The branch correction now uses
-one explicit stable-state transaction model: Query and Inspection commits own
+history ownership defect after support detours. The branch correction uses one
+explicit stable-state transaction model: Query and Inspection commits own
 separate entries, entry identity and full semantic snapshots distinguish
 same-path visits, browser restoration is no-write/latest-wins, and interface
-Back reuses an exact adjacent entry or commits only its final destination. The
-branch-local browser matrix passes, including support-detour Back/Forward with
-the existing Query visit, practical reading restoration, close, Home,
-Collection detours, repeated Resource URLs, Index/footer closure, rapid
-supersession, and bounded recovery. The focused policy and evidence are
-recorded in `docs/bellabeat-browser-navigation-transaction-record.md`.
+Back reuses a verified adjacent entry or commits only its final destination.
+Valid owned entries now own reload initialization; stale asynchronous Back
+selections are rejected before settlement; recovery replaces/reloads in place
+under a bounded loop guard; root-context Resource URLs redirect server-side to
+their direct canonical URL; and practical reading restoration is bounded to
+current geometry. The focused localhost matrix passes for support Back/Forward,
+owned-state refresh, same-path snapshots, stale-predecessor fallback,
+root-context redirect, bounded recovery, geometry changes, and restored-state
+Back-to-Top behavior. The exact policy and evidence are recorded in
+`docs/bellabeat-browser-navigation-transaction-record.md`.
 
 Deploy this branch and repeat the production navigation smoke test before
 closing this stage.
