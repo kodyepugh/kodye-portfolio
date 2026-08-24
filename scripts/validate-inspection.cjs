@@ -1321,7 +1321,7 @@ const checks = [
         "requestDirectResource(resourceId)",
       ) &&
       reservoirSceneSource.includes(
-        "rotateResourceToCanonicalForehead(resourceId, \"footer\")",
+        'focusActiveReservoirResource(resourceId, "footer")',
       ) &&
       reservoirSceneSource.includes(
         "createDirectResourceInspectionIntent(",

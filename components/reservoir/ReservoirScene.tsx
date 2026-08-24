@@ -198,7 +198,7 @@ type IndexInspectionIntent = {
   contextKey: string;
 };
 
-type FocalInspectionOrigin = "index" | "footer";
+type FocalInspectionOrigin = "index" | "footer" | "route";
 
 type FocalInspectionIntent = IndexInspectionIntent & {
   origin: FocalInspectionOrigin;
@@ -1275,6 +1275,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       inspectionReturnFrame?: InspectionReturnFrame | null,
       returnContextOverride?: ReservoirContext,
       openInspection?: boolean,
+      preferActiveReservoir?: boolean,
     ) => boolean
   >(() => false);
   const requestCollectionRef = useRef<
@@ -3487,6 +3488,28 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     return true;
   }
 
+  function focusActiveReservoirResource(
+    resourceId: string,
+    origin: FocalInspectionOrigin,
+  ) {
+    const activeResourceNode = activeReservoirResources.find(
+      (node) => node.id === resourceId,
+    );
+    if (!activeResourceNode) return false;
+
+    const selectionAction = getReservoirResourceSelectionAction(
+      activeResourceNode,
+      resourceId,
+    );
+    if (selectionAction === "unsupported-resource-inspection") return false;
+
+    setTransitionState("idle");
+    setSelectedCollectionId(null);
+    setSelectedResourceId(resourceId);
+    setSelectedPressActive(false);
+    return rotateResourceToCanonicalForehead(resourceId, origin);
+  }
+
   useEffect(() => {
     if (!focalInspectionRotation) return;
 
@@ -4045,6 +4068,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     inspectionReturnFrame: InspectionReturnFrame | null = null,
     returnContextOverride?: ReservoirContext,
     openInspection = true,
+    preferActiveReservoir = true,
   ) {
     setPendingDirectInspectionIntent(null);
     const resource = getResourceByAddress(resourceAddress);
@@ -4067,6 +4091,39 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
           : "rejected-unknown";
       }
       return false;
+    }
+
+    if (preferActiveReservoir && openInspection) {
+      const currentVisit = reservoirHistoryRef.current.at(-1);
+      if (!currentVisit) return false;
+
+      const focused = focusActiveReservoirResource(resource.id, "route");
+      if (focused) {
+        pendingInspectionNavigationTargetRef.current = null;
+        pendingInspectionReturnFrameRef.current = null;
+        setLocatingResourceId(null);
+        if (inspectionReturnFrame) {
+          commitReservoirHistory(
+            setInspectionReturnForReservoirVisit(
+              reservoirHistoryRef.current,
+              currentVisit.id,
+              inspectionReturnFrame,
+            ),
+          );
+        } else {
+          setInspectionReturnRuntime(null);
+        }
+        if (interaction.current) {
+          interaction.current.dataset.directResourceRequest = resourceAddress;
+          interaction.current.dataset.directResourceRequestResult =
+            "active-reservoir";
+          interaction.current.dataset.directResourceResolvedId = resource.id;
+          interaction.current.dataset.directResourceArtifactStatus = String(
+            resource.isArtifact,
+          );
+        }
+        return true;
+      }
     }
 
     pendingInspectionNavigationTargetRef.current = null;
@@ -4142,6 +4199,8 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       interaction.current.dataset.inspectionExitTarget = "";
       interaction.current.dataset.directResourceRequest = resourceAddress;
       interaction.current.dataset.directResourceRequestResult = "accepted";
+      interaction.current.dataset.directResourceRequestMode =
+        "query-reservoir";
       interaction.current.dataset.directResourceResolvedId = resource.id;
       interaction.current.dataset.directResourceArtifactStatus = String(
         resource.isArtifact,
@@ -4191,6 +4250,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         null,
         undefined,
         initialRouteOpensInspection,
+        initialRoute.kind !== "query-resource",
       )) {
         initialRouteStartedRef.current = true;
         return;
@@ -4280,6 +4340,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
         route.resourceId,
         null,
         returnContext,
+        route.kind !== "query-resource",
         route.kind !== "query-resource",
       )) {
         suppressNextBrowserHistoryWriteRef.current = false;
@@ -4493,8 +4554,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       return;
     }
 
-    const selectionAction = getReservoirResourceSelectionAction(node, node.id);
-    if (selectionAction === "unsupported-resource-inspection") {
+    if (!focusActiveReservoirResource(node.id, "index")) {
       if (interaction.current) {
         interaction.current.dataset.resourceInspectionUnsupported = node.id;
         interaction.current.dataset.resourceInspectionUnsupportedKind =
@@ -4502,32 +4562,13 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       }
       return;
     }
-
-    setTransitionState("idle");
-    setSelectedCollectionId(null);
-    setSelectedResourceId(node.id);
-    setSelectedPressActive(false);
-    rotateResourceToCanonicalForehead(node.id, "index");
   }
 
   function selectFooterResource(resourceId: string) {
     if (inputLocked) return;
 
-    const activeResourceNode = activeReservoirResources.find(
-      (node) => node.id === resourceId,
-    );
-    if (activeResourceNode) {
-      const selectionAction = getReservoirResourceSelectionAction(
-        activeResourceNode,
-        resourceId,
-      );
-      if (selectionAction === "unsupported-resource-inspection") return;
-
-      setTransitionState("idle");
-      setSelectedCollectionId(null);
-      setSelectedResourceId(resourceId);
-      setSelectedPressActive(false);
-      if (!rotateResourceToCanonicalForehead(resourceId, "footer")) return;
+    if (activeReservoirResources.some((node) => node.id === resourceId)) {
+      if (!focusActiveReservoirResource(resourceId, "footer")) return;
       setFooterState("closing");
       return;
     }

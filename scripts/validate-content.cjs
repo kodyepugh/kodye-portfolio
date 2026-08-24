@@ -426,11 +426,10 @@ const checks = [
     reservoirSceneSource.includes('if (node.kind === "collection")') &&
       reservoirSceneSource.includes("requestCollection(node.id, true)") &&
       reservoirSceneSource.includes(
-        "getReservoirResourceSelectionAction(node, node.id)",
+        'focusActiveReservoirResource(node.id, "index")',
       ) &&
-      reservoirSceneSource.includes("setSelectedResourceId(node.id)") &&
       reservoirSceneSource.includes(
-        "rotateResourceToCanonicalForehead(node.id, \"index\")",
+        "return rotateResourceToCanonicalForehead(resourceId, origin)",
       ) &&
       reservoirSceneSource.includes(
         "activeRotationGroup.quaternion.slerpQuaternions(",
@@ -456,13 +455,21 @@ const checks = [
       getResourceById(ARTIFACT_IDS.about)?.published === false &&
       reservoirFooterSource.includes("getPublishedFooterResources") &&
       reservoirFooterSource.includes("onResourceSelect") &&
-      reservoirSceneSource.includes("const activeResourceNode = activeReservoirResources.find(") &&
       reservoirSceneSource.includes(
-        "rotateResourceToCanonicalForehead(resourceId, \"footer\")",
+        'focusActiveReservoirResource(resourceId, "footer")',
       ) &&
       reservoirSceneSource.includes("if (!requestDirectResource(resourceId)) return") &&
       !reservoirFooterSource.includes("href=\"#\"") &&
       !reservoirFooterSource.includes("LinkedIn"),
+  ],
+  [
+    "direct Resource routes focus active nodes while explicit Query routes retain Query Reservoir semantics",
+    reservoirSceneSource.includes("function focusActiveReservoirResource(") &&
+      reservoirSceneSource.includes("preferActiveReservoir = true") &&
+      reservoirSceneSource.includes('initialRoute.kind !== "query-resource"') &&
+      reservoirSceneSource.includes('route.kind !== "query-resource"') &&
+      reservoirSceneSource.includes('"active-reservoir"') &&
+      reservoirSceneSource.includes('"query-reservoir"'),
   ],
   [
     "launch artifacts resolve",

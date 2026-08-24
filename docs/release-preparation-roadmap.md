@@ -111,6 +111,14 @@ Reservoir history therefore converge on the same public address policy. URLs
 never encode presentation-only state such as Index visibility, Inspection
 scroll, zoom, or layout mode.
 
+Direct Resource initialization follows the same active-Reservoir rule as Index and
+footer selection: when the requested Resource is already represented by the
+initialized active Reservoir, the shared coordinator selects that existing node,
+rotates it to the canonical forehead point, and opens Inspection without creating
+a Query Reservoir. An absent Resource uses the established direct Resource → Query
+Reservoir path. Explicit `/q/<resource-slug>` routes always retain their derived
+single-result Query Reservoir meaning.
+
 ### Reservoir Index and semantic footer — completed
 
 The public interface now provides a conventional semantic-DOM Reservoir Index
@@ -213,11 +221,11 @@ The current routing contract to preserve is:
 - Collection membership creates context and discovery, not identity;
 - ordinary Inspection close exposes the actual underlying Collection or Query Reservoir, while explicit Back owns return to prior semantic history.
 
-Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. The production domain is connected; remaining Public Web Essentials work is limited to manual verification of launch-facing outbound destinations and direct-access paths, while broader production-domain verification remains part of Production Release.
+Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. The production domain is connected and the launch-facing outbound destinations are verified. The branch-local direct-route correction is verified, but the currently deployed production Bellabeat route still uses the pre-correction Query Reservoir path and must be redeployed and smoke-tested before this stage closes.
 
 ### Completion condition
 
-This stage remains open until the other launch-facing outbound destinations and direct-access paths have also been manually verified. Contact delivery itself is complete; this closeout does not close Public Web Essentials as a whole.
+This stage remains open until the corrected direct Bellabeat route is deployed and verified on the production domain. Contact delivery, LinkedIn, GitHub, Resume/PDF access, Contact refresh, and branch-local direct-route/Query-route behavior are verified; the production deployment remains the sole Public Web Essentials blocker recorded by this pass.
 
 ---
 
