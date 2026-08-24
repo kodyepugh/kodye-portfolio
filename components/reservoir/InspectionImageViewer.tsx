@@ -112,16 +112,18 @@ function InspectionImageViewer({
     pinchCenter: { x: number; y: number } | null;
     moved: boolean;
   } | null>(null);
-  const [zoom, setZoom] = useState(INSPECTION_IMAGE_MIN_ZOOM);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [viewport, setViewport] = useState({ width: 0, height: 0 });
-  const [intrinsicSize, setIntrinsicSize] = useState({ width: 1200, height: 800 });
-  const [previouslyOpen, setPreviouslyOpen] = useState<string | null>(null);
-
   const currentIndex = openId
     ? getInspectionImageSequenceIndex(descriptors, openId)
     : -1;
   const current = currentIndex >= 0 ? descriptors[currentIndex] : null;
+  const [zoom, setZoom] = useState(INSPECTION_IMAGE_MIN_ZOOM);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const [intrinsicSize, setIntrinsicSize] = useState(() => ({
+    width: current?.width ?? 1200,
+    height: current?.height ?? 800,
+  }));
+  const previouslyOpenRef = useRef<string | null>(null);
   const imageWidth = current?.width ?? intrinsicSize.width;
   const imageHeight = current?.height ?? intrinsicSize.height;
   const fitScale =
@@ -167,17 +169,6 @@ function InspectionImageViewer({
   );
 
   useLayoutEffect(() => {
-    if (!openId) return;
-    setZoom(INSPECTION_IMAGE_MIN_ZOOM);
-    setPan({ x: 0, y: 0 });
-    const next = current;
-    setIntrinsicSize({
-      width: next?.width ?? 1200,
-      height: next?.height ?? 800,
-    });
-  }, [current?.height, current?.id, current?.width, openId]);
-
-  useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage || !openId) return;
 
@@ -203,27 +194,18 @@ function InspectionImageViewer({
   }, [openId]);
 
   useEffect(() => {
-    if (openId && openId !== previouslyOpen) {
-      setPreviouslyOpen(openId);
+    if (openId && openId !== previouslyOpenRef.current) {
+      previouslyOpenRef.current = openId;
       requestAnimationFrame(() => {
         viewerRef.current
           ?.querySelector<HTMLButtonElement>(".inspection-image-viewer__close")
           ?.focus({ preventScroll: true });
       });
     }
-    if (!openId && previouslyOpen) {
-      setPreviouslyOpen(null);
+    if (!openId && previouslyOpenRef.current) {
+      previouslyOpenRef.current = null;
     }
-  }, [openId, previouslyOpen]);
-
-  useEffect(() => {
-    if (!openId) return;
-    const bounded = {
-      x: Math.min(Math.max(pan.x, -maxPanX), maxPanX),
-      y: Math.min(Math.max(pan.y, -maxPanY), maxPanY),
-    };
-    if (bounded.x !== pan.x || bounded.y !== pan.y) setPan(bounded);
-  }, [maxPanX, maxPanY, openId, pan.x, pan.y]);
+  }, [openId]);
 
   if (!openId || !current || currentIndex < 0) return null;
 
@@ -501,6 +483,7 @@ export function InspectionImageViewerProvider({ children }: { children: ReactNod
       next.delete(id);
       return next;
     });
+    setOpenId((current) => (current === id ? null : current));
   }, []);
   const openImage = useCallback((id: string, launcher: HTMLElement) => {
     launcherRef.current = launcher;
@@ -519,12 +502,6 @@ export function InspectionImageViewerProvider({ children }: { children: ReactNod
     [registeredImages],
   );
 
-  useEffect(() => {
-    if (openId && !descriptors.some((descriptor) => descriptor.id === openId)) {
-      setOpenId(null);
-    }
-  }, [descriptors, openId]);
-
   const contextValue = useMemo(
     () => ({ registerImage, unregisterImage, openImage }),
     [openImage, registerImage, unregisterImage],
@@ -534,6 +511,7 @@ export function InspectionImageViewerProvider({ children }: { children: ReactNod
     <InspectionImageViewerContext.Provider value={contextValue}>
       {children}
       <InspectionImageViewer
+        key={openId ?? "closed"}
         descriptors={descriptors}
         openId={openId}
         onClose={closeImage}

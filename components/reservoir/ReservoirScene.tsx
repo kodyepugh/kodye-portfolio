@@ -3074,12 +3074,17 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
       getReservoirContextKey(settledReservoirContext) !==
       indexInspectionReturn.contextKey
     ) {
-      setIndexInspectionReturn(null);
-      return;
+      const animationFrameId = requestAnimationFrame(() => {
+        setIndexInspectionReturn(null);
+      });
+      return () => cancelAnimationFrame(animationFrameId);
     }
 
-    setIndexInspectionReturn(null);
-    setIndexState("opening");
+    const animationFrameId = requestAnimationFrame(() => {
+      setIndexInspectionReturn(null);
+      setIndexState("opening");
+    });
+    return () => cancelAnimationFrame(animationFrameId);
   }, [
     indexInspectionReturn,
     indexState,
@@ -3944,24 +3949,27 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     if (!pendingFocalInspection || transitionState !== "idle") return;
 
     const { resourceId, contextKey, origin } = pendingFocalInspection;
-    if (
-      layoutOwnership.activeLayout.contextKey !== contextKey ||
-      !layoutOwnership.activeLayout.directions.has(resourceId)
-    ) {
-      setPendingFocalInspection(null);
-      return;
-    }
+    const animationFrameId = requestAnimationFrame(() => {
+      if (
+        layoutOwnership.activeLayout.contextKey !== contextKey ||
+        !layoutOwnership.activeLayout.directions.has(resourceId)
+      ) {
+        setPendingFocalInspection(null);
+        return;
+      }
 
-    if (!beginResourceInspection(resourceId)) {
-      setPendingFocalInspection(null);
-      return;
-    }
+      if (!beginResourceInspectionRef.current(resourceId)) {
+        setPendingFocalInspection(null);
+        return;
+      }
 
-    setPendingFocalInspection(null);
-    if (origin === "index") {
-      setIndexInspectionReturn({ resourceId, contextKey });
-      setIndexState("closing");
-    }
+      setPendingFocalInspection(null);
+      if (origin === "index") {
+        setIndexInspectionReturn({ resourceId, contextKey });
+        setIndexState("closing");
+      }
+    });
+    return () => cancelAnimationFrame(animationFrameId);
   }, [
     layoutOwnership.activeLayout,
     pendingFocalInspection,
@@ -4824,7 +4832,7 @@ export function ReservoirScene({ initialRoute }: ReservoirSceneProps) {
     }
 
     if (
-      requestDirectResource(
+      requestDirectResourceRef.current(
         initialResourceId,
         null,
         undefined,

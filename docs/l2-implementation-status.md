@@ -222,8 +222,8 @@ The roadmap groups launch work into five stages, beginning with a completed Bell
 1. **Bellabeat Launch Cut** — complete. The published root Digital Reservoir Collection now curates exactly Bellabeat, Resume, and Contact; dormant Collections and unfinished launch Resources are unpublished.
 2. **Public Web Essentials** — complete. Production identity/metadata, outbound destinations, Contact delivery, Resume/PDF access, direct Bellabeat access, active-Reservoir direct Resource reuse, contextual-route Collection ownership, explicit `/q/` semantics, and the production four-point Bellabeat route smoke test are verified.
 3. **Bellabeat Recruiter-Path QA** — complete. The production Bellabeat path exercised the real Resource/support graph, structured reading, figures, repository handoff, Query detour return, Home, browser Back/Forward, refreshed Query/Inspection states, and practical reading-position restoration. The accepted stable-state browser transaction model is recorded in `docs/bellabeat-browser-navigation-transaction-record.md`; branch-local runtime validation and the user's production visual/runtime smoke test passed, and closeout was approved.
-4. **Minimum Responsive / Accessibility / Interaction Sweep** — next. Representative desktop/laptop coverage, a practical mobile sanity check, semantic DOM access, keyboard usability, and functional regression cleanup. This is the next launch stage and has not yet started.
-5. **Production Release** — full validation, production deployment/domain verification, and production-URL smoke testing.
+4. **Minimum Responsive / Accessibility / Interaction Sweep** — complete. Representative desktop/laptop/narrow/mobile layouts passed; structured-document and notebook mobile overflow were corrected through the shared renderer contract; keyboard/focus, reduced-motion, Stage 3 regression, lint, and validation passed; the user approved visual and physical touch-device behavior; and the Stage 4 branch deployed successfully through Vercel.
+5. **Production Release** — next. Run the final validation, production deployment/domain verification, metadata/assets/direct-route checks, outbound-action checks, and actual production-URL smoke test.
 
 Broader About, Digital Reservoir, client, and archive content are post-launch expansion work and are not required to complete this launch sequence.
 
@@ -272,8 +272,8 @@ Do not classify public routing/address mapping as deferred product work when eva
 
 The following items are explicitly non-blocking for current L2 architecture and should not interrupt the next bounded implementation passes:
 
-- **Inspection close X latency:** after Inspection is fully initialized, a single X activation now eventually fires but retains a noticeable delay; Escape is more responsive. Treat as a launch/regression bug-sweep item. Preserve existing close diagnostics so the eventual sweep can distinguish hit-testing/input delivery from transition acceptance rather than reopening this checkpoint by default.
-- **Inspection backdrop entry opacity choreography:** the shared fixed backdrop is functionally stable and no longer remains stuck/opaque after closure; Inspection Window arrival position is approved; backdrop exit behavior is acceptable. Entry opacity can still appear to finish/jump near window settlement. Revisit during final launch polish/refinement.
+- **Inspection close X latency:** after Inspection is fully initialized, a single X activation now eventually fires but retains a noticeable delay; Escape is more responsive. Treat as a post-launch refinement unless a production release smoke test shows it functionally blocks use. Preserve existing close diagnostics so any future investigation can distinguish hit-testing/input delivery from transition acceptance rather than reopening this checkpoint by default.
+- **Inspection backdrop entry opacity choreography:** the shared fixed backdrop is functionally stable and no longer remains stuck/opaque after closure; Inspection Window arrival position is approved; backdrop exit behavior is acceptable. Entry opacity can still appear to finish/jump near window settlement. Revisit during post-launch polish/refinement.
 
 Do not treat these pinned refinements as reasons to reopen completed Inspection/navigation architecture unless a functional regression appears.
 
@@ -305,6 +305,6 @@ For new implementation or debugging branches:
 4. read the interface specification for accepted interaction behavior;
 5. read the Bellabeat manifest when the task touches Bellabeat content, provenance, or curatorial boundaries.
 
-Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, supporting-Resource navigation, minimum Inspection return context, image Inspection, external-link/repository Inspection, or accepted browser-history transaction model without a reviewed defect that specifically requires correction.
+Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, supporting-Resource navigation, minimum Inspection return context, image Inspection, external-link/repository Inspection, accepted responsive containment, or accepted browser-history transaction model without a reviewed defect that specifically requires correction.
 
-Current work is public-launch preparation. The next stage is the Minimum Responsive / Accessibility / Interaction Sweep. Do not expand into additional renderer families, ingestion infrastructure, or future product systems merely because they are conceptually adjacent.
+Current work is **Production Release**. Do not expand into additional renderer families, ingestion infrastructure, or future product systems merely because they are conceptually adjacent.

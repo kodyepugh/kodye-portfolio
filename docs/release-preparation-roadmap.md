@@ -273,47 +273,34 @@ Complete. The real launch registry proved the established semantic and interacti
 
 ---
 
-## 4. Minimum Responsive / Accessibility / Interaction Sweep — Launch-Blocking Where Functional / Next
+## 4. Minimum Responsive / Accessibility / Interaction Sweep — Launch-Blocking Where Functional / Complete
 
-**Status:** Next launch stage; not yet started.
+**Status:** Complete.
 
-Validate the launch experience on representative desktop/laptop configurations first, plus a practical mobile sanity check. Verify keyboard/direct-access usability and functional interaction, and fix launch-blocking regressions.
+Stage 4 is closed. Representative desktop, laptop, narrow, and mobile layouts passed; IR-01 and IR-03 were resolved through the shared structured-document containment correction; SG-01 was not reproduced; the lint baseline is green; keyboard/focus and reduced-motion checks passed; the accepted Stage 3 browser-navigation contract remained intact; and the latest branch deployment passed Vercel verification.
 
-This is a release pass, not a redesign milestone. Preserve the accepted Stage 3 browser/navigation architecture unless this sweep exposes a reproducible functional regression.
+The user completed and approved the physical-device touch smoke test, including Reservoir drag/tap/open behavior, pinch and image interactions, context-tray versus vertical reading scroll, terminal/footer reveal, and practical Index use. This closes the final input-evidence gate. No P2/P3 refinement item is being held as a launch blocker.
+
+Treat the Stage 4 behavior as accepted launch behavior unless a reproducible regression is found. The complete diagnostic, correction, and closeout evidence is recorded in `docs/stage-4-minimum-responsive-accessibility-interaction-audit.md`.
 
 ### Responsive coverage
 
-Test representative:
+Verified representative:
 
 - large desktop;
 - laptop;
 - narrow desktop window;
 - practical mobile viewport.
 
-Verify particularly:
-
-- Reservoir framing;
-- Focused layout;
-- labels;
-- atmosphere;
-- control plane;
-- Reservoir Index;
-- Inspection landing geometry;
-- structured-document layout;
-- image Inspection;
-- external-link/repository Inspection;
-- context tray;
-- close control;
-- Back to Top;
-- terminal/footer reveal.
+The accepted sweep covered Reservoir framing, Focused layout, labels, atmosphere, control plane, Reservoir Index, Inspection landing geometry, structured documents, image Inspection, external-link/repository Inspection, context tray, close control, Back to Top, and terminal/footer reveal.
 
 ### Input coverage
 
-Verify:
+Accepted coverage includes:
 
 - pointer/mouse interaction;
 - wheel interaction;
-- touch interaction where supported;
+- physical touch interaction;
 - keyboard access;
 - Escape behavior;
 - focus restoration;
@@ -321,18 +308,9 @@ Verify:
 
 ### Conventional access path
 
-Bellabeat and other essential launch actions must also be reachable through a semantic DOM-based path rather than requiring direct manipulation of WebGL/R3F nodes.
-
-The Reservoir Index is the required restrained index/navigation surface.
+Bellabeat and other essential launch actions remain reachable through the semantic DOM-based Reservoir Index rather than requiring direct manipulation of WebGL/R3F nodes.
 
 The first release does not require a complete alternate 2D version of the Digital Reservoir.
-
-The objective is simply to ensure that important work remains reachable for:
-
-- keyboard users;
-- visitors who do not immediately understand the spatial interface;
-- devices where 3D interaction is inconvenient;
-- recruiters who want direct access to major work.
 
 ### Known refinement items
 
@@ -340,22 +318,19 @@ Existing observations such as:
 
 - close-X latency;
 - backdrop-entry opacity choreography;
+- optional mobile density refinement;
 
-remain refinement items unless they:
-
-- prevent reliable use;
-- reveal a functional regression;
-- materially disrupt expected interaction.
-
-Do not delay launch for minor choreography or other non-blocking polish items already classified as refinement backlog. Do not reopen accepted Inspection architecture solely to perfect non-blocking choreography.
+remain post-launch refinement items unless they later become reproducible functional regressions.
 
 ### Completion condition
 
-This stage is complete when the launch experience is functionally reliable across representative device/input configurations and important portfolio content has a practical non-spatial access path.
+Complete. The launch experience is functionally reliable across the representative device/input configurations exercised for the first release, important portfolio content has a practical non-spatial access path, physical touch behavior is user-approved, and the Stage 4 deterministic validation and deployment evidence are release-acceptable.
 
 ---
 
-## 5. Production Release — Launch-Blocking
+## 5. Production Release — Next / Launch-Blocking
+
+**Status:** Next. Stage 4 is complete; proceed with the final production release gate.
 
 Once the Bellabeat launch cut, public essentials, and bounded QA are stable, perform the final release gate.
 

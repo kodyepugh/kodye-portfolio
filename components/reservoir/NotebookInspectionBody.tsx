@@ -142,17 +142,47 @@ export function NotebookInspectionBody({
     return () => controller.abort();
   }, [resolution]);
 
-  const displayedLoadState: NotebookLoadState =
-    resolution.status === "unavailable"
-      ? {
-          status: "unavailable",
-          sourceKey: resource.id,
-          reason: resolution.reason,
-        }
-      : loadState.status !== "loading" &&
-          loadState.sourceKey === resolution.asset.src
-        ? loadState
-        : { status: "loading" };
+  const displayedLoadState = useMemo<NotebookLoadState>(
+    () =>
+      resolution.status === "unavailable"
+        ? {
+            status: "unavailable",
+            sourceKey: resource.id,
+            reason: resolution.reason,
+          }
+        : loadState.status !== "loading" &&
+            loadState.sourceKey === resolution.asset.src
+          ? loadState
+          : { status: "loading" },
+    [loadState, resolution, resource.id],
+  );
+  const notebookCells = useMemo(
+    () =>
+      displayedLoadState.status === "ready"
+        ? displayedLoadState.notebook.cells
+        : [],
+    [displayedLoadState],
+  );
+  const imageOccurrenceOffsets = useMemo(
+    () =>
+      notebookCells.reduce(
+        (state, cell) => {
+          const imageCount =
+            cell.type === "markdown"
+              ? parseMarkdownStructuredDocument(cell.source, {
+                  resourceId: `${resource.id}-${cell.id}`,
+                }).filter((block) => block.type === "figure").length
+              : cell.outputs.filter((output) => output.type === "image").length;
+          return {
+            offsets: [...state.offsets, state.occurrence],
+            occurrence: state.occurrence + imageCount,
+          };
+        },
+        { offsets: [] as number[], occurrence: 0 },
+      )
+      .offsets,
+    [notebookCells, resource.id],
+  );
 
   if (displayedLoadState.status !== "ready") {
     return (
@@ -203,15 +233,12 @@ export function NotebookInspectionBody({
       </header>
 
       <div className="inspection-notebook__cells">
-        {(() => {
-          let imageOccurrence = 0;
-          return displayedLoadState.notebook.cells.map((cell, index) => {
+        {notebookCells.map((cell, index) => {
           if (cell.type === "markdown") {
             const blocks = parseMarkdownStructuredDocument(cell.source, {
               resourceId: `${resource.id}-${cell.id}`,
             });
-            const imageOrderOffset = imageOccurrence;
-            imageOccurrence += blocks.filter((block) => block.type === "figure").length;
+            const imageOrderOffset = imageOccurrenceOffsets[index] ?? 0;
             return (
               <section
                 key={`${cell.id}-${index}`}
@@ -240,26 +267,31 @@ export function NotebookInspectionBody({
               </p>
               <pre className="inspection-notebook__code"><code>{cell.source}</code></pre>
               {cell.outputs.length > 0 ? (
-                <div className="inspection-notebook__outputs">
-                  {cell.outputs.map((output, outputIndex) => {
-                    const outputImageOccurrence =
-                      output.type === "image" ? imageOccurrence++ : null;
-                    return (
-                      <NotebookOutputBody
-                        key={`${cell.id}-output-${outputIndex}`}
-                        output={output}
-                        executionCount={cell.executionCount}
-                        resourceId={resource.id}
-                        imageOccurrence={outputImageOccurrence}
-                      />
-                    );
-                  })}
+              <div className="inspection-notebook__outputs">
+                {cell.outputs.map((output, outputIndex) => {
+                  const outputImageOccurrence =
+                    output.type === "image"
+                      ? (imageOccurrenceOffsets[index] ?? 0) +
+                        cell.outputs
+                          .slice(0, outputIndex)
+                          .filter((previousOutput) => previousOutput.type === "image")
+                          .length
+                      : null;
+                  return (
+                    <NotebookOutputBody
+                      key={`${cell.id}-output-${outputIndex}`}
+                      output={output}
+                      executionCount={cell.executionCount}
+                      resourceId={resource.id}
+                      imageOccurrence={outputImageOccurrence}
+                    />
+                  );
+                })}
                 </div>
               ) : null}
             </section>
           );
-          });
-        })()}
+        })}
       </div>
     </article>
   );
