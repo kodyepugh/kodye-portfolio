@@ -273,9 +273,10 @@ Complete. The real launch registry proved the established semantic and interacti
 
 ---
 
-## 4. Minimum Responsive / Accessibility / Interaction Sweep — Launch-Blocking Where Functional / Next
+## 4. Minimum Responsive / Accessibility / Interaction Sweep — Launch-Blocking Where Functional / In Progress
 
-**Status:** Next launch stage; not yet started.
+**Status:** In progress. The initial diagnostic audit is recorded in
+`docs/stage-4-minimum-responsive-accessibility-interaction-audit.md`.
 
 Validate the launch experience on representative desktop/laptop configurations first, plus a practical mobile sanity check. Verify keyboard/direct-access usability and functional interaction, and fix launch-blocking regressions.
 
