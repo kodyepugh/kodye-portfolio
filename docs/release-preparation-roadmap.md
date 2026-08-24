@@ -328,9 +328,9 @@ Complete. The launch experience is functionally reliable across the representati
 
 ---
 
-## 5. Production Release — Next / Launch-Blocking
+## 5. Production Release — In Progress / Launch-Blocking
 
-**Status:** Next. Stage 4 is complete; proceed with the final production release gate.
+**Status:** In Progress. The verification-only production release audit is recorded in `docs/production-release-audit.md`; Stage 5 remains open for final acceptance of its bounded indexing and narrow-viewport evidence gaps.
 
 Once the Bellabeat launch cut, public essentials, and bounded QA are stable, perform the final release gate.
 
