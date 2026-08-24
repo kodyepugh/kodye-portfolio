@@ -1,8 +1,8 @@
 # Bellabeat Recruiter-Path QA — Browser Navigation Transaction Record
 
-**Status:** Branch-local correction verified; production retest required
+**Status:** Production visual/runtime QA accepted; Stage 3 complete
 **Date:** August 24, 2026
-**Stage:** Bellabeat Recruiter-Path QA remains in progress
+**Stage:** Bellabeat Recruiter-Path QA complete
 
 ## Accepted branch model
 
@@ -182,8 +182,8 @@ Collection through the public interface. Contextual non-root Collection
 ownership remains covered by the existing synthetic published-membership
 behavioral validation rather than this Bellabeat runtime matrix.
 
-No responsive/accessibility sweep is accepted by this record. Stage 3 remains
-open until this branch is deployed and the support-detour Back/Forward stack,
-owned-entry refresh, ordinary Inspection close, interface Back, restored-reading
-Back-to-Top behavior, root contextual redirect, and bounded recovery are
-explicitly rechecked on `kodyepugh.com`.
+## Production closeout
+
+The corrected branch was deployed for final visual/runtime verification. The user completed the Bellabeat recruiter-path smoke test and accepted the resulting navigation behavior, including support-detour Back/Forward behavior, refreshed Query/interface Back, refreshed Inspection close, practical reading restoration, restored-state Back-to-Top, and the expected root/Home behavior.
+
+Bellabeat Recruiter-Path QA is therefore closed. Later responsive/accessibility work may exercise these paths again, but this transaction model should be treated as accepted unless a reproducible functional regression is found.
