@@ -70,6 +70,8 @@ The current launch registry publishes only the root Digital Reservoir Collection
 
 ## 2. Public Web Essentials — Launch-Blocking
 
+**Status:** Complete.
+
 Complete the production essentials needed for a credible live portfolio.
 
 ### Foundational presentation metadata — completed
@@ -229,11 +231,11 @@ The current routing contract to preserve is:
 - Collection membership creates context and discovery, not identity;
 - ordinary Inspection close exposes the actual underlying Collection or Query Reservoir, while explicit Back owns return to prior semantic history.
 
-Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. The production domain is connected and the launch-facing outbound destinations are verified. The branch-local direct-route correction is verified, but the currently deployed production Bellabeat route still uses the pre-correction Query Reservoir path and must be redeployed and smoke-tested before this stage closes.
+Current examples are `/`, `/bellabeat-wellness-analysis`, `/q/bellabeat-wellness-analysis`, `/resume`, and `/contact`; future published Collections may use paths such as `/work` and contextual member Resources such as `/work/cif-oakland`. The production domain is connected, launch-facing outbound destinations are verified, and the corrected Bellabeat direct-route behavior is deployed and smoke-tested on production.
 
 ### Completion condition
 
-This stage remains open until the corrected direct Bellabeat route is deployed and verified on the production domain. Contact delivery, LinkedIn, GitHub, Resume/PDF access, Contact refresh, and branch-local direct-route/Query-route behavior are verified; the production deployment remains the sole Public Web Essentials blocker recorded by this pass.
+This stage is complete. Production `/bellabeat-wellness-analysis` uses Home plus the existing Bellabeat node rather than an unnecessary Query Reservoir; refresh preserves that behavior; closing the Inspection exposes `/`; and `/q/bellabeat-wellness-analysis` retains explicit single-result Query Reservoir semantics. Contact delivery, LinkedIn, GitHub, Resume/PDF access, and Contact refresh are also verified.
 
 ---
 
