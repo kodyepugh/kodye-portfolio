@@ -142,3 +142,103 @@ local horizontal scrolling. Do not use global `overflow-x: hidden`.
   defect matrix and evidence.
 - `docs/release-preparation-roadmap.md` — Stage 4 status moved from not started
   to in progress.
+
+## Completion supplement — August 24, 2026
+
+### Validation update
+
+The required standard `npm run build` was run twice (including one permitted
+unsandboxed retry) and failed both times in Turbopack before compilation because
+its CSS worker could not bind a local port: `Operation not permitted (os error
+1)`. This is an environment/build-tool blocker, not evidence of an application
+compile failure. The earlier `npm run build -- --webpack` passed and remains
+supplemental evidence only. Typecheck, content (56/56), Inspection (86/86),
+routing, label geometry, and diff check pass.
+
+`npm run lint` remains the exact prior baseline: 7 errors and 3 warnings.
+
+| File / line | Rule | Classification |
+| --- | --- | --- |
+| `InspectionImageViewer.tsx:171,207,225,524` | `react-hooks/set-state-in-effect` | React lifecycle/state hygiene; touches the image viewer but no corresponding Stage 4 runtime defect was reproduced. |
+| `InspectionImageViewer.tsx:178` | `react-hooks/exhaustive-deps` | Lifecycle hygiene. |
+| `NotebookInspectionBody.tsx:214` | `react-hooks/immutability` | Renderer correctness/hygiene; intersects the notebook surface and requires correction-pass review. |
+| `ReservoirScene.tsx:3077,3951` | `react-hooks/set-state-in-effect` | Reservoir interaction lifecycle hygiene. |
+| `ReservoirScene.tsx:3965,4841` | `react-hooks/exhaustive-deps` | Reservoir interaction lifecycle hygiene. |
+
+### Completed viewport matrix
+
+| Viewport | Result |
+| --- | --- |
+| 1440 x 900 | Shell fits; Index, layout controls, and footer remain within viewport. |
+| 1280 x 720 | Shell fits under vertical compression; no page overflow. |
+| 1024 x 900 | Shell fits; no page overflow. |
+| 768 x 900 | Shell fits; no page overflow. |
+| 360 x 800 | Shell and ordinary Bellabeat, Resume, Contact, and image Inspections fit. |
+| 390 x 844 | Prior measurements retained; shell fits, with visually dense composition. |
+| 430 x 932 | Shell fits; ordinary Bellabeat, Resume, and Contact fit. |
+
+The native Index trigger rectangle is 38 x 18px in every sampled shell
+viewport. This is below a 24px minimum visual target dimension, but its actual
+pointer hit area and accessibility outcome need physical-device confirmation;
+it is recorded as RS-02 rather than inflated to a blocker.
+
+### Defect-matrix updates
+
+| ID | Priority | Viewport/input | Surface | Result and correction boundary | Stage 4 blocker |
+| --- | --- | --- | --- | --- | --- |
+| RS-01 | P2 | 360, 390, 430 mobile | Reservoir shell | Still visually dense but no collision, page overflow, or obstructed required control was observed. Keep as refinement only. | No |
+| RS-02 | P2 | 360–1440, pointer | Index trigger | Visible trigger rect is 38 x 18px. Confirm actual hit target on a physical touch device before changing target geometry. | No |
+| IR-03 | P1 | 360 x 800, mouse | Notebook Inspection | The `.inspection-notebook` is 277px wide but has 360px scroll width; a markdown section and descendants render to 360px/right 401px. `pre` correctly scrolls locally (998px within 275px), so code is not the root cause. Inspect notebook markdown-cell/section width constraints separately from IR-01. | Yes |
+| AK-01 | Not reproduced as an application defect | 390 x 844, automation keyboard | Index | Locator Enter/Space and CUA Tab did not focus/activate the native button, while pointer click opened it. CUA Tab stayed on `body`, so this browser-control path cannot establish physical/native keyboard behavior. No handler change authorized. | Not yet determined |
+| RM-01 | Passed, bounded | 390 x 844, CDP reduced motion | Bellabeat Inspection | With `prefers-reduced-motion: reduce`, direct Bellabeat Inspection opened (dialog true; page width 390px) and Escape closed it. Collection/Query/layout/Home/Back-to-Top variants remain untested. | No finding |
+
+The repository external-link Inspection was observed settled at 360 x 800:
+dialog true, 277px primary track, 320px chassis, page width 360px, and no
+page-level overflow. Its context shelf is locally scrollable (311px within a
+277px panel). The 430px direct-route sample did not settle within the 7-second
+measurement interval and is **not tested**, not a failure. The same qualification
+applies to the 430px image and notebook direct-route samples.
+
+The comprehensive direct-route samples in this completion run did not settle;
+IR-01 remains confirmed by the prior dedicated measurement table above and is
+not weakened by those empty samples.
+
+### Keyboard, touch, reduced motion, and Stage 3 status
+
+- Keyboard: semantic names and dialog role remain observed. Native keyboard
+  tab/focus and Index navigation are **not tested conclusively** because the
+  available native-key injection did not move focus out of `body`; do not treat
+  that automation limitation as an application failure.
+- Touch/pinch/swipe: **not tested**. The in-app browser exposed mouse CUA only;
+  no trustworthy touch-device path was available. Do not infer gesture success
+  from pointer tests.
+- Reduced motion: direct open/close passed as described above; all other
+  transition paths are **not tested**.
+- Stage 3 full repository Query/Inspection Back/Forward/return/reading-position
+  sequence: browser Back from repository Inspection restored the same repository
+  Query (`/q/bellabeat-wellness-analysis-repository`, dialog closed), and browser
+  Forward restored the repository Inspection. Those steps passed at 390 x 844.
+  The subsequent Inspection close exposed `/bellabeat-wellness-analysis-repository`
+  as a closed state; semantic Back returned a closed Bellabeat Reservoir at scroll
+  position 0 rather than the prior Bellabeat Inspection reading position. This is
+  recorded below as SG-01 and needs comparison against the accepted Stage 3
+  transaction before any correction.
+
+| ID | Priority | Viewport/input | Surface | Reproduction / actual | Likely ownership and boundary | Stage 4 blocker |
+| --- | --- | --- | --- | --- | --- | --- |
+| SG-01 | P1, reproduce against accepted path | 390 x 844, browser Back/Forward | Bellabeat → repository support detour → return | Direct Bellabeat Inspection was scrolled to 900px; opening Repository, browser Back, and browser Forward correctly restored Query then Inspection. Closing Repository then using semantic Back yielded closed Bellabeat at `scrollY = 0`, not the prior Inspection reading position. | Inspect the existing support-detour close/return coordinator and browser-owned state before touching history architecture. It may be a test-path distinction, so reproduce with the documented accepted Stage 3 route. | Pending reproduction |
+
+### Revised correction planning
+
+1. **Pass A — IR-01, mid-tier, independent.** `app/globals.css` structured
+   document grid/section min-content constraints; retain local table/pre scroll.
+2. **Pass B — IR-03, mid-tier, independently testable after Pass A.** Notebook
+   markdown-cell/section width constraints plus the existing notebook lint
+   immutability finding only if it is causally related.
+3. **Pass C — physical input completion, mid-tier QA.** Native keyboard Index,
+   touch gestures, full reduced-motion transitions, and the Stage 3 transaction;
+   no implementation until a reproducible issue exists.
+4. **Pass D — RS-01/RS-02 refinement, low-to-mid tier.** Only after physical
+   target testing; no mobile composition redesign.
+
+No application fixes or persistent diagnostic instrumentation were implemented.
