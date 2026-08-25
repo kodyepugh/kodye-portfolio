@@ -29,7 +29,7 @@
   --control-panel-height: calc(
     var(--brand-symbol-bottom) + var(--brand-symbol-height) + 18px
   );
-  --reservoir-index-height: clamp(252px, 36svh, 340px);
+  --reservoir-index-height: clamp(320px, 44svh, 460px);
   --reservoir-footer-height: clamp(70px, 9.5svh, 82px);
   --artifact-terminal-symbol-height: clamp(118px, 16svh, 154px);
   --artifact-terminal-height: calc(
@@ -266,10 +266,7 @@ body.artifact-reading-mode .reservoir-study {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transform: translateY(-50%)
-    translateY(
-      calc(-1 * var(--control-stack-translation))
-    );
+  transform: translateY(-50%);
 }
 
 .reservoir-layout-switch__button {

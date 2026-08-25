@@ -8,9 +8,11 @@
 
 **Production URL:** <https://kodyepugh.com/>
 
-At the audit baseline, the branch was clean, matched
-`origin/release/production-release`, and was `66` commits ahead of `main`
-with no commits unique to `main` (`main...HEAD = 0 66`).
+The accepted Stage 4 merge baseline was `1a5912eb53bf2f6f1fc792e94cf1b7518d69b505`
+(also the authoritative `origin/main` at that point). The production-audit
+documentation was the next branch-only checkpoint. Local `main` arithmetic is
+not treated as canonical here because that ref was stale; the audit records
+the authoritative branch ancestry instead.
 
 ## Scope and outcome
 
@@ -26,6 +28,16 @@ evidence gaps remain for final owner acceptance: the deployed site has no
 `robots.txt` or `sitemap.xml` endpoint, and this in-app browser did not honor a
 requested 390 × 844 viewport override. These are recorded below rather than
 silently treated as verified.
+
+## Correction note — Index and layout-control geometry
+
+Production acceptance found that the Distributed / Focused layout controls
+shifted upward when the Reservoir Index or footer revealed, and that the Index
+was too shallow for its now-approved role as an alternate conventional
+navigation surface. The correction makes the layout controls viewport-fixed
+and expands the Index into a larger navigation plane while preserving the
+existing semantic surface, stack choreography, and routing behavior. User
+visual re-acceptance remains pending after this correction.
 
 ## Deterministic release validation
 
