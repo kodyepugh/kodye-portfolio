@@ -23,7 +23,7 @@ export const RESUME_DOCUMENT_BLOCKS = [
   {
     id: "professional-summary",
     type: "paragraph",
-    text: "Analyst and digital product professional who redesigned a federal task-tracking workflow, built CMS structures and information architectures for three client organizations, and developed a validated BigQuery analysis across more than 15 million wellness data rows. Combines SQL, Excel, Tableau, Python-supported workflows, requirements analysis, and stakeholder communication to turn ambiguous operational needs into reliable systems, defensible insights, and actionable recommendations.",
+    text: "Analyst and digital product professional with experience redesigning a federal task-tracking workflow, building CMS structures and information architectures for three client organizations, and analyzing more than 15 million rows of wellness data in BigQuery. Uses SQL, Excel, Tableau, Python, requirements analysis, and stakeholder communication to clarify operational problems, improve processes, and support data-informed decisions.",
   },
   { id: "skills", type: "heading", level: 2, text: "Skills" },
   {
@@ -34,12 +34,12 @@ export const RESUME_DOCUMENT_BLOCKS = [
   {
     id: "skills-product-operations",
     type: "paragraph",
-    text: "**Product & Operations:** business analysis, requirements analysis, process improvement, workflow design, information architecture, stakeholder communication, presentation",
+    text: "**Product & Operations:** business analysis, requirements analysis, process improvement, workflow design, information architecture, project coordination, stakeholder communication, presentation",
   },
   {
     id: "skills-programming-web",
     type: "paragraph",
-    text: "**Programming & Web:** Python, Git/GitHub, HTML/CSS, JavaScript, Velo, Wix Studio/CMS, WordPress",
+    text: "**Programming & Web:** Python, Git/GitHub, HTML/CSS, JavaScript, Velo, Wix Studio, Wix CMS, WordPress",
   },
   {
     id: "selected-data-analytics-project",
@@ -54,10 +54,10 @@ export const RESUME_DOCUMENT_BLOCKS = [
     meta: "2026",
     subtitle: "Independent Data Analytics Case Study",
     items: [
-      "Built a reproducible analytical workflow for 29 Fitbit source tables and more than 15 million rows using Excel, BigQuery/Standard SQL, Python-supported workflows, and Git to profile, transform, join, aggregate, and validate data.",
-      "Separated preserved source data from staging, cleaned, analytical, and reporting layers; investigated duplicate boundaries, inconsistent feature coverage, unresolved user identity, and differences across daily, hourly, minute, and second-level observations before defining defensible analytical units.",
-      "Across 1,935 observed activity session-days, found that light activity represented 84.9% of active minutes and translated the result into testable Bellabeat app hypotheses around personal baselines, approachable movement, and user-controlled timing.",
-      "Used sensitivity testing to reject unsupported segmentation and causal claims; documented analytical boundaries and additional telemetry needed for product experimentation while preserving traceability from source data through QA and publication.",
+      "Built a reproducible workflow for 29 Fitbit source tables and more than 15 million rows. Used Excel for source inspection, BigQuery/Standard SQL for profiling, transformation, joins, aggregation, and validation, Python for exploratory analysis, and Git for version control.",
+      "Preserved raw source data and separated the workflow into staging, cleaned, analytical, and reporting layers; investigated duplicate boundaries, uneven feature coverage, unresolved user identity, and differences among daily, hourly, minute, and second-level records before defining defensible analytical units.",
+      "Analyzed 1,935 observed activity session-days and found that light activity accounted for 84.9% of active minutes; used the finding to frame testable Bellabeat app hypotheses around personal baselines, approachable movement, and user-controlled timing.",
+      "Used sensitivity testing to rule out unsupported segmentation and causal claims; documented the study's limits and the additional data needed for future product experiments, and kept the analysis traceable from source data through QA and publication.",
     ],
   },
   {
@@ -73,7 +73,7 @@ export const RESUME_DOCUMENT_BLOCKS = [
     meta: "2025 - Present",
     subtitle: "Client Website Reconstruction & Product Support",
     items: [
-      "Reconstructed three client websites, translating stakeholder and organizational requirements into information architectures, CMS structures, content workflows, responsive interfaces, and maintainable production websites.",
+      "Reconstructed three client websites from stakeholder requirements, designing clear information architectures, CMS structures, content workflows, responsive interfaces, and maintainable production sites.",
     ],
   },
   { id: "cif-oakland", type: "heading", level: 4, text: "CIF Oakland City Section" },
@@ -82,8 +82,8 @@ export const RESUME_DOCUMENT_BLOCKS = [
     type: "list",
     style: "unordered",
     items: [
-      "Configured structured relationships in Wix CMS across sports, schools, tournaments, participating teams, tournament rounds, and games to support schedules, results, standings, championships, and public communications.",
-      "Designed and iterated workflows for schedules, results, standings, and playoff brackets within platform constraints; continue to maintain the production site as organizational, content, and functionality requirements evolve.",
+      "Configured structured relationships in Wix CMS among sports, schools, tournaments, participating teams, tournament rounds, and games to support schedules, results, standings, championships, and public communications.",
+      "Design and maintain workflows for schedules, results, standings, and playoff brackets within Wix's platform constraints as organizational, content, and functionality needs evolve.",
     ],
   },
   { id: "workforce-development", type: "heading", level: 4, text: "Workforce Development Unit" },
@@ -92,7 +92,7 @@ export const RESUME_DOCUMENT_BLOCKS = [
     type: "list",
     style: "unordered",
     items: [
-      "Converted an incomplete Wix implementation with placeholder content, unclear navigation, inconsistent branding, incomplete service information, and usability gaps into a production-ready site; reorganized navigation and content around education pathways, workforce development, leadership, partnerships, and consulting services.",
+      "Turned an incomplete Wix implementation with placeholder content, unclear navigation, inconsistent branding, missing service information, and usability gaps into a production-ready site organized around education pathways, workforce development, leadership, partnerships, and consulting services.",
     ],
   },
   { id: "gospelfest-oakland", type: "heading", level: 4, text: "GospelFest Oakland" },
@@ -101,7 +101,7 @@ export const RESUME_DOCUMENT_BLOCKS = [
     type: "list",
     style: "unordered",
     items: [
-      "Reconstructed an event platform supporting ticketing, fundraising, sponsorship, artist outreach, and visitor information; during the event cycle, the organization met its fundraising goal and sold all available tickets, while the site generated inquiries from 28 local artists.",
+      "Reconstructed the site as an event platform for ticketing, fundraising, sponsorship, artist outreach, and visitor information. During the event cycle, the organization met its fundraising goal and sold all available tickets; the site also generated inquiries from 28 local artists.",
     ],
   },
   {
@@ -111,8 +111,8 @@ export const RESUME_DOCUMENT_BLOCKS = [
     meta: "Jan 2025 - Feb 2025",
     subtitle: "Management & Program Analyst, Digital Delivery Division | Washington, DC",
     items: [
-      "Identified a process-control weakness in an Excel task tracker whose status indicators required employees to interpret assigned dates and manually update red/yellow/green cell formatting.",
-      "Redesigned the tracker with date-driven conditional formatting to automate status signaling and surface approaching and missed deadlines; secured supervisor approval and led a team walkthrough on the revised workflow.",
+      "Identified a process-control weakness in an Excel task tracker that required employees to interpret assigned dates and manually update color-coded status indicators.",
+      "Redesigned the tracker with date-based conditional formatting to automatically flag approaching and missed deadlines; secured supervisor approval and led a team walkthrough of the revised workflow.",
     ],
   },
   {
@@ -123,7 +123,7 @@ export const RESUME_DOCUMENT_BLOCKS = [
     subtitle: "Director's Assistant | Los Angeles, CA",
     supporting: "*Monster(s): The Lyle and Erik Menendez Story - Episodes 201 & 202*",
     items: [
-      "Served as liaison between director Carl Franklin and production departments on a multimillion-dollar television production, coordinating time-sensitive information across stakeholders.",
+      "Served as liaison between director Carl Franklin and production departments on a multimillion-dollar television production, coordinating time-sensitive communication across teams.",
       "Coordinated housing, technology, equipment, and other off-set operational requirements alongside changing production schedules.",
       "Managed and reported recurring expenditures for the director's off-set operations, maintained accurate records, and supported day-to-day decisions.",
     ],

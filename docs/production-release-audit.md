@@ -16,10 +16,13 @@ the authoritative branch ancestry instead.
 
 ## Scope and outcome
 
-This was a verification-only Stage 5 pass. No application code, content
-registry, route behavior, hosting configuration, deployment setting, or
-Vercel state was changed. The production URL was exercised directly; local
-validation was run against the release branch.
+This Stage 5 closeout combines the verification-only production pass with the
+approved final Resume synchronization. The existing Resume identity, route,
+renderer, membership, and asset path were preserved; only the supplied final
+PDF, its native structured-document blocks, and the validator's approved-copy
+fixture were updated. No architecture, hosting configuration, deployment
+setting, or Vercel state was changed. The production URL was exercised
+directly; local validation was run against the release branch.
 
 No production P0 or P1 defect was found. The launch cut is truthful and the
 primary direct, refresh, browser-history, Resume/PDF, Contact, repository, and
@@ -36,8 +39,36 @@ shifted upward when the Reservoir Index or footer revealed, and that the Index
 was too shallow for its now-approved role as an alternate conventional
 navigation surface. The correction makes the layout controls viewport-fixed
 and expands the Index into a larger navigation plane while preserving the
-existing semantic surface, stack choreography, and routing behavior. User
-visual re-acceptance remains pending after this correction.
+existing semantic surface, stack choreography, and routing behavior. The user
+has visually re-accepted this expanded Index / fixed-layout-control correction;
+final production acceptance remains open for the bounded Stage 5 evidence gaps
+below.
+
+## Final Resume synchronization — August 24, 2026
+
+- The only supplied source was the final two-page PDF at
+  `public/resume/Kodye_Pugh_Resume_2026.pdf`; no DOCX source was present. Its
+  extracted wording and section order were aligned against the existing Resume
+  identity without inventing, shortening, or rewording claims.
+- The public PDF was replaced in place at the stable URL
+  `/resume/Kodye_Pugh_Resume_2026.pdf`. The current file is a tagged,
+  unencrypted, two-page PDF; the route returned `application/pdf` in the local
+  production-server check.
+- `RESUME_DOCUMENT_BLOCKS` now mirrors the supplied Summary, Skills, Selected
+  Data Analytics Project, Professional Experience, Additional Experience,
+  Education, and Certifications wording while preserving all existing block
+  IDs, order, `structured-document` inspection behavior, download block, and
+  semantic Resume identity (`artifact-resume`, `/resume`).
+- Direct `/resume`, reload, ordinary close, and the PDF target were exercised
+  against the local production build. At 1440 × 900, 1280 × 720, 768 × 900,
+  430 × 932, 390 × 844, and 360 × 800, the Resume window stayed within the
+  viewport width with no horizontal overflow; all 17 section headings remained
+  contained, and the close and download controls were visible. The document's
+  expected vertical scroll was preserved on every size.
+- The local release checks remained green: typecheck, lint, content (56/56),
+  inspection (86/86), routing, and label geometry. The default Turbopack build
+  remains environment-blocked by its known CSS-worker `Operation not permitted`
+  port-binding failure; `npm run build -- --webpack` passed.
 
 ## Deterministic release validation
 
