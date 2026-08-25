@@ -575,7 +575,7 @@ const checks = [
         "Skills,Selected Data Analytics Project,Professional Experience,Additional Experience,Education,Certifications" &&
       resumeStructuredBlocks[0]?.type === "paragraph" &&
       resumeStructuredBlocks[0]?.text ===
-        "Analyst and digital product professional who redesigned a federal task-tracking workflow, built CMS structures and information architectures for three client organizations, and developed a validated BigQuery analysis across more than 15 million wellness data rows. Combines SQL, Excel, Tableau, Python-supported workflows, requirements analysis, and stakeholder communication to turn ambiguous operational needs into reliable systems, defensible insights, and actionable recommendations." &&
+        "Analyst and digital product professional with experience redesigning a federal task-tracking workflow, building CMS structures and information architectures for three client organizations, and analyzing more than 15 million rows of wellness data in BigQuery. Uses SQL, Excel, Tableau, Python, requirements analysis, and stakeholder communication to clarify operational problems, improve processes, and support data-informed decisions." &&
       resumeStructuredBlocks.filter((block) => block.type === "entry")
         .map((block) => block.title)
         .join(",") ===
