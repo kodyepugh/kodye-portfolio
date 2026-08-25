@@ -163,10 +163,10 @@ approved Kodye Pugh mark with explicit owned backgrounds, and the public shell
 no longer describes itself as a spatial study or initial prototype.
 
 The production canonical base is `https://kodyepugh.com`, as established by
-the project authorities, and the production deployment is now connected to
-that domain. Production Release must still verify that the live canonical,
-robots, icon, social-preview, assets, and direct Resource URLs resolve
-correctly on the production domain.
+the project authorities, and the production deployment is connected to that
+domain. The completed Production Release audit records final verification of
+the live canonical, robots metadata, icon, social preview, assets, and direct
+Resource URLs on the production domain.
 
 Completed:
 
@@ -328,11 +328,12 @@ Complete. The launch experience is functionally reliable across the representati
 
 ---
 
-## 5. Production Release — In Progress / Launch-Blocking
+## 5. Production Release — Complete
 
-**Status:** In Progress. The production release audit and final Resume synchronization are recorded in `docs/production-release-audit.md`; Stage 5 remains open for final acceptance of its bounded indexing and narrow-viewport evidence gaps.
+**Status:** Complete. The first public portfolio release is complete and `https://kodyepugh.com/` is approved for resume and job-application use. All five launch stages are complete; the final Resume synchronization, Index/layout correction, production acceptance, and accepted post-launch evidence boundaries are recorded in `docs/production-release-audit.md`.
 
-Once the Bellabeat launch cut, public essentials, and bounded QA are stable, perform the final release gate.
+Further content and product work is post-launch expansion rather than
+launch-blocking work.
 
 ### Validation
 
@@ -380,7 +381,8 @@ The portfolio is launch-ready when:
 - production validation succeeds;
 - the production URL and major outbound/direct-navigation paths have been manually verified.
 
-Once this passes, the site is ready to place on the resume and use in job applications.
+This release condition is met: the site is ready to place on the resume and use
+in job applications.
 
 The public release should be treated as the first live portfolio version of the Digital Reservoir, not as the completion of the broader Digital Reservoir product.
 

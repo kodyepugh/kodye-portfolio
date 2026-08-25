@@ -196,7 +196,7 @@ See `docs/l2-external-link-repository-inspection-closeout.md` for the bounded pa
 
 ---
 
-## Remaining L2 / Public-Launch Preparation
+## Public-Launch Closeout and Post-Launch Boundaries
 
 The L2/Bellabeat feature line is closed and accepted. Its completed foundation includes Bellabeat real-content ingestion and an audited Resource graph; universal directional Resource context; a separate membership-derived Collection region; direct Resource Query Reservoir auto-open; visit-based unified Reservoir history and Inspection reading-state restoration; structured documents; image, external-link/repository, and notebook Inspection surfaces; the shared fullscreen, zoomable, swipeable Inspection image viewer; and horizontally owned, bounded Resource/Collection tray scrolling.
 
@@ -213,7 +213,9 @@ The L2-enabling architecture required by the currently approved launch content i
 
 This document records completion state only. **`docs/release-preparation-roadmap.md` is the sequencing authority for what should be worked on next.**
 
-The remaining work is public-release preparation rather than expansion of the L2 ontology.
+The five-stage public launch sequence is complete. Remaining work is post-launch
+portfolio and product expansion rather than public-release preparation or
+expansion of the L2 ontology.
 
 ### Public-launch sequencing
 
@@ -223,7 +225,15 @@ The roadmap groups launch work into five stages, beginning with a completed Bell
 2. **Public Web Essentials** — complete. Production identity/metadata, outbound destinations, Contact delivery, Resume/PDF access, direct Bellabeat access, active-Reservoir direct Resource reuse, contextual-route Collection ownership, explicit `/q/` semantics, and the production four-point Bellabeat route smoke test are verified.
 3. **Bellabeat Recruiter-Path QA** — complete. The production Bellabeat path exercised the real Resource/support graph, structured reading, figures, repository handoff, Query detour return, Home, browser Back/Forward, refreshed Query/Inspection states, and practical reading-position restoration. The accepted stable-state browser transaction model is recorded in `docs/bellabeat-browser-navigation-transaction-record.md`; branch-local runtime validation and the user's production visual/runtime smoke test passed, and closeout was approved.
 4. **Minimum Responsive / Accessibility / Interaction Sweep** — complete. Representative desktop/laptop/narrow/mobile layouts passed; structured-document and notebook mobile overflow were corrected through the shared renderer contract; keyboard/focus, reduced-motion, Stage 3 regression, lint, and validation passed; the user approved visual and physical touch-device behavior; and the Stage 4 branch deployed successfully through Vercel.
-5. **Production Release** — next. Run the final validation, production deployment/domain verification, metadata/assets/direct-route checks, outbound-action checks, and actual production-URL smoke test.
+5. **Production Release** — complete. Final validation, production
+   deployment/domain verification, metadata/assets/direct-route checks,
+   outbound-action checks, production-URL smoke testing, final Resume
+   synchronization, and user production acceptance are recorded in
+   `docs/production-release-audit.md`.
+
+The first public portfolio release is complete. The accepted live baseline is
+approved for resume and job-application use; deferred content and product work
+belongs to the post-launch expansion workstream.
 
 Broader About, Digital Reservoir, client, and archive content are post-launch expansion work and are not required to complete this launch sequence.
 
@@ -307,4 +317,9 @@ For new implementation or debugging branches:
 
 Do not reimplement the Resource registry foundation, direct Resource Query Reservoir seam, common Inspection Window/structured-document foundation, supporting-Resource navigation, minimum Inspection return context, image Inspection, external-link/repository Inspection, accepted responsive containment, or accepted browser-history transaction model without a reviewed defect that specifically requires correction.
 
-Current work is **Production Release**. Do not expand into additional renderer families, ingestion infrastructure, or future product systems merely because they are conceptually adjacent.
+The live public-launch baseline is closed. Current future work is **Ongoing
+Portfolio Expansion / Post-Launch Product Development**. Do not reopen accepted
+L2, Stage 3, Stage 4, or production-release architecture without a reproducible
+defect that specifically requires correction, and do not expand into additional
+renderer families, ingestion infrastructure, or future product systems merely
+because they are conceptually adjacent.

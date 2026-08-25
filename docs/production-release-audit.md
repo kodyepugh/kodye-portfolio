@@ -26,11 +26,10 @@ directly; local validation was run against the release branch.
 
 No production P0 or P1 defect was found. The launch cut is truthful and the
 primary direct, refresh, browser-history, Resume/PDF, Contact, repository, and
-outbound paths are live. Stage 5 remains **In Progress** because two bounded
-evidence gaps remain for final owner acceptance: the deployed site has no
-`robots.txt` or `sitemap.xml` endpoint, and this in-app browser did not honor a
-requested 390 × 844 viewport override. These are recorded below rather than
-silently treated as verified.
+outbound paths are live. The user has completed final production visual and
+physical/mobile acceptance, and Stage 5 is **Complete**. The historical
+automation limitations and the non-blocking post-launch observations are
+preserved below rather than silently treated as production automation passes.
 
 ## Correction note — Index and layout-control geometry
 
@@ -41,8 +40,7 @@ navigation surface. The correction makes the layout controls viewport-fixed
 and expands the Index into a larger navigation plane while preserving the
 existing semantic surface, stack choreography, and routing behavior. The user
 has visually re-accepted this expanded Index / fixed-layout-control correction;
-final production acceptance remains open for the bounded Stage 5 evidence gaps
-below.
+the correction is part of the accepted final production release.
 
 ## Final Resume synchronization — August 24, 2026
 
@@ -70,6 +68,28 @@ below.
   remains environment-blocked by its known CSS-worker `Operation not permitted`
   port-binding failure; `npm run build -- --webpack` passed.
 
+## Final production acceptance — August 24, 2026
+
+The user completed final production visual acceptance and explicitly approved
+closing the first public portfolio release on `https://kodyepugh.com/`. This
+acceptance includes the Bellabeat / Resume / Contact launch cut, canonical
+direct Resource and Query routing, browser Back/Forward behavior, reading
+restoration, the semantic Index, viewport-fixed controls, desktop/mobile/touch
+behavior, the synchronized Resume PDF/native Inspection, Contact delivery
+evidence, outbound paths, clean production console/network review, green
+deterministic validation, the successful Webpack build, and successful Vercel
+deployment on the final release branch.
+
+The earlier automated browser could not force its requested narrow viewport;
+the user subsequently reviewed the physical/mobile production behavior and
+accepted it, closing that evidence boundary. `/robots.txt` and `/sitemap.xml`
+remain 404, but page-level canonical and robots metadata are present; they are
+accepted non-blocking post-launch SEO infrastructure, not release gates.
+Contact was not resubmitted during Stage 5 because the prior production
+mailbox-delivery evidence remains accepted. Optional close-X latency, backdrop
+choreography, Index multi-entry sizing hardening, and mobile-density refinement
+remain post-launch refinement work.
+
 ## Deterministic release validation
 
 | Check | Result |
@@ -93,9 +113,10 @@ Turbopack failure is an environment limitation, not a release-code regression.
 The actual production origin was loaded in a fresh browser tab. The following
 routes returned `200 text/html` through the browser's network response events:
 
-No Vercel dashboard or deployment API was used in this verification-only pass;
-the evidence below establishes live production HTTP/runtime health, not a
-provider-side deployment record or commit provenance claim.
+The earlier verification-only pass did not query the Vercel dashboard or
+deployment API. Final user acceptance confirms successful Vercel deployment
+on the final release branch; this is accepted final-state evidence rather than
+an independent provider API or commit-provenance claim.
 
 | Route | HTTP result | Runtime result |
 | --- | --- | --- |
@@ -127,8 +148,8 @@ The following indexing endpoints are not deployed:
 
 | Endpoint | Result | Severity / handling |
 | --- | --- | --- |
-| `/robots.txt` | 404 | P2 evidence gap; page-level robots metadata is present |
-| `/sitemap.xml` | 404 | P2 evidence gap; no sitemap route is currently part of the launch cut |
+| `/robots.txt` | 404 | Accepted non-blocking post-launch SEO infrastructure; page-level robots metadata is present |
+| `/sitemap.xml` | 404 | Accepted non-blocking post-launch SEO infrastructure; no sitemap route is part of the launch cut |
 
 ## Launch-cut truthfulness
 
@@ -211,11 +232,10 @@ future production checks do not sample the transition prematurely.
   route, Bellabeat figure PNGs, the CSS/JavaScript chunks, `icon.svg`, and the
   Open Graph PNG. No failed application asset request was observed.
 - The in-app browser viewport capability was asked to set `390 × 844`, but the
-  browser remained at `1277 × 994`. The default production viewport showed no
-  horizontal overflow on Home, Bellabeat, Resume, or Contact. Narrow/mobile
-  production emulation is therefore **not claimed as verified here**; the
-  accepted Stage 4 narrow/mobile evidence remains the available responsive
-  evidence.
+  browser remained at `1277 × 994`; this remains a historical automation
+  limitation. The user later reviewed and accepted physical/mobile production
+  behavior, so the narrow/mobile release evidence boundary is closed by final
+  user acceptance rather than by that automated override.
 
 ## P0–P3 matrix and recommendation
 
@@ -223,14 +243,13 @@ future production checks do not sample the transition prematurely.
 | --- | --- | --- |
 | P0 | None found | No release blocker observed |
 | P1 | None found | No production functional blocker observed |
-| P2 | `/robots.txt` and `/sitemap.xml` return 404 | Owner acceptance or a later indexing pass is required; no app change made |
-| P2 | Production 390 × 844 emulation could not be applied in this browser | Keep as a bounded evidence gap; do not claim narrow production QA |
-| P2 | Contact submission was not repeated in this pass | Deliberately not performed without action-time confirmation; prior delivery evidence remains documented |
+| P2 | `/robots.txt` and `/sitemap.xml` return 404 | Accepted non-blocking post-launch SEO infrastructure; page-level canonical and robots metadata are present |
+| P2 | Production 390 × 844 emulation could not be applied in this browser | Historical automation limitation closed by subsequent user physical/mobile production acceptance |
+| P2 | Contact submission was not repeated in this pass | Accepted as unnecessary because prior production mailbox-delivery evidence remains accepted |
 | P3 | Default Turbopack build is blocked by the managed environment | Webpack production build passed; report separately from app health |
-| P3 | Provider-side deployment record was not queried | Live production HTTP evidence is present; no Vercel configuration or deployment state was changed |
+| P3 | Provider-side deployment record was not queried during the earlier audit pass | Historical evidence boundary; final user acceptance confirms successful Vercel deployment on the final release branch |
 
 **Recommendation:** no P0/P1 correction is required from this audit. The
-release candidate is suitable for final production-acceptance review with the
-bounded P2 evidence gaps above explicitly acknowledged. Stage 5 remains
-**In Progress**, not Complete, pending the owner's decision on indexing
-endpoints and production narrow-viewport evidence.
+bounded observations above are accepted non-blocking post-launch items. The
+first public portfolio release is **Accepted / Production Release Complete**;
+Stage 5 is **Complete**.
