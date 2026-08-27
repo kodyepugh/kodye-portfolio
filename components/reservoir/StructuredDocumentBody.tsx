@@ -209,29 +209,57 @@ function StructuredDocumentFigure({
 function StructuredDocumentEntry({
   block,
   resource,
+  onNavigateToResource,
 }: {
   block: StructuredDocumentEntryBlock;
   resource: Resource;
+  onNavigateToResource?: (resourceId: string) => void;
 }) {
   return (
-    <article className="structured-document__entry">
+    <article
+      className={`structured-document__entry${
+        block.location ? " structured-document__entry--located" : ""
+      }`}
+    >
       <div className="structured-document__entry-heading">
         <h3>{renderInlineMarkdown(resource, block.title)}</h3>
+        {block.location ? (
+          <p className="structured-document__entry-location">
+            {renderInlineMarkdown(resource, block.location)}
+          </p>
+        ) : null}
+        {block.location && block.subtitle ? (
+          <p className="structured-document__entry-subtitle">
+            {renderInlineMarkdown(resource, block.subtitle)}
+          </p>
+        ) : null}
         {block.meta ? (
           <p className="structured-document__entry-meta">
             {renderInlineMarkdown(resource, block.meta)}
           </p>
         ) : null}
       </div>
-      {block.subtitle ? (
+      {block.subtitle && !block.location ? (
         <p className="structured-document__entry-subtitle">
           {renderInlineMarkdown(resource, block.subtitle)}
         </p>
       ) : null}
       {block.supporting ? (
+        block.supportingResourceId ? (
+          <button
+            className="structured-document__entry-supporting structured-document__entry-supporting-link"
+            type="button"
+            onClick={() => onNavigateToResource?.(block.supportingResourceId!)}
+            disabled={!onNavigateToResource}
+            data-resource-link-id={block.supportingResourceId}
+          >
+            {renderInlineMarkdown(resource, block.supporting)}
+          </button>
+        ) : (
         <p className="structured-document__entry-supporting">
           {renderInlineMarkdown(resource, block.supporting)}
         </p>
+        )
       ) : null}
       {block.items?.length ? (
         <ul className="structured-document__entry-list">
@@ -285,7 +313,13 @@ function renderBlock(
       return block.style === "ordered" ? <ol>{items}</ol> : <ul>{items}</ul>;
     }
     case "entry":
-      return <StructuredDocumentEntry block={block} resource={resource} />;
+      return (
+        <StructuredDocumentEntry
+          block={block}
+          resource={resource}
+          onNavigateToResource={onNavigateToResource}
+        />
+      );
     case "callout":
       return (
         <aside className="structured-document__callout" data-callout-tone={block.tone ?? "note"}>

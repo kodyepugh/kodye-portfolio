@@ -42,9 +42,9 @@ existing semantic surface, stack choreography, and routing behavior. The user
 has visually re-accepted this expanded Index / fixed-layout-control correction;
 the correction is part of the accepted final production release.
 
-## Final Resume synchronization — August 24, 2026
+## Final Resume synchronization — August 27, 2026
 
-- The only supplied source was the final two-page PDF at
+- The latest supplied source was the two-page PDF at
   `public/resume/Kodye_Pugh_Resume_2026.pdf`; no DOCX source was present. Its
   extracted wording and section order were aligned against the existing Resume
   identity without inventing, shortening, or rewording claims.
@@ -52,11 +52,11 @@ the correction is part of the accepted final production release.
   `/resume/Kodye_Pugh_Resume_2026.pdf`. The current file is a tagged,
   unencrypted, two-page PDF; the route returned `application/pdf` in the local
   production-server check.
-- `RESUME_DOCUMENT_BLOCKS` now mirrors the supplied Summary, Skills, Selected
-  Data Analytics Project, Professional Experience, Additional Experience,
-  Education, and Certifications wording while preserving all existing block
-  IDs, order, `structured-document` inspection behavior, download block, and
-  semantic Resume identity (`artifact-resume`, `/resume`).
+- `RESUME_DOCUMENT_BLOCKS` now mirrors the supplied Professional Summary,
+  Education & Certifications, Professional Experience, Additional Experience,
+  and Skills wording while preserving the compact `structured-document`
+  inspection behavior, download block, and semantic Resume identity
+  (`artifact-resume`, `/resume`).
 - Direct `/resume`, reload, ordinary close, and the PDF target were exercised
   against the local production build. At 1440 × 900, 1280 × 720, 768 × 900,
   430 × 932, 390 × 844, and 360 × 800, the Resume window stayed within the

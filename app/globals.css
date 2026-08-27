@@ -1162,7 +1162,7 @@ body.artifact-reading-mode .reservoir-study {
   grid-column: 2;
   grid-row: 2;
   display: grid;
-  gap: 40px;
+  align-content: start;
   width: 100%;
   min-width: 0;
   margin-inline: auto;
@@ -1170,7 +1170,10 @@ body.artifact-reading-mode .reservoir-study {
 
 .inspection-context-tray__region {
   display: grid;
+  align-content: start;
+  align-self: start;
   gap: 14px;
+  height: fit-content;
   min-width: 0;
 }
 
@@ -1250,9 +1253,10 @@ body.artifact-reading-mode .reservoir-study {
 
 .inspection-context-tray__panel {
   min-width: 0;
-  height: 224px;
+  height: auto;
+  max-height: 210px;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
   overscroll-behavior-inline: contain;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
@@ -2256,6 +2260,14 @@ body.artifact-reading-mode .reservoir-study {
   line-height: 1.55;
 }
 
+.structured-document ul {
+  list-style: disc;
+}
+
+.structured-document ol {
+  list-style: decimal;
+}
+
 .structured-document--compact {
   gap: clamp(48px, 8svh, 72px);
 }
@@ -2324,7 +2336,28 @@ body.artifact-reading-mode .reservoir-study {
   align-items: baseline;
 }
 
+.structured-document__entry--located .structured-document__entry-heading {
+  grid-template-areas:
+    "title location"
+    "subtitle meta";
+}
+
+.structured-document__entry--located .structured-document__entry-heading h3 {
+  grid-area: title;
+}
+
+.structured-document__entry-location {
+  grid-area: location;
+  margin: 0 !important;
+  color: var(--artifact-text) !important;
+  font-size: 0.9em !important;
+  line-height: 1.3 !important;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .structured-document__entry-meta {
+  grid-area: meta;
   margin: 0 !important;
   color: var(--artifact-text) !important;
   font-size: 0.9em !important;
@@ -2340,9 +2373,38 @@ body.artifact-reading-mode .reservoir-study {
   font-weight: 540;
 }
 
+.structured-document__entry--located .structured-document__entry-heading
+  .structured-document__entry-subtitle {
+  grid-area: subtitle;
+}
+
 .structured-document__entry-supporting {
   color: var(--artifact-text-muted) !important;
   font-weight: 450;
+}
+
+.structured-document__entry-supporting-link {
+  appearance: none;
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--artifact-focus);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.structured-document__entry-supporting-link:hover,
+.structured-document__entry-supporting-link:focus-visible {
+  color: var(--artifact-text) !important;
+}
+
+.structured-document__entry-supporting-link:focus-visible {
+  outline: 2px solid var(--artifact-focus);
+  outline-offset: 3px;
 }
 
 .structured-document__entry-list {
@@ -2389,12 +2451,19 @@ body.artifact-reading-mode .reservoir-study {
 }
 
 @media (max-width: 640px) {
-  .structured-document__entry-heading {
+  .structured-document__entry-heading,
+  .structured-document__entry--located .structured-document__entry-heading {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "title"
+      "location"
+      "subtitle"
+      "meta";
     gap: 3px;
   }
 
-  .structured-document__entry-meta {
+  .structured-document__entry-meta,
+  .structured-document__entry-location {
     text-align: left;
     white-space: normal;
   }
