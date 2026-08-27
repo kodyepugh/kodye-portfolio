@@ -572,14 +572,14 @@ const checks = [
     resumeStructuredBlocks.filter((block) => block.type === "heading" && block.level === 2)
       .map((block) => block.text)
       .join(",") ===
-        "Skills,Selected Data Analytics Project,Professional Experience,Additional Experience,Education,Certifications" &&
+        "Education & Certifications,Professional Experience,Additional Experience,Skills" &&
       resumeStructuredBlocks[0]?.type === "paragraph" &&
       resumeStructuredBlocks[0]?.text ===
-        "Analyst and digital product professional with experience redesigning a federal task-tracking workflow, building CMS structures and information architectures for three client organizations, and analyzing more than 15 million rows of wellness data in BigQuery. Uses SQL, Excel, Tableau, Python, requirements analysis, and stakeholder communication to clarify operational problems, improve processes, and support data-informed decisions." &&
+        "Systems-oriented analyst experienced in workflow improvement, requirements translation, and cross-functional operations across federal service, digital systems, and production environments. Applies business analysis, implementation support, program operations, and data analysis to identify process gaps and support informed decisions." &&
       resumeStructuredBlocks.filter((block) => block.type === "entry")
         .map((block) => block.title)
         .join(",") ===
-          "Bellabeat Wellness-Behavior Analysis,Independent Web & Digital Product Consultant,U.S. Department of Education - Federal Student Aid,Netflix Productions,Various Production Companies,Stanford University & Loyola Marymount University,Loyola Marymount University,Stanford University,Google Data Analytics Professional Certificate,Finance & Quantitative Modeling for Analysts Specialization",
+          "Loyola Marymount University,Stanford University,Blair Academy,Google,Wharton Online,U.S. Department of Education - Federal Student Aid,Netflix Productions,Various Production Companies,Google Data Analytics Professional Certificate,Various Small Businesses,Stanford University & Loyola Marymount University,Stanford University & Loyola Marymount University",
   ],
   [
     "Contact submissions reject malformed input and accept bounded safe input",
