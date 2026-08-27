@@ -269,6 +269,15 @@ body.artifact-reading-mode .reservoir-study {
   transform: translateY(-50%);
 }
 
+.reservoir-study:has(
+  .reservoir-control-panel[data-index-state="opening"]
+) .reservoir-layout-switch,
+.reservoir-study:has(
+  .reservoir-control-panel[data-index-state="open"]
+) .reservoir-layout-switch {
+  z-index: 1;
+}
+
 .reservoir-layout-switch__button {
   appearance: none;
   display: inline-flex;
