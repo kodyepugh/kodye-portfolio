@@ -62,6 +62,13 @@ function relationship(
 }
 
 export const resourceSupportRelations = [
+  relationship(
+    "support-resume-bellabeat",
+    ARTIFACT_IDS.resume,
+    ARTIFACT_IDS.bellabeat,
+    "supporting-project",
+    1,
+  ),
   ...primarySupportTargets.map(([targetResourceId, role], index) =>
     relationship(
       "support-bellabeat-" + String(index + 1).padStart(2, "0"),

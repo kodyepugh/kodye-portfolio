@@ -1407,7 +1407,10 @@ const checks = [
       /\.inspection-context-tray__direction-header\s*\{[\s\S]*?min-height:\s*34px;/.test(
         inspectionCssSource,
       ) &&
-      /\.inspection-context-tray__panel\s*\{[\s\S]*?height:\s*224px;/.test(
+      /\.inspection-context-tray__panel\s*\{[\s\S]*?height:\s*auto;[\s\S]*?max-height:\s*210px;/.test(
+        inspectionCssSource,
+      ) &&
+      /\.inspection-context-tray__region\s*\{[\s\S]*?align-content:\s*start;[\s\S]*?align-self:\s*start;[\s\S]*?height:\s*fit-content;/.test(
         inspectionCssSource,
       ),
   ],

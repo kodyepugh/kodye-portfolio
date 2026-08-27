@@ -582,6 +582,18 @@ const checks = [
           "Loyola Marymount University,Stanford University,Blair Academy,Google,Wharton Online,U.S. Department of Education - Federal Student Aid,Netflix Productions,Various Production Companies,Google Data Analytics Professional Certificate,Various Small Businesses,Stanford University & Loyola Marymount University,Stanford University & Loyola Marymount University",
   ],
   [
+    "Resume Bellabeat link is an active supporting Resource reference",
+    resumeStructuredBlocks.some(
+      (block) =>
+        block.id === "bellabeat-wellness-behavior-analysis" &&
+        block.supporting === "kodyepugh.com/bellabeat-wellness-analysis" &&
+        block.supportingResourceId === ARTIFACT_IDS.bellabeat,
+    ) &&
+      getPublishedSupportingResources(ARTIFACT_IDS.resume).some(
+        (entry) => entry.resource.id === ARTIFACT_IDS.bellabeat,
+      ),
+  ],
+  [
     "Contact submissions reject malformed input and accept bounded safe input",
     validateContactSubmission({
       name: "Recruiter",

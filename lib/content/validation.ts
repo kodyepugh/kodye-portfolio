@@ -195,6 +195,18 @@ function reportStructuredDocumentBlocks(
             `Resource ${resource.id} entry block ${block.id} must not contain blank items`,
           );
         }
+        if (block.supportingResourceId) {
+          const target = resourcesById.get(block.supportingResourceId);
+          if (!target) {
+            errors.push(
+              `Resource ${resource.id} entry block ${block.id} references unknown supporting Resource ${block.supportingResourceId}`,
+            );
+          } else if (target.published !== true) {
+            errors.push(
+              `Resource ${resource.id} entry block ${block.id} references unpublished supporting Resource ${block.supportingResourceId}`,
+            );
+          }
+        }
         break;
       case "callout":
         requireText(block, "text", block.text);

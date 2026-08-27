@@ -110,8 +110,10 @@ export type StructuredDocumentEntryBlock = StructuredDocumentBlockBase & {
   type: "entry";
   title: string;
   meta?: string;
+  location?: string;
   subtitle?: string;
   supporting?: string;
+  supportingResourceId?: string;
   items?: readonly string[];
 };
 
